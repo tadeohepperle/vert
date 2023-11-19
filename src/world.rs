@@ -9,8 +9,8 @@ use std::{collections::HashMap, hash::BuildHasherDefault};
 
 use crate::{
     arena::{Arena, ArenaIndex, ArenaIter, TypedArena},
-    collectable::CollectableTrait,
     component::Component,
+    trait_companion::TraitCompanion,
 };
 
 /// W is some user defined world state. Aka global resources
@@ -86,9 +86,9 @@ impl Arenas {
         arena.remove(i)
     }
 
-    pub fn collect_collectables<'a, X: CollectableTrait>(
+    pub fn collect_collectables<'a, X: TraitCompanion>(
         &'a self,
-    ) -> impl Iterator<Item = &'a X::TraitPointer> {
+    ) -> impl Iterator<Item = &'a X::Dyn> {
         std::iter::empty()
     }
 

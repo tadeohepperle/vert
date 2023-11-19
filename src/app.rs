@@ -1,35 +1,25 @@
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 
-use crate::{collectable::CollectableTrait, system::System, world::World};
+use crate::{
+    system::System,
+    trait_companion::{MultiTraitCompanion, TraitCompanion},
+    world::World,
+};
 
 /// W is the world state.
-pub struct App<W> {
+pub struct App<W, T: MultiTraitCompanion> {
     world: World<W>,
     system: Box<dyn System<W>>,
+    trait_companion: T,
 }
 
-impl<W> App<W> {
-    pub fn new(world_state: W, system: impl System<W> + 'static) -> Self {
+impl<W, T: TraitCompanion> App<W, T> {
+    pub fn new(world_state: W, system: impl System<W> + 'static, trait_companion: T) -> Self {
         App {
             world: World::new(world_state),
             system: Box::new(system),
+            trait_companion,
         }
-    }
-
-    pub fn register_collectable_trait<X: CollectableTrait>(&mut self) {
-        // now what??? Every time we get a
-        /*
-
-        We need a way in the arenas to check for each
-
-        CollectableTrait what
-
-
-
-
-
-
-         */
     }
 }
 
@@ -39,12 +29,10 @@ impl AppBuilder {}
 
 #[cfg(test)]
 pub mod tests {
-    use crate::collectable::CollectDescribeMe;
 
     use super::App;
 
     fn register_collectables() {
-        let mut a = App::new((), ());
-        a.register_collectable_trait::<CollectDescribeMe>();
+        let mut a = App::new((), (), ());
     }
 }
