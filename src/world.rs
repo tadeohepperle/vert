@@ -10,7 +10,9 @@ use std::{collections::HashMap, hash::BuildHasherDefault};
 use crate::{
     arena::{Arena, ArenaIndex, ArenaIter, TypedArena},
     component::Component,
-    trait_companion::TraitCompanion,
+    trait_companion::{
+        MultiTraitCompanion, TraitCompanion, VTablePointer, VTablePointerWithMetadata,
+    },
 };
 
 /// W is some user defined world state. Aka global resources
@@ -31,7 +33,7 @@ impl<W> World<W> {
 type ArenaAddress = TypeId;
 
 pub struct Arenas {
-    pub arenas: HashMap<TypeId, Arena>,
+    pub arenas: HashMap<TypeId, ArenaWithMetadata>,
 }
 
 fn arena_address<C: Component>() -> ArenaAddress {
@@ -47,26 +49,28 @@ impl Arenas {
 
     fn get_arena<'a, C: Component>(&'a self) -> Option<&'a TypedArena<C>> {
         let arena = self.arenas.get(&arena_address::<C>())?;
-        Some(Borrow::borrow(arena))
+        Some(Borrow::borrow(&arena.arena))
     }
 
-    fn get_arena_mut_or_insert<C: Component>(&mut self) -> &mut TypedArena<C> {
+    fn get_arena_mut_or_insert<C: Component, T: MultiTraitCompanion>(
+        &mut self,
+    ) -> &mut TypedArena<C> {
         let key = TypeId::of::<C>();
-        let arena = self.arenas.entry(key).or_insert_with(|| Arena::new::<C>());
-        BorrowMut::borrow_mut(arena)
+        let arena = self
+            .arenas
+            .entry(key)
+            .or_insert_with(|| ArenaWithMetadata::new::<C, T>());
+        BorrowMut::borrow_mut(&mut arena.arena)
     }
 
     fn get_arena_mut<C: Component>(&mut self) -> Option<&mut TypedArena<C>> {
-        let arena = self
-            .arenas
-            .entry(arena_address::<C>())
-            .or_insert_with(|| Arena::new::<C>());
-        Some(BorrowMut::borrow_mut(arena))
+        let arena = self.arenas.get_mut(&arena_address::<C>())?;
+        Some(BorrowMut::borrow_mut(&mut arena.arena))
     }
 
-    pub fn insert<C: Component>(&mut self, component: C) -> ArenaIndex {
+    pub fn insert<C: Component, T: MultiTraitCompanion>(&mut self, component: C) -> ArenaIndex {
         // todo! if the first one, setup state for this component type
-        let arena = self.get_arena_mut_or_insert::<C>();
+        let arena = self.get_arena_mut_or_insert::<C, T>();
         arena.insert(component)
     }
 
@@ -86,11 +90,11 @@ impl Arenas {
         arena.remove(i)
     }
 
-    pub fn collect_collectables<'a, X: TraitCompanion>(
-        &'a self,
-    ) -> impl Iterator<Item = &'a X::Dyn> {
-        std::iter::empty()
-    }
+    // pub fn collect_collectables<'a, X: TraitCompanion>(
+    //     &'a self,
+    // ) -> impl Iterator<Item = &'a X::Dyn> {
+    //     std::iter::empty()
+    // }
 
     // pub fn iter<'a, C: Component>(&'a self) -> OptionArenaIter<'a, C> {
     //     match self.get_arena::<C>() {
@@ -120,5 +124,29 @@ impl Debug for Arenas {
         f.debug_struct("Arenas")
             .field("arenas", &self.arenas)
             .finish()
+    }
+}
+
+#[derive(Debug)]
+struct ArenaWithMetadata {
+    arena: Arena,
+    /// Maps the type ids of the trait companion struct to pointers for the
+    trait_obj_pointers: HashMap<TypeId, VTablePointerWithMetadata>,
+}
+
+impl ArenaWithMetadata {
+    pub fn new<C: Component, T: MultiTraitCompanion>() -> Self {
+        let arena = TypedArena::<C>::new();
+
+        let ptrs = unsafe { T::vtable_pointers::<C>() };
+        let trait_obj_pointers: HashMap<TypeId, VTablePointerWithMetadata> = ptrs
+            .into_iter()
+            .filter_map(|(_, p)| p.map(|p| (p.ty_id, p)))
+            .collect();
+
+        ArenaWithMetadata {
+            arena: arena.into_untyped(),
+            trait_obj_pointers,
+        }
     }
 }

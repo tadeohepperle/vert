@@ -1,33 +1,48 @@
 //! This example shows a technique of dynamically getting V-tables for traits.
 //! These Vtables can be retrieved once and stored for later dynamic dispatch.
 
-use std::any::TypeId;
+use std::any::{type_name, TypeId};
 
 use smallvec::{smallvec, SmallVec};
 
 use crate::component::Component;
 
+pub type VTablePointer = *const usize;
+
+#[derive(Debug, Clone, Copy)]
+pub struct VTablePointerWithMetadata {
+    /// The second half of a trait object.
+    pub ptr: VTablePointer,
+    /// type id of the traits companion struct.
+    pub ty_id: TypeId,
+    /// type name of the traits companion struct.
+    pub ty_name: &'static str,
+}
 const PTR_SIZE: usize = std::mem::size_of::<usize>();
 pub trait TraitCompanion: 'static {
     type Dyn: ?Sized + 'static;
 
-    unsafe fn vtable_pointer<C: Component>() -> Option<*const usize>
+    unsafe fn vtable_pointer<C: Component>() -> Option<VTablePointerWithMetadata>
     where
         Self: Sized,
     {
         let uninit_dyn: Option<&'static Self::Dyn> = <C as Implements<Self>>::uninit_trait_obj();
-        let vtable_pointer = match uninit_dyn {
+        match uninit_dyn {
             Some(trait_object) => {
                 // this is a fat pointer: (data + vtable)
                 assert_eq!(std::mem::size_of::<&Self::Dyn>(), PTR_SIZE * 2);
                 // lets get a pointer to just the vtable:
-                let data_pointer: *const usize = &trait_object as *const _ as *const usize;
-                let vtable_pointer = data_pointer.add(1);
-                Some(vtable_pointer)
+                let data_pointer: VTablePointer = &trait_object as *const _ as *const usize;
+                let ptr: VTablePointer = data_pointer.add(1);
+                let ptr_with_metadata = VTablePointerWithMetadata {
+                    ty_id: TypeId::of::<Self>(),
+                    ty_name: type_name::<Self>(),
+                    ptr,
+                };
+                Some(ptr_with_metadata)
             }
             None => None,
-        };
-        vtable_pointer
+        }
     }
 }
 
@@ -42,7 +57,8 @@ impl<X: TraitCompanion, C: Component> Implements<X> for C {
 }
 
 pub trait MultiTraitCompanion {
-    unsafe fn vtable_pointers<C: Component>() -> SmallVec<[(TypeId, Option<*const usize>); 1]>;
+    unsafe fn vtable_pointers<C: Component>(
+    ) -> SmallVec<[(TypeId, Option<VTablePointerWithMetadata>); 1]>;
 }
 
 // impl for unit type:
@@ -50,7 +66,7 @@ pub trait MultiTraitCompanion {
 impl TraitCompanion for () {
     type Dyn = ();
 
-    unsafe fn vtable_pointer<C: Component>() -> Option<*const usize>
+    unsafe fn vtable_pointer<C: Component>() -> Option<VTablePointerWithMetadata>
     where
         Self: Sized,
     {
@@ -60,7 +76,8 @@ impl TraitCompanion for () {
 
 // impl for single trait:
 impl<X: TraitCompanion> MultiTraitCompanion for X {
-    unsafe fn vtable_pointers<C: Component>() -> SmallVec<[(TypeId, Option<*const usize>); 1]> {
+    unsafe fn vtable_pointers<C: Component>(
+    ) -> SmallVec<[(TypeId, Option<VTablePointerWithMetadata>); 1]> {
         smallvec![(TypeId::of::<Self>(), Self::vtable_pointer::<C>())]
     }
 }
@@ -70,7 +87,7 @@ impl<X: TraitCompanion> MultiTraitCompanion for X {
 /// e.g.:
 /// ```rust,norun
 /// impl<A: MultiTraitCompanion, B: MultiTraitCompanion> MultiTraitCompanion for (A, B) {
-///     unsafe fn vtable_pointers<C: Component>() -> SmallVec<[(TypeId, Option<*const usize>); 1]> {
+///     unsafe fn vtable_pointers<C: Component>() -> SmallVec<[(TypeId, Option<VTablePointerWithMetadata>); 1]> {
 ///         let mut a = A::vtable_pointers::<C>();
 ///         let b = B::vtable_pointers::<C>();
 ///         a.extend(b);
@@ -81,7 +98,7 @@ impl<X: TraitCompanion> MultiTraitCompanion for X {
 macro_rules! multi_implements_impl_for_tuples {
     ($a:ident,$($x:ident),+) => {
         impl<$a: MultiTraitCompanion, $($x : MultiTraitCompanion,)+> MultiTraitCompanion for ($a, $($x,)+){
-            unsafe fn vtable_pointers<Comp: Component>() -> SmallVec<[(TypeId, Option<*const usize>); 1]> {
+            unsafe fn vtable_pointers<Comp: Component>() -> SmallVec<[(TypeId, Option<VTablePointerWithMetadata>); 1]> {
                 let mut a = $a::vtable_pointers::<Comp>();
                 $(
                     let o = $x::vtable_pointers::<Comp>();
