@@ -179,7 +179,15 @@ impl Blob {
             phantom: PhantomData,
         }
     }
+
+    pub fn iter_raw_ptrs<'a>(&'a self) -> RawPtrIter<'a> {
+        RawPtrIter::new(self)
+    }
 }
+
+// /////////////////////////////////////////////////////////////////////////////
+// Typed Blobs
+// /////////////////////////////////////////////////////////////////////////////
 
 pub struct TypedBlobRef<'a, T> {
     blob: &'a Blob,
@@ -232,6 +240,53 @@ impl<'a, T> DerefMut for TypedBlobMut<'a, T> {
         unsafe { std::slice::from_raw_parts_mut(self.blob.ptr_t::<T>(), self.blob.len) }
     }
 }
+
+// /////////////////////////////////////////////////////////////////////////////
+// Iterating over a blob as raw pointers
+// /////////////////////////////////////////////////////////////////////////////
+
+/// the pointers are each offset apart from each other, where offset is the item size in the blob.
+pub(super) struct RawPtrIter<'a> {
+    blob: &'a Blob,
+    /// at the beginning this is the same as the ptr of the blob.
+    byte_ptr: *const u8,
+    /// the remaining length of this iterator is blob.len - elements_done;
+    elements_done: usize,
+}
+
+impl<'a> RawPtrIter<'a> {
+    fn new(blob: &'a Blob) -> RawPtrIter<'a> {
+        RawPtrIter {
+            blob,
+            byte_ptr: blob.ptr.as_ptr(),
+            elements_done: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for RawPtrIter<'a> {
+    type Item = *const u8;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.elements_done == self.blob.len {
+            return None;
+        }
+        let ptr = self.byte_ptr;
+        self.byte_ptr = unsafe { self.byte_ptr.add(self.blob.item_size) };
+        self.elements_done += 1;
+        Some(ptr)
+    }
+}
+
+impl<'a> ExactSizeIterator for RawPtrIter<'a> {
+    fn len(&self) -> usize {
+        self.blob.len - self.elements_done
+    }
+}
+
+// /////////////////////////////////////////////////////////////////////////////
+// Tests
+// /////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {

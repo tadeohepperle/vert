@@ -19,10 +19,13 @@ pub struct ArenaIndex {
 
 pub type Generation = u64;
 
+/// Important! Do not change the #[repr(C, u8, align(8))].
+/// We rely on skipping over 16 bytes (8 for tag and 8 for generation) to get to value: T.
+#[repr(C, u8, align(8))]
 #[derive(Clone, Debug)]
 enum Entry<T> {
-    Free { next_free: Option<usize> },
-    Occupied { gen: Generation, value: T },
+    Free { next_free: Option<usize> } = 0,
+    Occupied { gen: Generation, value: T } = 1,
 }
 impl<T> Entry<T> {
     fn is_occupied_by(&self, generation: Generation) -> bool {
@@ -40,7 +43,7 @@ impl<T> Entry<T> {
 /// Shamelessly inspired by https://docs.rs/generational-arena/latest/generational_arena/
 pub struct Arena {
     blob: Blob,
-    generation: u64,
+    generation: Generation,
     free_list_head: Option<usize>,
     len: usize,
 }
@@ -224,7 +227,7 @@ impl Arena {
     pub fn get<'a, T>(&'a self, i: ArenaIndex) -> Option<&'a T> {
         match self.blob_ref::<T>().get(i.index) {
             Some(Entry::Occupied {
-                gen: generation,
+                gen: ref generation,
                 value,
             }) if *generation == i.generation => {
                 // borrow checker suck my dick, this shit works and should be safe.
@@ -238,7 +241,7 @@ impl Arena {
     pub fn get_mut<'a, T>(&'a mut self, i: ArenaIndex) -> Option<&'a mut T> {
         match self.blob_mut::<T>().get_mut(i.index) {
             Some(Entry::Occupied {
-                gen: generation,
+                gen: ref generation,
                 value,
             }) if *generation == i.generation => {
                 // borrow checker suck my dick, this shit works and should be safe.
@@ -258,7 +261,7 @@ impl Arena {
 
             let remove = match entry {
                 Entry::Occupied {
-                    gen: generation,
+                    gen: ref generation,
                     value,
                 } => {
                     let index = ArenaIndex {
@@ -301,6 +304,12 @@ impl Arena {
         TypedArena {
             arena: self,
             phantom: PhantomData,
+        }
+    }
+
+    pub fn iter_raw_ptrs<'a>(&'a self) -> RawPtrIter<'a> {
+        RawPtrIter {
+            iter: self.blob.iter_raw_ptrs(),
         }
     }
 }
@@ -457,6 +466,36 @@ impl<'a, T> Iterator for ArenaIterMut<'a, T> {
 impl<'a, T> ExactSizeIterator for ArenaIterMut<'a, T> {
     fn len(&self) -> usize {
         self.len
+    }
+}
+
+/// iterates over the n elements of type T stored,
+/// skipping over empty entries. For each T,
+/// just a raw *const u8 pointer to the first byte of T is returned.
+pub struct RawPtrIter<'a> {
+    iter: blob::RawPtrIter<'a>,
+}
+
+impl<'a> Iterator for RawPtrIter<'a> {
+    type Item = *const u8;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let next_ptr = self.iter.next()?;
+            // memory layout of the Entry is like this:
+            //          |   8b   |   8b   |   8b   |
+            // Free:     Free____|SomeNone|Nextfree|.....
+            // Occupied: Occupied|gggggggg|T.........
+
+            // check if this entry is free, if so hop to next pointer:
+            let tag_value = unsafe { *next_ptr };
+            if tag_value == 0 {
+                continue;
+            }
+            // jump 16 bytes ahead to our actual data:
+            let t_ptr = unsafe { next_ptr.add(16) };
+            return Some(t_ptr);
+        }
     }
 }
 

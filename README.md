@@ -1,5 +1,3 @@
 ## Vert Game Engine
 
-A game engine framework abusing type erased arenas.
-
-(work in progress)
+An experimental game engine framework, abusing type erased arenas and a form of trait reflection.

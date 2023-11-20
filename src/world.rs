@@ -135,7 +135,7 @@ struct ArenaWithMetadata {
 }
 
 impl ArenaWithMetadata {
-    pub fn new<C: Component, T: MultiTraitCompanion>() -> Self {
+    fn new<C: Component, T: MultiTraitCompanion>() -> Self {
         let arena = TypedArena::<C>::new();
 
         let ptrs = unsafe { T::vtable_pointers::<C>() };
@@ -148,5 +148,29 @@ impl ArenaWithMetadata {
             arena: arena.into_untyped(),
             trait_obj_pointers,
         }
+    }
+
+    pub fn trait_iter<X: TraitCompanion>(&self) -> Option<impl Iterator<Item = &X::Dyn>> {
+        let trait_obj_info = self.trait_obj_pointers.get(&TypeId::of::<X>())?;
+        let v_table_ptr = trait_obj_info.ptr;
+        let iter = self.arena.iter_raw_ptrs().map(move |data_ptr| {
+            let ptr_pair = (data_ptr, v_table_ptr);
+            let trait_obj_ref: &X::Dyn = unsafe { std::mem::transmute_copy(&ptr_pair) };
+            trait_obj_ref
+        });
+        Some(iter)
+    }
+
+    pub fn trait_iter_mut<X: TraitCompanion>(
+        &mut self,
+    ) -> Option<impl Iterator<Item = &mut X::Dyn>> {
+        let trait_obj_info = self.trait_obj_pointers.get(&TypeId::of::<X>())?;
+        let v_table_ptr = trait_obj_info.ptr;
+        let iter = self.arena.iter_raw_ptrs().map(move |data_ptr| {
+            let ptr_pair = (data_ptr, v_table_ptr);
+            let trait_obj_ref: &mut X::Dyn = unsafe { std::mem::transmute_copy(&ptr_pair) };
+            trait_obj_ref
+        });
+        Some(iter)
     }
 }

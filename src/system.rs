@@ -5,14 +5,6 @@ use std::marker::PhantomData;
 use rand::{seq::SliceRandom, thread_rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
-/*
-Are all SystemMuts also Systems?
-
-
-in sequence, we can assume all systems are systemmut.
-
-*/
-
 pub trait System<W> {
     fn execute(&mut self, state: &mut W);
 }
