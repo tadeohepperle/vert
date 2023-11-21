@@ -1,235 +1,240 @@
-//! This example shows a technique of dynamically getting V-tables for traits.
-//! These Vtables can be retrieved once and stored for later dynamic dispatch.
+// //! This example shows a technique of dynamically getting V-tables for traits.
+// //! These Vtables can be retrieved once and stored for later dynamic dispatch.
 
-use std::any::{type_name, TypeId};
+// use std::{
+//     any::{type_name, TypeId},
+//     marker::PhantomData,
+// };
 
-use smallvec::{smallvec, SmallVec};
+// use smallvec::{smallvec, SmallVec};
 
-use crate::component::Component;
+// use crate::component::Component;
 
-pub type VTablePointer = *const usize;
+// pub type VTablePointer = *const usize;
 
-#[derive(Debug, Clone, Copy)]
-pub struct VTablePointerWithMetadata {
-    /// The second half of a trait object.
-    pub ptr: VTablePointer,
-    /// type id of the traits companion struct.
-    pub ty_id: TypeId,
-    /// type name of the traits companion struct.
-    pub ty_name: &'static str,
-}
-const PTR_SIZE: usize = std::mem::size_of::<usize>();
-pub trait TraitCompanion: 'static {
-    type Dyn: ?Sized + 'static;
+// #[derive(Debug, Clone, Copy)]
+// pub struct VTablePointerWithMetadata {
+//     /// The second half of a trait object.
+//     pub ptr: VTablePointer,
+//     /// type id of the traits companion struct.
+//     pub ty_id: TypeId,
+//     /// type name of the traits companion struct.
+//     pub ty_name: &'static str,
+// }
+// const PTR_SIZE: usize = std::mem::size_of::<usize>();
 
-    unsafe fn vtable_pointer<C: Component>() -> Option<VTablePointerWithMetadata>
-    where
-        Self: Sized,
-    {
-        let uninit_dyn: Option<&'static Self::Dyn> = <C as Implements<Self>>::uninit_trait_obj();
-        match uninit_dyn {
-            Some(trait_object) => {
-                // this is a fat pointer: (data + vtable)
-                assert_eq!(std::mem::size_of::<&Self::Dyn>(), PTR_SIZE * 2);
-                // lets get a pointer to just the vtable:
-                let data_pointer: VTablePointer = &trait_object as *const _ as *const usize;
-                let ptr: VTablePointer = data_pointer.add(1);
-                let ptr_with_metadata = VTablePointerWithMetadata {
-                    ty_id: TypeId::of::<Self>(),
-                    ty_name: type_name::<Self>(),
-                    ptr,
-                };
-                Some(ptr_with_metadata)
-            }
-            None => None,
-        }
-    }
-}
+// /// is meant to be implemented for dyn Traitname
+// pub trait Reflectable<Dyn>: 'static {
+//     unsafe fn vtable_pointer<C: Component>() -> Option<VTablePointerWithMetadata>
+//     where
+//         Self: Sized,
+//     {
+//         let uninit_dyn: Option<&'static Self> = <C as Implements<Self>>::uninit_trait_obj();
+//         match uninit_dyn {
+//             Some(trait_object) => {
+//                 // this is a fat pointer: (data + vtable)
+//                 assert_eq!(std::mem::size_of::<&Dyn>(), PTR_SIZE * 2);
+//                 // lets get a pointer to just the vtable:
+//                 let data_pointer: VTablePointer = &trait_object as *const _ as *const usize;
+//                 let ptr: VTablePointer = data_pointer.add(1);
+//                 let ptr_with_metadata = VTablePointerWithMetadata {
+//                     ty_id: TypeId::of::<Self>(),
+//                     ty_name: type_name::<Self>(),
+//                     ptr,
+//                 };
+//                 Some(ptr_with_metadata)
+//             }
+//             None => None,
+//         }
+//     }
+// }
 
-trait Implements<X: TraitCompanion> {
-    unsafe fn uninit_trait_obj() -> Option<&'static X::Dyn>;
-}
+// /// the T here should be an unsized dyn TraitXYZ
+// pub struct Trait<T: ?Sized>(PhantomData<T>);
 
-impl<X: TraitCompanion, C: Component> Implements<X> for C {
-    default unsafe fn uninit_trait_obj() -> Option<&'static <X as TraitCompanion>::Dyn> {
-        None
-    }
-}
+// impl<T: ?Sized> Trait<T> {
 
-pub trait MultiTraitCompanion {
-    unsafe fn vtable_pointers<C: Component>(
-    ) -> SmallVec<[(TypeId, Option<VTablePointerWithMetadata>); 1]>;
-}
+// }
 
-// impl for unit type:
+// trait Implements<T, X: Reflectable<T>> {
+//     unsafe fn uninit_trait_obj() -> Option<&'static X>;
+// }
 
-impl TraitCompanion for () {
-    type Dyn = ();
+// impl<T, X: Reflectable<T>, C: Component> Implements<X> for C {
+//     default unsafe fn uninit_trait_obj() -> Option<&'static X> {
+//         None
+//     }
+// }
 
-    unsafe fn vtable_pointer<C: Component>() -> Option<VTablePointerWithMetadata>
-    where
-        Self: Sized,
-    {
-        None
-    }
-}
+// pub trait MultiTraitCompanion {
+//     unsafe fn vtable_pointers<C: Component>(
+//     ) -> SmallVec<[(TypeId, Option<VTablePointerWithMetadata>); 1]>;
+// }
 
-// impl for single trait:
-impl<X: TraitCompanion> MultiTraitCompanion for X {
-    unsafe fn vtable_pointers<C: Component>(
-    ) -> SmallVec<[(TypeId, Option<VTablePointerWithMetadata>); 1]> {
-        smallvec![(TypeId::of::<Self>(), Self::vtable_pointer::<C>())]
-    }
-}
+// // impl for unit type:
 
-/// This macro generates impls for tuples of MultiImplements.
-///
-/// e.g.:
-/// ```rust,norun
-/// impl<A: MultiTraitCompanion, B: MultiTraitCompanion> MultiTraitCompanion for (A, B) {
-///     unsafe fn vtable_pointers<C: Component>() -> SmallVec<[(TypeId, Option<VTablePointerWithMetadata>); 1]> {
-///         let mut a = A::vtable_pointers::<C>();
-///         let b = B::vtable_pointers::<C>();
-///         a.extend(b);
-///         a
-///     }
-/// }
-/// ```
-macro_rules! multi_implements_impl_for_tuples {
-    ($a:ident,$($x:ident),+) => {
-        impl<$a: MultiTraitCompanion, $($x : MultiTraitCompanion,)+> MultiTraitCompanion for ($a, $($x,)+){
-            unsafe fn vtable_pointers<Comp: Component>() -> SmallVec<[(TypeId, Option<VTablePointerWithMetadata>); 1]> {
-                let mut a = $a::vtable_pointers::<Comp>();
-                $(
-                    let o = $x::vtable_pointers::<Comp>();
-                    a.extend(o);
-                )+
-                a
-            }
-        }
-    };
-}
+// impl Reflectable for () {
+//     unsafe fn vtable_pointer<C: Component>() -> Option<VTablePointerWithMetadata>
+//     where
+//         Self: Sized,
+//     {
+//         None
+//     }
 
-multi_implements_impl_for_tuples!(A, B);
-multi_implements_impl_for_tuples!(A, B, C);
-multi_implements_impl_for_tuples!(A, B, C, D);
-multi_implements_impl_for_tuples!(A, B, C, D, E);
-multi_implements_impl_for_tuples!(A, B, C, D, E, F);
-multi_implements_impl_for_tuples!(A, B, C, D, E, F, G);
-multi_implements_impl_for_tuples!(A, B, C, D, E, F, G, H);
-multi_implements_impl_for_tuples!(A, B, C, D, E, F, G, H, I);
-multi_implements_impl_for_tuples!(A, B, C, D, E, F, G, H, I, J);
+//     type DynUnsized = ();
+// }
 
-#[cfg(test)]
-mod tests {
+// // impl for single trait:
+// impl<X: Reflectable> MultiTraitCompanion for X {
+//     unsafe fn vtable_pointers<C: Component>(
+//     ) -> SmallVec<[(TypeId, Option<VTablePointerWithMetadata>); 1]> {
+//         smallvec![(TypeId::of::<Self>(), Self::vtable_pointer::<C>())]
+//     }
+// }
 
-    use super::{Implements, TraitCompanion};
-    use crate::component::Component;
-    use std::mem::MaybeUninit;
+// /// This macro generates impls for tuples of MultiImplements.
+// ///
+// /// e.g.:
+// /// ```rust,norun
+// /// impl<A: MultiTraitCompanion, B: MultiTraitCompanion> MultiTraitCompanion for (A, B) {
+// ///     unsafe fn vtable_pointers<C: Component>() -> SmallVec<[(TypeId, Option<VTablePointerWithMetadata>); 1]> {
+// ///         let mut a = A::vtable_pointers::<C>();
+// ///         let b = B::vtable_pointers::<C>();
+// ///         a.extend(b);
+// ///         a
+// ///     }
+// /// }
+// /// ```
+// macro_rules! multi_implements_impl_for_tuples {
+//     ($a:ident,$($x:ident),+) => {
+//         impl<$a: MultiTraitCompanion, $($x : MultiTraitCompanion,)+> MultiTraitCompanion for ($a, $($x,)+){
+//             unsafe fn vtable_pointers<Comp: Component>() -> SmallVec<[(TypeId, Option<VTablePointerWithMetadata>); 1]> {
+//                 let mut a = $a::vtable_pointers::<Comp>();
+//                 $(
+//                     let o = $x::vtable_pointers::<Comp>();
+//                     a.extend(o);
+//                 )+
+//                 a
+//             }
+//         }
+//     };
+// }
 
-    // /////////////////////////////////////////////////////////////////////////////
-    // Examples of trait implementation.
-    // Xi are traits, the shapes are structs.
-    //
-    //          X1    X2    X3
-    // Circle   x
-    // Rect     x     x
-    // Point    x     x     x
-    //
-    // /////////////////////////////////////////////////////////////////////////////
+// multi_implements_impl_for_tuples!(A, B);
+// multi_implements_impl_for_tuples!(A, B, C);
+// multi_implements_impl_for_tuples!(A, B, C, D);
+// multi_implements_impl_for_tuples!(A, B, C, D, E);
+// multi_implements_impl_for_tuples!(A, B, C, D, E, F);
+// multi_implements_impl_for_tuples!(A, B, C, D, E, F, G);
+// multi_implements_impl_for_tuples!(A, B, C, D, E, F, G, H);
+// multi_implements_impl_for_tuples!(A, B, C, D, E, F, G, H, I);
+// multi_implements_impl_for_tuples!(A, B, C, D, E, F, G, H, I, J);
 
-    struct Circle;
-    struct Rect;
-    struct Point;
+// #[cfg(test)]
+// mod tests {
 
-    impl Component for Circle {}
-    impl Component for Rect {}
-    impl Component for Point {}
+//     use super::{Implements, Reflectable, Trait};
+//     use crate::component::Component;
+//     use std::mem::MaybeUninit;
 
-    struct CollectX1 {}
-    trait X1 {}
+//     // /////////////////////////////////////////////////////////////////////////////
+//     // Examples of trait implementation.
+//     // Xi are traits, the shapes are structs.
+//     //
+//     //          X1    X2    X3
+//     // Circle   x
+//     // Rect     x     x
+//     // Point    x     x     x
+//     //
+//     // /////////////////////////////////////////////////////////////////////////////
 
-    impl TraitCompanion for CollectX1 {
-        type Dyn = dyn X1;
-    }
-    struct CollectX2 {}
-    trait X2 {}
+//     struct Circle;
+//     struct Rect;
+//     struct Point;
 
-    impl TraitCompanion for CollectX2 {
-        type Dyn = dyn X2;
-    }
+//     impl Component for Circle {}
+//     impl Component for Rect {}
+//     impl Component for Point {}
 
-    struct CollectX3 {}
-    trait X3 {}
+//     trait X1 {}
+//     impl Reflectable for Trait<dyn X1> {
+//         type DynUnsized = dyn X1;
+//     }
 
-    impl TraitCompanion for CollectX3 {
-        type Dyn = dyn X3;
-    }
+//     trait X2 {}
+//     impl Reflectable for dyn X2 {
+//         type DynUnsized = dyn X2;
+//     }
 
-    impl X1 for Circle {}
-    impl Implements<CollectX1> for Circle {
-        unsafe fn uninit_trait_obj() -> Option<&'static <CollectX1 as TraitCompanion>::Dyn> {
-            const CIRCLE: Circle = unsafe { MaybeUninit::<Circle>::uninit().assume_init() };
-            Some(&CIRCLE as &'static <CollectX1 as TraitCompanion>::Dyn)
-        }
-    }
+//     trait X3 {}
+//     impl Reflectable for dyn X3 {
+//         type DynUnsized = dyn X3;
+//     }
 
-    impl X1 for Rect {}
-    impl Implements<CollectX1> for Rect {
-        unsafe fn uninit_trait_obj() -> Option<&'static <CollectX1 as TraitCompanion>::Dyn> {
-            const RECT: Rect = unsafe { MaybeUninit::<Rect>::uninit().assume_init() };
-            Some(&RECT as &'static <CollectX1 as TraitCompanion>::Dyn)
-        }
-    }
+//     impl X1 for Circle {}
+//     impl Implements<dyn X1> for Circle {
+//         unsafe fn uninit_trait_obj() -> Option<&'static dyn X1> {
+//             const CIRCLE: Circle = unsafe { MaybeUninit::<Circle>::uninit().assume_init() };
+//             Some(&CIRCLE as &'static dyn X1)
+//         }
+//     }
 
-    impl X2 for Rect {}
-    impl Implements<CollectX2> for Rect {
-        unsafe fn uninit_trait_obj() -> Option<&'static <CollectX2 as TraitCompanion>::Dyn> {
-            const RECT: Rect = unsafe { MaybeUninit::<Rect>::uninit().assume_init() };
-            Some(&RECT as &'static <CollectX2 as TraitCompanion>::Dyn)
-        }
-    }
+//     impl X1 for Rect {}
+//     impl Implements<dyn X1> for Rect {
+//         unsafe fn uninit_trait_obj() -> Option<&'static dyn X1> {
+//             const RECT: Rect = unsafe { MaybeUninit::<Rect>::uninit().assume_init() };
+//             Some(&RECT as &'static dyn X1)
+//         }
+//     }
 
-    impl X1 for Point {}
-    impl Implements<CollectX1> for Point {
-        unsafe fn uninit_trait_obj() -> Option<&'static <CollectX1 as TraitCompanion>::Dyn> {
-            const POINT: Point = unsafe { MaybeUninit::<Point>::uninit().assume_init() };
-            Some(&POINT as &'static <CollectX1 as TraitCompanion>::Dyn)
-        }
-    }
+//     impl X2 for Rect {}
+//     impl Implements<dyn X2> for Rect {
+//         unsafe fn uninit_trait_obj() -> Option<&'static dyn X2> {
+//             const RECT: Rect = unsafe { MaybeUninit::<Rect>::uninit().assume_init() };
+//             Some(&RECT as &'static dyn X2)
+//         }
+//     }
 
-    impl X2 for Point {}
-    impl Implements<CollectX2> for Point {
-        unsafe fn uninit_trait_obj() -> Option<&'static <CollectX2 as TraitCompanion>::Dyn> {
-            const POINT: Point = unsafe { MaybeUninit::<Point>::uninit().assume_init() };
-            Some(&POINT as &'static <CollectX2 as TraitCompanion>::Dyn)
-        }
-    }
+//     impl X1 for Point {}
+//     impl Implements<dyn X1> for Point {
+//         unsafe fn uninit_trait_obj() -> Option<&'static dyn X1> {
+//             const POINT: Point = unsafe { MaybeUninit::<Point>::uninit().assume_init() };
+//             Some(&POINT as &'static dyn X1)
+//         }
+//     }
 
-    impl X3 for Point {}
-    impl Implements<CollectX3> for Point {
-        unsafe fn uninit_trait_obj() -> Option<&'static <CollectX3 as TraitCompanion>::Dyn> {
-            const POINT: Point = unsafe { MaybeUninit::<Point>::uninit().assume_init() };
-            Some(&POINT as &'static <CollectX3 as TraitCompanion>::Dyn)
-        }
-    }
+//     impl X2 for Point {}
+//     impl Implements<dyn X2> for Point {
+//         unsafe fn uninit_trait_obj() -> Option<&'static dyn X2> {
+//             const POINT: Point = unsafe { MaybeUninit::<Point>::uninit().assume_init() };
+//             Some(&POINT as &'static dyn X2)
+//         }
+//     }
 
-    fn can_get_vtable<C: Component, X: TraitCompanion>() -> bool {
-        unsafe { <C as Implements<X>>::uninit_trait_obj().is_some() }
-    }
+//     impl X3 for Point {}
+//     impl Implements<dyn X3> for Point {
+//         unsafe fn uninit_trait_obj() -> Option<&'static dyn X3> {
+//             const POINT: Point = unsafe { MaybeUninit::<Point>::uninit().assume_init() };
+//             Some(&POINT as &'static dyn X3)
+//         }
+//     }
 
-    #[test]
-    fn test() {
-        assert!(can_get_vtable::<Circle, CollectX1>());
-        assert!(!can_get_vtable::<Circle, CollectX2>());
-        assert!(!can_get_vtable::<Circle, CollectX3>());
+//     fn can_get_vtable<C: Component, X: Reflectable>() -> bool {
+//         unsafe { <C as Implements<X>>::uninit_trait_obj().is_some() }
+//     }
 
-        assert!(can_get_vtable::<Rect, CollectX1>());
-        assert!(can_get_vtable::<Rect, CollectX2>());
-        assert!(!can_get_vtable::<Rect, CollectX3>());
+//     #[test]
+//     fn test() {
+//         assert!(can_get_vtable::<Circle, dyn X1>());
+//         assert!(!can_get_vtable::<Circle, dyn X2>());
+//         assert!(!can_get_vtable::<Circle, dyn X3>());
 
-        assert!(can_get_vtable::<Point, CollectX1>());
-        assert!(can_get_vtable::<Point, CollectX2>());
-        assert!(can_get_vtable::<Point, CollectX3>());
-    }
-}
+//         assert!(can_get_vtable::<Rect, dyn X1>());
+//         assert!(can_get_vtable::<Rect, dyn X2>());
+//         assert!(!can_get_vtable::<Rect, dyn X3>());
+
+//         assert!(can_get_vtable::<Point, dyn X1>());
+//         assert!(can_get_vtable::<Point, dyn X2>());
+//         assert!(can_get_vtable::<Point, dyn X3>());
+//     }
+// }

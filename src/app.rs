@@ -1,24 +1,20 @@
 use std::{marker::PhantomData, sync::Arc};
 
-use crate::{
-    system::System,
-    trait_companion::{MultiTraitCompanion, TraitCompanion},
-    world::World,
-};
+use crate::{system::System, world::World};
 
 /// W is the world state.
-pub struct App<W, T: MultiTraitCompanion> {
+pub struct App<W, T> {
     world: World<W>,
     system: Box<dyn System<W>>,
-    trait_companion: T,
+    phantom: PhantomData<T>,
 }
 
-impl<W, T: TraitCompanion> App<W, T> {
+impl<W, T> App<W, T> {
     pub fn new(world_state: W, system: impl System<W> + 'static, trait_companion: T) -> Self {
         App {
             world: World::new(world_state),
             system: Box::new(system),
-            trait_companion,
+            phantom: PhantomData::<T>,
         }
     }
 }

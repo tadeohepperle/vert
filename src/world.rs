@@ -10,9 +10,7 @@ use std::{collections::HashMap, hash::BuildHasherDefault};
 use crate::{
     arena::{Arena, ArenaIndex, ArenaIter, TypedArena},
     component::Component,
-    trait_companion::{
-        MultiTraitCompanion, TraitCompanion, VTablePointer, VTablePointerWithMetadata,
-    },
+    // trait_companion::{MultiTraitCompanion, Reflectable, VTablePointer, VTablePointerWithMetadata},
 };
 
 /// W is some user defined world state. Aka global resources
@@ -52,27 +50,27 @@ impl Arenas {
         Some(Borrow::borrow(&arena.arena))
     }
 
-    fn get_arena_mut_or_insert<C: Component, T: MultiTraitCompanion>(
-        &mut self,
-    ) -> &mut TypedArena<C> {
-        let key = TypeId::of::<C>();
-        let arena = self
-            .arenas
-            .entry(key)
-            .or_insert_with(|| ArenaWithMetadata::new::<C, T>());
-        BorrowMut::borrow_mut(&mut arena.arena)
-    }
+    // fn get_arena_mut_or_insert<C: Component, T: MultiTraitCompanion>(
+    //     &mut self,
+    // ) -> &mut TypedArena<C> {
+    //     let key = TypeId::of::<C>();
+    //     let arena = self
+    //         .arenas
+    //         .entry(key)
+    //         .or_insert_with(|| ArenaWithMetadata::new::<C, T>());
+    //     BorrowMut::borrow_mut(&mut arena.arena)
+    // }
 
     fn get_arena_mut<C: Component>(&mut self) -> Option<&mut TypedArena<C>> {
         let arena = self.arenas.get_mut(&arena_address::<C>())?;
         Some(BorrowMut::borrow_mut(&mut arena.arena))
     }
 
-    pub fn insert<C: Component, T: MultiTraitCompanion>(&mut self, component: C) -> ArenaIndex {
-        // todo! if the first one, setup state for this component type
-        let arena = self.get_arena_mut_or_insert::<C, T>();
-        arena.insert(component)
-    }
+    // pub fn insert<C: Component, T: MultiTraitCompanion>(&mut self, component: C) -> ArenaIndex {
+    //     // todo! if the first one, setup state for this component type
+    //     let arena = self.get_arena_mut_or_insert::<C, T>();
+    //     arena.insert(component)
+    // }
 
     pub fn get<C: Component>(&self, i: ArenaIndex) -> Option<&C> {
         let arena = self.get_arena::<C>()?;
@@ -130,47 +128,45 @@ impl Debug for Arenas {
 #[derive(Debug)]
 struct ArenaWithMetadata {
     arena: Arena,
-    /// Maps the type ids of the trait companion struct to pointers for the
-    trait_obj_pointers: HashMap<TypeId, VTablePointerWithMetadata>,
+    // Maps the type ids of the trait companion struct to pointers for the
+    // trait_obj_pointers: HashMap<TypeId, VTablePointerWithMetadata>,
 }
 
 impl ArenaWithMetadata {
-    fn new<C: Component, T: MultiTraitCompanion>() -> Self {
-        let arena = TypedArena::<C>::new();
+    // fn new<C: Component, T: MultiTraitCompanion>() -> Self {
+    //     let arena = TypedArena::<C>::new();
 
-        let ptrs = unsafe { T::vtable_pointers::<C>() };
-        let trait_obj_pointers: HashMap<TypeId, VTablePointerWithMetadata> = ptrs
-            .into_iter()
-            .filter_map(|(_, p)| p.map(|p| (p.ty_id, p)))
-            .collect();
+    //     let ptrs = unsafe { T::vtable_pointers::<C>() };
+    //     let trait_obj_pointers: HashMap<TypeId, VTablePointerWithMetadata> = ptrs
+    //         .into_iter()
+    //         .filter_map(|(_, p)| p.map(|p| (p.ty_id, p)))
+    //         .collect();
 
-        ArenaWithMetadata {
-            arena: arena.into_untyped(),
-            trait_obj_pointers,
-        }
-    }
+    //     ArenaWithMetadata {
+    //         arena: arena.into_untyped(),
+    //         trait_obj_pointers,
+    //     }
+    // }
 
-    pub fn trait_iter<X: TraitCompanion>(&self) -> Option<impl Iterator<Item = &X::Dyn>> {
-        let trait_obj_info = self.trait_obj_pointers.get(&TypeId::of::<X>())?;
-        let v_table_ptr = trait_obj_info.ptr;
-        let iter = self.arena.iter_raw_ptrs().map(move |data_ptr| {
-            let ptr_pair = (data_ptr, v_table_ptr);
-            let trait_obj_ref: &X::Dyn = unsafe { std::mem::transmute_copy(&ptr_pair) };
-            trait_obj_ref
-        });
-        Some(iter)
-    }
+    // pub fn trait_iter<X: Reflectable>(&self) -> Option<impl Iterator<Item = &X>> {
+    //     let trait_obj_info = self.trait_obj_pointers.get(&TypeId::of::<X>())?;
+    //     let v_table_ptr = trait_obj_info.ptr;
+    //     let iter = self.arena.iter_raw_ptrs().map(move |data_ptr| {
+    //         let ptr_pair = (data_ptr, v_table_ptr);
+    //         let trait_obj_ref: &X = unsafe { std::mem::transmute_copy(&ptr_pair) };
+    //         trait_obj_ref
+    //     });
+    //     Some(iter)
+    // }
 
-    pub fn trait_iter_mut<X: TraitCompanion>(
-        &mut self,
-    ) -> Option<impl Iterator<Item = &mut X::Dyn>> {
-        let trait_obj_info = self.trait_obj_pointers.get(&TypeId::of::<X>())?;
-        let v_table_ptr = trait_obj_info.ptr;
-        let iter = self.arena.iter_raw_ptrs().map(move |data_ptr| {
-            let ptr_pair = (data_ptr, v_table_ptr);
-            let trait_obj_ref: &mut X::Dyn = unsafe { std::mem::transmute_copy(&ptr_pair) };
-            trait_obj_ref
-        });
-        Some(iter)
-    }
+    // pub fn trait_iter_mut<X: Reflectable>(&mut self) -> Option<impl Iterator<Item = &mut X>> {
+    //     let trait_obj_info = self.trait_obj_pointers.get(&TypeId::of::<X>())?;
+    //     let v_table_ptr = trait_obj_info.ptr;
+    //     let iter = self.arena.iter_raw_ptrs().map(move |data_ptr| {
+    //         let ptr_pair = (data_ptr, v_table_ptr);
+    //         let trait_obj_ref: &mut X = unsafe { std::mem::transmute_copy(&ptr_pair) };
+    //         trait_obj_ref
+    //     });
+    //     Some(iter)
+    // }
 }

@@ -1,5 +1,5 @@
 use std::{
-    any::type_name,
+    any::{type_name, TypeId},
     mem::{align_of, size_of},
     ptr::slice_from_raw_parts,
 };
@@ -24,28 +24,36 @@ fn show_layout<T>(t: T) {
 }
 
 pub fn main() {
-    #[repr(C, u8, align(8))]
-    enum Entry<T> {
-        Free { next_free: Option<usize> } = 0u8,
-        Occupied { gen: u32, value: T } = 1u8,
-    }
+    trait A {}
+    trait B {}
 
-    #[derive(Debug, Clone, Copy)]
-    #[repr(C)]
-    struct S {
-        i: u8,
-        j: u32,
-    }
+    dbg!(TypeId::of::<dyn A>());
+    dbg!(TypeId::of::<&dyn A>());
+    dbg!(TypeId::of::<dyn B>());
+    dbg!(TypeId::of::<&dyn B>());
 
-    #[derive(Debug, Clone, Copy)]
-    #[repr(C, u8)]
-    enum V {
-        A,
-        B(u8),
-        // C(u32),
-    }
-    let u: u8 = 8;
-    show_layout(&u as *const _ as *const usize);
+    // #[repr(C, u8, align(8))]
+    // enum Entry<T> {
+    //     Free { next_free: Option<usize> } = 0u8,
+    //     Occupied { gen: u32, value: T } = 1u8,
+    // }
+
+    // #[derive(Debug, Clone, Copy)]
+    // #[repr(C)]
+    // struct S {
+    //     i: u8,
+    //     j: u32,
+    // }
+
+    // #[derive(Debug, Clone, Copy)]
+    // #[repr(C, u8)]
+    // enum V {
+    //     A,
+    //     B(u8),
+    //     // C(u32),
+    // }
+    // let u: u8 = 8;
+    // show_layout(&u as *const _ as *const usize);
     // show_layout(Entry::<u128>::Occupied {
     //     gen: u32::MAX,
     //     value: u128::MAX,
