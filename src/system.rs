@@ -2,7 +2,7 @@
 
 use std::marker::PhantomData;
 
-use rand::{seq::SliceRandom, thread_rng, SeedableRng};
+use rand::{seq::SliceRandom, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
 pub trait System<W> {

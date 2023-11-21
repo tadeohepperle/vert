@@ -1,16 +1,16 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData};
 
 use crate::{system::System, world::World};
 
 /// W is the world state.
-pub struct App<W, T> {
+pub struct App<W, T = ()> {
     world: World<W>,
     system: Box<dyn System<W>>,
     phantom: PhantomData<T>,
 }
 
 impl<W, T> App<W, T> {
-    pub fn new(world_state: W, system: impl System<W> + 'static, trait_companion: T) -> Self {
+    pub fn new(world_state: W, system: impl System<W> + 'static) -> Self {
         App {
             world: World::new(world_state),
             system: Box::new(system),
@@ -28,7 +28,7 @@ pub mod tests {
 
     use super::App;
 
-    fn register_collectables() {
-        let mut a = App::new((), (), ());
+    fn construct_app() {
+        let _a: App<(), ()> = App::new((), ());
     }
 }

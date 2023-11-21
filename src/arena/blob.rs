@@ -3,7 +3,7 @@ use std::any::type_name;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::Deref;
-use std::ptr::{Alignment, NonNull};
+use std::ptr::NonNull;
 use std::{mem, ptr};
 
 /// like a Vec<T> but untyped.
@@ -290,7 +290,6 @@ impl<'a> ExactSizeIterator for RawPtrIter<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
 
     use crate::arena::blob::Blob;
 
@@ -349,7 +348,7 @@ mod tests {
             str: String,
         }
 
-        for test_run in 0..1000 {
+        for _test_run in 0..1000 {
             // 1000 times create a blob and each time, push 5000 objects on it, each 10kb bytes.
             let mut blob = Blob::new::<S>();
             for _ in 0..5000 {

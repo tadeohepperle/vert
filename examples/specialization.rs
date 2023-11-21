@@ -18,7 +18,8 @@ trait Collect: 'static {
         Self: Sized,
     {
         let uninit_dyn: Option<&'static Self::Dyn> = <C as Implements<Self>>::uninit_trait_obj();
-        let vtable_pointer = match uninit_dyn {
+        
+        match uninit_dyn {
             Some(trait_object) => {
                 // this is a fat pointer: (data + vtable)
                 assert_eq!(std::mem::size_of::<&Self::Dyn>(), PTR_SIZE * 2);
@@ -28,8 +29,7 @@ trait Collect: 'static {
                 Some(vtable_pointer)
             }
             None => None,
-        };
-        vtable_pointer
+        }
     }
 }
 

@@ -1,8 +1,7 @@
 use std::{
-    any::{Any, TypeId},
     borrow::{Borrow, BorrowMut},
     fmt::Debug,
-    iter::{self, Enumerate, FilterMap},
+    iter::{self, Enumerate},
     marker::PhantomData,
     slice::{Iter, IterMut},
 };
@@ -143,7 +142,7 @@ impl Arena {
             None => Err(value),
             Some(index) => {
                 let generation = self.generation;
-                let mut mut_blob = self.blob_mut::<T>();
+                let mut_blob = self.blob_mut::<T>();
                 mut_blob[index.index] = Entry::Occupied {
                     gen: generation,
                     value,
@@ -194,7 +193,7 @@ impl Arena {
         }
 
         let free_list_head = self.free_list_head;
-        let mut blob_mut = self.blob_mut::<T>();
+        let blob_mut = self.blob_mut::<T>();
         let entry_at_index = &mut blob_mut[i.index];
 
         // if the entry is free, or filled but generation does not match, return None.
@@ -256,7 +255,7 @@ impl Arena {
         self.assert_t_matches::<T>();
 
         for i in 0..self.blob.len() {
-            let mut blob_mut = self.blob_mut::<T>();
+            let blob_mut = self.blob_mut::<T>();
             let entry = &mut blob_mut[i];
 
             let remove = match entry {
@@ -505,7 +504,7 @@ impl<'a> Iterator for RawPtrIter<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Arena, TypedArena};
+    use super::TypedArena;
 
     #[test]
     fn basic_functionality() {
