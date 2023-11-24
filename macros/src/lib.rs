@@ -15,7 +15,7 @@ pub fn reflect(tokens: TokenStream) -> TokenStream {
     if let Ok(trait_ident) = syn::parse::<Ident>(tokens.clone()) {
         let trait_struct_ident = trait_struct_ident(&trait_ident);
         let code = quote! {
-            struct #trait_struct_ident;
+            pub struct #trait_struct_ident;
             impl ReflectedTrait for #trait_struct_ident {
                 type Dyn = dyn #trait_ident;
             }

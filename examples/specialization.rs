@@ -18,7 +18,7 @@ trait Collect: 'static {
         Self: Sized,
     {
         let uninit_dyn: Option<&'static Self::Dyn> = <C as Implements<Self>>::uninit_trait_obj();
-        
+
         match uninit_dyn {
             Some(trait_object) => {
                 // this is a fat pointer: (data + vtable)

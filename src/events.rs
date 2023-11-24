@@ -13,8 +13,8 @@ impl Events {
         }
     }
 
-    pub fn write(&mut self, event: Box<dyn Any>) {
-        self.this_frame.push(event);
+    pub fn write(&mut self, event: impl Any) {
+        self.this_frame.push(Box::new(event));
     }
 
     pub fn read(&self) -> impl Iterator<Item = &Box<dyn Any>> {

@@ -20,11 +20,11 @@ pub trait ReflectedTrait: Sized {
 }
 
 /// implemented for trait object dyn MyTrait
-trait ReflectedTraitInv {
+pub trait ReflectedTraitInv {
     type Struct: Sized;
 }
 
-trait Implements<T: ReflectedTrait> {
+pub trait Implements<T: ReflectedTrait> {
     unsafe fn uninit_trait_obj() -> Option<&'static <T as ReflectedTrait>::Dyn>;
 }
 
@@ -254,13 +254,13 @@ mod tests {
         impl Component for Rect {}
         impl Component for Point {}
 
-        trait Render {}
+        pub trait Render {}
         reflect!(Render);
 
-        trait Log {}
+        pub trait Log {}
         reflect!(Log);
 
-        trait Update {}
+        pub trait Update {}
         reflect!(Update);
 
         impl Render for Circle {}

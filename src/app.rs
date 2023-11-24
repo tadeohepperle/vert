@@ -1,10 +1,7 @@
 use std::{any::Any, marker::PhantomData};
 
 use crate::{
-    events::Events,
-    system::{System, SystemParams},
-    trait_reflection::MultipleReflectedTraits,
-    world::World,
+    events::Events, system::System, trait_reflection::MultipleReflectedTraits, world::World,
 };
 
 /// W is the world state.
@@ -13,9 +10,9 @@ use crate::{
 /// T is Traits that can be queries
 /// E is external events
 /// I is internal events
-pub struct App<W = (), T: MultipleReflectedTraits = (), S: System<W> = ()> {
+pub struct App<W = (), T: MultipleReflectedTraits = ()> {
     pub world: World<W>,
-    pub system: S,
+    pub system: Box<dyn System<W>>,
     pub phantom: PhantomData<T>,
     pub events: Events,
 }
@@ -23,8 +20,8 @@ pub struct App<W = (), T: MultipleReflectedTraits = (), S: System<W> = ()> {
 pub struct ShouldShutdown(pub bool);
 pub struct ShutdownEvent;
 
-impl<W, T: MultipleReflectedTraits, S: System<W>> App<W, T, S> {
-    pub fn new(world_state: W, system: S) -> Self {
+impl<W, T: MultipleReflectedTraits> App<W, T> {
+    pub fn new(world_state: W, system: Box<dyn System<W>>) -> Self {
         App {
             world: World::new(world_state),
             system,
@@ -36,11 +33,7 @@ impl<W, T: MultipleReflectedTraits, S: System<W>> App<W, T, S> {
     /// this function should be called externally in an event_loop.
     pub fn run_1_frame(&mut self) -> ShouldShutdown {
         // run systems:
-        let params = SystemParams {
-            world: &mut self.world,
-            events: &mut self.events,
-        };
-        self.system.execute(params);
+        self.system.execute(&mut self.world, &mut self.events);
         // check for shutdown and clear events:
         if self.events.read_t::<ShutdownEvent>().next().is_some() {
             return ShouldShutdown(true);
@@ -49,8 +42,8 @@ impl<W, T: MultipleReflectedTraits, S: System<W>> App<W, T, S> {
         ShouldShutdown(false)
     }
 
-    pub fn add_external_event<Ev: Into<Box<dyn Any>>>(&mut self, event: Ev) {
-        self.events.write(event.into());
+    pub fn add_external_event(&mut self, event: impl Any) {
+        self.events.write(event);
     }
 }
 
@@ -61,10 +54,13 @@ impl AppBuilder {}
 #[cfg(test)]
 pub mod tests {
 
+    use crate::{events::Events, world::World};
+
     use super::App;
 
     #[test]
     fn construct_app() {
-        let _a: App<(), ()> = App::new((), ());
+        fn my_system(params: &mut World<()>, events: &mut Events) {}
+        let _a: App<(), ()> = App::new((), Box::new(my_system));
     }
 }
