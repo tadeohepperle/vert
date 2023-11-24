@@ -1,11 +1,10 @@
 use std::{
-    any::{TypeId},
+    any::TypeId,
     borrow::{Borrow, BorrowMut},
     fmt::Debug,
 };
 
-
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use crate::{
     arena::{Arena, ArenaIndex, TypedArena},
@@ -16,14 +15,22 @@ use crate::{
 
 /// W is some user defined world state. Aka global resources
 pub struct World<W> {
-    world_state: W,
+    state: W,
     arenas: Arenas,
 }
 
 impl<W> World<W> {
+    pub fn state(&self) -> &W {
+        &self.state
+    }
+
+    pub fn state_mut(&mut self) -> &mut W {
+        &mut self.state
+    }
+
     pub fn new(world_state: W) -> Self {
         World {
-            world_state,
+            state: world_state,
             arenas: Arenas::new(),
         }
     }

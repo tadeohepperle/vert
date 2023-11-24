@@ -1,9 +1,10 @@
 #![feature(ptr_alignment_type)]
 #![feature(min_specialization)]
 
-mod app;
+pub mod app;
 pub mod arena;
-mod component;
-mod system;
-mod trait_reflection;
-mod world;
+pub mod component;
+pub mod events;
+pub mod system;
+pub mod trait_reflection;
+pub mod world;

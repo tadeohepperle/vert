@@ -122,6 +122,8 @@ multi_implements_impl_for_tuples!(A, B, C, D, E, F, G, H, I, J);
 #[cfg(test)]
 mod tests {
 
+    use vert_macros::reflect;
+
     use crate::{
         component::Component,
         trait_reflection::{vtable_pointer, Implements, ReflectedTrait, ReflectedTraitInv},
@@ -217,6 +219,67 @@ mod tests {
                 Some(&UNINIT as &'static dyn Update)
             }
         }
+
+        // /////////////////////////////////////////////////////////////////////////////
+        // Examples of trait implementation.
+        // Xi are traits, the shapes are structs.
+        //
+        //          Render   Log    Update
+        // Circle   x
+        // Rect     x        x
+        // Point    x        x      x
+        //
+        // /////////////////////////////////////////////////////////////////////////////
+
+        assert!(vtable_pointer::<Circle, DynRender>().is_some());
+        assert!(vtable_pointer::<Circle, DynLog>().is_none());
+        assert!(vtable_pointer::<Circle, DynUpdate>().is_none());
+
+        assert!(vtable_pointer::<Rect, DynRender>().is_some());
+        assert!(vtable_pointer::<Rect, DynLog>().is_some());
+        assert!(vtable_pointer::<Rect, DynUpdate>().is_none());
+
+        assert!(vtable_pointer::<Point, DynRender>().is_some());
+        assert!(vtable_pointer::<Point, DynLog>().is_some());
+        assert!(vtable_pointer::<Point, DynUpdate>().is_some());
+    }
+
+    #[test]
+    fn test_macros() {
+        struct Circle;
+        struct Rect;
+        struct Point;
+
+        impl Component for Circle {}
+        impl Component for Rect {}
+        impl Component for Point {}
+
+        trait Render {}
+        reflect!(Render);
+
+        trait Log {}
+        reflect!(Log);
+
+        trait Update {}
+        reflect!(Update);
+
+        impl Render for Circle {}
+        reflect!(Render, Circle);
+
+        impl Render for Rect {}
+        reflect!(Render, Rect);
+
+        impl Log for Rect {}
+        reflect!(Log, Rect);
+
+        impl Render for Point {}
+        reflect!(Render, Point);
+
+        impl Log for Point {}
+        reflect!(Log, Point);
+
+        impl Update for Point {}
+        reflect!(Update, Point);
 
         // /////////////////////////////////////////////////////////////////////////////
         // Examples of trait implementation.
