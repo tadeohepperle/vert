@@ -313,6 +313,18 @@ impl Arena {
     }
 }
 
+// impl Drop for Arena {
+//     fn drop(&mut self) {
+//         panic!(
+//             "Untyped Arena dropped!
+// This is illegal, because the objects in the blob will not be dropped properly and leak memory.
+// Blob::drop_t::<T>() needs to be called on the blob. This is done in the drop implementation of TypedArena<T>.
+// So convert the Untyped Arena into a TypedArena<T> first, before dropping it. Dropping without knowning the type T
+// is not possible because the T's stored in the arena could leak memory if their Drop implementation is not called."
+//         )
+//     }
+// }
+
 impl<T> Borrow<TypedArena<T>> for Arena {
     fn borrow(&self) -> &TypedArena<T> {
         self.assert_t_matches::<T>();
@@ -378,6 +390,10 @@ impl<T> TypedArena<T> {
 
     pub fn iter_mut<'a>(&'a mut self) -> ArenaIterMut<'a, T> {
         self.arena.iter_mut()
+    }
+
+    pub fn drop_the_blob(self) {
+        self.arena.blob.drop_t::<T>();
     }
 }
 

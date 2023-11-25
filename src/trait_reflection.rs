@@ -17,19 +17,19 @@ pub trait DynTrait: 'static {
 }
 
 pub trait Implementor: Sized + 'static {
-    unsafe fn dyn_traits() -> &'static [VTablePtrWithMeta];
+    unsafe fn dyn_traits() -> SmallVec<[VTablePtrWithMeta; 8]>;
 }
 
 // /////////////////////////////////////////////////////////////////////////////
 // Multi Traits
 // /////////////////////////////////////////////////////////////////////////////
 
-type VTablePtr = *const ();
+pub type VTablePtr = *const ();
 
 #[repr(C)]
 pub struct VTable {
-    data: *const (),
-    ptr: VTablePtr,
+    pub data: *const (),
+    pub ptr: VTablePtr,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -37,48 +37,48 @@ pub struct VTablePtrWithMeta {
     /// The second half of a trait object.
     pub ptr: VTablePtr,
     /// type id of dyn MyTrait.
-    pub dyn_trait_type_id: TypeId,
+    pub dyn_trait_id: TypeId,
     /// type name of the dyn trait: e.g. "dyn vert::trait_reflection::types::Render"
-    pub dyn_trait_type_name: &'static str,
+    pub dyn_trait_name: &'static str,
 }
 
 pub fn vtable_pointer<C: Implementor, T: DynTrait + ?Sized>() -> Option<VTablePtrWithMeta> {
-    let dyn_trait_type_id = T::id();
+    let dyn_trait_id = T::id();
     unsafe {
         C::dyn_traits()
             .iter()
-            .find(|e| e.dyn_trait_type_id == dyn_trait_type_id)
+            .find(|e| e.dyn_trait_id == dyn_trait_id)
             .cloned()
     }
 }
 
 pub trait MultipleReflectedTraits {
-    unsafe fn vtable_pointers<C: Implementor>() -> SmallVec<[(TypeId, Option<VTablePtrWithMeta>); 1]>;
+    unsafe fn vtable_pointers<C: Implementor>() -> SmallVec<[(TypeId, Option<VTablePtrWithMeta>); 4]>;
 }
 
 impl DynTrait for () {}
 
 impl<T: DynTrait> MultipleReflectedTraits for T {
-    unsafe fn vtable_pointers<C: Implementor>() -> SmallVec<[(TypeId, Option<VTablePtrWithMeta>); 1]>
+    unsafe fn vtable_pointers<C: Implementor>() -> SmallVec<[(TypeId, Option<VTablePtrWithMeta>); 4]>
     {
-        let dyn_trait_type_id = Self::id();
-        let dyn_trait_type_name = Self::name();
+        let dyn_trait_id = Self::id();
+        let dyn_trait_name = Self::name();
         let c_vtable_ptr_with_meta = <C as Implementor>::dyn_traits().iter().find_map(|v| {
-            if dyn_trait_type_id == v.dyn_trait_type_id {
-                assert_eq!(dyn_trait_type_name, v.dyn_trait_type_name);
+            if dyn_trait_id == v.dyn_trait_id {
+                assert_eq!(dyn_trait_name, v.dyn_trait_name);
                 Some(*v)
             } else {
                 None
             }
         });
-        smallvec![(dyn_trait_type_id, c_vtable_ptr_with_meta)]
+        smallvec![(dyn_trait_id, c_vtable_ptr_with_meta)]
     }
 }
 
 macro_rules! multi_implements_impl_for_tuples {
     ($a:ident,$($x:ident),+) => {
         impl<$a: MultipleReflectedTraits, $($x : MultipleReflectedTraits,)+> MultipleReflectedTraits for ($a, $($x,)+){
-            unsafe fn vtable_pointers<Comp: Implementor>() -> SmallVec<[(TypeId, Option<VTablePtrWithMeta>); 1]> {
+            unsafe fn vtable_pointers<Comp: Implementor>() -> SmallVec<[(TypeId, Option<VTablePtrWithMeta>); 4]> {
                 let mut a = $a::vtable_pointers::<Comp>();
                 $(
                     let o = $x::vtable_pointers::<Comp>();
@@ -136,8 +136,8 @@ multi_implements_impl_for_tuples!(A, B, C, D, E, F, G, H, I, J);
 ///             let vtable = &RENDER as *const _ as *const VTable;
 ///             VTablePtrWithMeta {
 ///                 ptr: unsafe { (*vtable).ptr },
-///                 dyn_trait_type_id: TypeId::of::<dyn Render>(),
-///                 dyn_trait_type_name: std::any::type_name::<dyn Render>(),
+///                 dyn_trait_id: TypeId::of::<dyn Render>(),
+///                 dyn_trait_name: std::any::type_name::<dyn Render>(),
 ///             }
 ///         }];
 ///         IMPLS
@@ -151,26 +151,27 @@ macro_rules! reflect {
     };
     ($component:ident : $($trait:ident),+ ) => {
         impl Implementor for $component {
-            unsafe fn dyn_traits() -> &'static [VTablePtrWithMeta] {
-                const UNINIT: $component =
+            unsafe fn dyn_traits() -> SmallVec<[VTablePtrWithMeta; 8]>{
+                #[allow(invalid_value)]
+                let uninit: $component =
                     unsafe { std::mem::MaybeUninit::<$component>::uninit().assume_init() };
-                const IMPLS: &'static [VTablePtrWithMeta] = &[
+                let impls = smallvec![
                     $(
                         {
-                            const TRAIT_OBJ: &'static dyn $trait = &UNINIT as &'static dyn $trait;
+                            let trait_obj: &dyn $trait = &uninit as &dyn $trait;
                             if std::mem::size_of::<&dyn $trait>() != std::mem::size_of::<usize>() * 2 {
                                 panic!("Error in Implementor::dyn_traits, invalid fat pointer...")
                             }
-                            let vtable = &TRAIT_OBJ as *const _ as *const VTable;
+                            let vtable = &trait_obj as *const _ as *const VTable;
                             VTablePtrWithMeta {
                                 ptr: unsafe { (*vtable).ptr },
-                                dyn_trait_type_id: std::any::TypeId::of::<dyn $trait>(),
-                                dyn_trait_type_name: std::any::type_name::<dyn $trait>(),
+                                dyn_trait_id: std::any::TypeId::of::<dyn $trait>(),
+                                dyn_trait_name: std::any::type_name::<dyn $trait>(),
                             }
                         }
                     ),+
-                    ];
-                IMPLS
+                ];
+                impls
             }
         }
     };

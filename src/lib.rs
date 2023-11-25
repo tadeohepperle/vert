@@ -16,4 +16,5 @@ pub mod prelude {
     pub use crate::trait_reflection::{
         DynTrait, Implementor, MultipleReflectedTraits, VTable, VTablePtrWithMeta,
     };
+    pub use smallvec::*;
 }
