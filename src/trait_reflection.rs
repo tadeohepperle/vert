@@ -6,33 +6,23 @@ use std::any::TypeId;
 
 use smallvec::{smallvec, SmallVec};
 
-/// implemented for struct DynMyTrait
-pub trait ReflectedTrait: Sized {
-    type Dyn: ?Sized + 'static;
-
-    fn dyn_trait_type_id() -> TypeId {
-        TypeId::of::<Self::Dyn>()
+/// should only be implemented for `dyn MyTrait`
+pub trait DynTrait: 'static {
+    fn id() -> TypeId {
+        TypeId::of::<Self>()
     }
-
-    fn dyn_trait_type_name() -> &'static str {
-        std::any::type_name::<Self::Dyn>()
+    fn name() -> &'static str {
+        std::any::type_name::<Self>()
     }
 }
 
-/// implemented for trait object dyn MyTrait
-pub trait ReflectedTraitInv {
-    type Struct: Sized;
+pub trait Implementor: Sized + 'static {
+    unsafe fn dyn_traits() -> &'static [VTablePtrWithMeta];
 }
 
-pub trait Implements<T: ReflectedTrait> {
-    unsafe fn uninit_trait_obj() -> Option<&'static <T as ReflectedTrait>::Dyn>;
-}
-
-impl<T: ReflectedTrait, C> Implements<T> for C {
-    default unsafe fn uninit_trait_obj() -> Option<&'static <T as ReflectedTrait>::Dyn> {
-        None
-    }
-}
+// /////////////////////////////////////////////////////////////////////////////
+// Multi Traits
+// /////////////////////////////////////////////////////////////////////////////
 
 type VTablePtr = *const ();
 
@@ -41,21 +31,6 @@ pub struct VTable {
     data: *const (),
     ptr: VTablePtr,
 }
-
-pub fn vtable_pointer<C, T: ReflectedTrait>() -> Option<VTablePtr> {
-    let trait_obj = unsafe { <C as Implements<T>>::uninit_trait_obj()? };
-    assert_eq!(
-        std::mem::size_of::<&<T as ReflectedTrait>::Dyn>(),
-        std::mem::size_of::<VTable>()
-    );
-    let ptr_to_vtable: *const VTable = &trait_obj as *const _ as *const VTable;
-    let vtable_ptr: VTablePtr = unsafe { (*ptr_to_vtable).ptr };
-    Some(vtable_ptr)
-}
-
-// /////////////////////////////////////////////////////////////////////////////
-// Multi Traits
-// /////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug, Clone, Copy)]
 pub struct VTablePtrWithMeta {
@@ -67,33 +42,43 @@ pub struct VTablePtrWithMeta {
     pub dyn_trait_type_name: &'static str,
 }
 
+pub fn vtable_pointer<C: Implementor, T: DynTrait + ?Sized>() -> Option<VTablePtrWithMeta> {
+    let dyn_trait_type_id = T::id();
+    unsafe {
+        C::dyn_traits()
+            .iter()
+            .find(|e| e.dyn_trait_type_id == dyn_trait_type_id)
+            .cloned()
+    }
+}
+
 pub trait MultipleReflectedTraits {
-    unsafe fn vtable_pointers<C>() -> SmallVec<[(TypeId, Option<VTablePtrWithMeta>); 1]>;
+    unsafe fn vtable_pointers<C: Implementor>() -> SmallVec<[(TypeId, Option<VTablePtrWithMeta>); 1]>;
 }
 
-impl ReflectedTrait for () {
-    type Dyn = ();
-}
+impl DynTrait for () {}
 
-impl<T: ReflectedTrait> MultipleReflectedTraits for T {
-    unsafe fn vtable_pointers<C>() -> SmallVec<[(TypeId, Option<VTablePtrWithMeta>); 1]> {
-        let dyn_trait_type_id = Self::dyn_trait_type_id();
-        let ptr_with_meta = vtable_pointer::<C, T>().map(|ptr| {
-            let dyn_trait_type_name = Self::dyn_trait_type_name();
-            VTablePtrWithMeta {
-                ptr,
-                dyn_trait_type_id,
-                dyn_trait_type_name,
+impl<T: DynTrait> MultipleReflectedTraits for T {
+    unsafe fn vtable_pointers<C: Implementor>() -> SmallVec<[(TypeId, Option<VTablePtrWithMeta>); 1]>
+    {
+        let dyn_trait_type_id = Self::id();
+        let dyn_trait_type_name = Self::name();
+        let c_vtable_ptr_with_meta = <C as Implementor>::dyn_traits().iter().find_map(|v| {
+            if dyn_trait_type_id == v.dyn_trait_type_id {
+                assert_eq!(dyn_trait_type_name, v.dyn_trait_type_name);
+                Some(*v)
+            } else {
+                None
             }
         });
-        smallvec![(dyn_trait_type_id, ptr_with_meta)]
+        smallvec![(dyn_trait_type_id, c_vtable_ptr_with_meta)]
     }
 }
 
 macro_rules! multi_implements_impl_for_tuples {
     ($a:ident,$($x:ident),+) => {
         impl<$a: MultipleReflectedTraits, $($x : MultipleReflectedTraits,)+> MultipleReflectedTraits for ($a, $($x,)+){
-            unsafe fn vtable_pointers<Comp>() -> SmallVec<[(TypeId, Option<VTablePtrWithMeta>); 1]> {
+            unsafe fn vtable_pointers<Comp: Implementor>() -> SmallVec<[(TypeId, Option<VTablePtrWithMeta>); 1]> {
                 let mut a = $a::vtable_pointers::<Comp>();
                 $(
                     let o = $x::vtable_pointers::<Comp>();
@@ -115,144 +100,95 @@ multi_implements_impl_for_tuples!(A, B, C, D, E, F, G, H);
 multi_implements_impl_for_tuples!(A, B, C, D, E, F, G, H, I);
 multi_implements_impl_for_tuples!(A, B, C, D, E, F, G, H, I, J);
 
+// /////////////////////////////////////////////////////////////////////////////
+// Macros!
+// /////////////////////////////////////////////////////////////////////////////
+
+/// This macro can be applied to traits or specifying a struct and some traits it implements:
+/// ### Use on traits:
+/// ```rust,norun
+/// trait Render { }
+/// reflect!(Render)
+/// ```
+/// which expands to:
+/// ```rust,norun
+/// trait Render { }
+/// impl DynTrait for dyn Render {}
+/// ```
+///
+/// ### Use on structs, specifying traits:
+/// ```rust,norun
+/// trait Render { }
+/// struct Circle;
+/// reflect!(Circle: Render)
+/// ```
+/// which expands to:
+/// ```rust,norun
+/// impl Implementor for Circle {
+///     unsafe fn dyn_traits() -> &'static [VTablePtrWithMeta] {
+///         const UNINIT: Circle =
+///             unsafe { std::mem::MaybeUninit::<Circle>::uninit().assume_init() };
+///         const IMPLS: &'static [VTablePtrWithMeta] = &[{
+///             const RENDER: &'static dyn Render = &UNINIT as &'static dyn Render;
+///             if std::mem::size_of::<&dyn Render>() != std::mem::size_of::<usize>() * 2 {
+///                 panic!("Error in Implementor::dyn_traits, invalid fat pointer")
+///             }
+///             let vtable = &RENDER as *const _ as *const VTable;
+///             VTablePtrWithMeta {
+///                 ptr: unsafe { (*vtable).ptr },
+///                 dyn_trait_type_id: TypeId::of::<dyn Render>(),
+///                 dyn_trait_type_name: std::any::type_name::<dyn Render>(),
+///             }
+///         }];
+///         IMPLS
+///     }
+/// }
+/// ```
+#[macro_export]
+macro_rules! reflect {
+    ($trait:ident) => {
+        impl DynTrait for dyn $trait {}
+    };
+    ($component:ident : $($trait:ident),+ ) => {
+        impl Implementor for $component {
+            unsafe fn dyn_traits() -> &'static [VTablePtrWithMeta] {
+                const UNINIT: $component =
+                    unsafe { std::mem::MaybeUninit::<$component>::uninit().assume_init() };
+                const IMPLS: &'static [VTablePtrWithMeta] = &[
+                    $(
+                        {
+                            const TRAIT_OBJ: &'static dyn $trait = &UNINIT as &'static dyn $trait;
+                            if std::mem::size_of::<&dyn $trait>() != std::mem::size_of::<usize>() * 2 {
+                                panic!("Error in Implementor::dyn_traits, invalid fat pointer...")
+                            }
+                            let vtable = &TRAIT_OBJ as *const _ as *const VTable;
+                            VTablePtrWithMeta {
+                                ptr: unsafe { (*vtable).ptr },
+                                dyn_trait_type_id: std::any::TypeId::of::<dyn $trait>(),
+                                dyn_trait_type_name: std::any::type_name::<dyn $trait>(),
+                            }
+                        }
+                    ),+
+                    ];
+                IMPLS
+            }
+        }
+    };
+}
+
 // // /////////////////////////////////////////////////////////////////////////////
 // // Some example structs/traits
 // // /////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
-
-    use vert_macros::reflect;
-
-    use crate::{
-        component::Component,
-        trait_reflection::{vtable_pointer, Implements, ReflectedTrait, ReflectedTraitInv},
-    };
-
-    #[test]
-    fn main() {
-        struct Circle;
-        struct Rect;
-        struct Point;
-
-        impl Component for Circle {}
-        impl Component for Rect {}
-        impl Component for Point {}
-
-        trait Render {}
-        struct DynRender;
-        impl ReflectedTrait for DynRender {
-            type Dyn = dyn Render;
-        }
-        impl ReflectedTraitInv for dyn Render {
-            type Struct = DynRender;
-        }
-
-        trait Log {}
-        struct DynLog;
-        impl ReflectedTrait for DynLog {
-            type Dyn = dyn Log;
-        }
-        impl ReflectedTraitInv for dyn Log {
-            type Struct = DynLog;
-        }
-
-        trait Update {}
-        struct DynUpdate;
-        impl ReflectedTrait for DynUpdate {
-            type Dyn = dyn Update;
-        }
-        impl ReflectedTraitInv for dyn Update {
-            type Struct = DynUpdate;
-        }
-
-        impl Render for Circle {}
-        impl Implements<DynRender> for Circle {
-            unsafe fn uninit_trait_obj() -> Option<&'static dyn Render> {
-                const UNINIT: Circle =
-                    unsafe { std::mem::MaybeUninit::<Circle>::uninit().assume_init() };
-                Some(&UNINIT as &'static dyn Render)
-            }
-        }
-
-        impl Render for Rect {}
-        impl Implements<DynRender> for Rect {
-            unsafe fn uninit_trait_obj() -> Option<&'static dyn Render> {
-                const UNINIT: Rect =
-                    unsafe { std::mem::MaybeUninit::<Rect>::uninit().assume_init() };
-                Some(&UNINIT as &'static dyn Render)
-            }
-        }
-
-        impl Log for Rect {}
-        impl Implements<DynLog> for Rect {
-            unsafe fn uninit_trait_obj() -> Option<&'static dyn Log> {
-                const UNINIT: Rect =
-                    unsafe { std::mem::MaybeUninit::<Rect>::uninit().assume_init() };
-                Some(&UNINIT as &'static dyn Log)
-            }
-        }
-
-        impl Render for Point {}
-        impl Implements<DynRender> for Point {
-            unsafe fn uninit_trait_obj() -> Option<&'static dyn Render> {
-                const UNINIT: Point =
-                    unsafe { std::mem::MaybeUninit::<Point>::uninit().assume_init() };
-                Some(&UNINIT as &'static dyn Render)
-            }
-        }
-
-        impl Log for Point {}
-        impl Implements<DynLog> for Point {
-            unsafe fn uninit_trait_obj() -> Option<&'static dyn Log> {
-                const UNINIT: Point =
-                    unsafe { std::mem::MaybeUninit::<Point>::uninit().assume_init() };
-                Some(&UNINIT as &'static dyn Log)
-            }
-        }
-
-        impl Update for Point {}
-        impl Implements<DynUpdate> for Point {
-            unsafe fn uninit_trait_obj() -> Option<&'static dyn Update> {
-                const UNINIT: Point =
-                    unsafe { std::mem::MaybeUninit::<Point>::uninit().assume_init() };
-                Some(&UNINIT as &'static dyn Update)
-            }
-        }
-
-        // /////////////////////////////////////////////////////////////////////////////
-        // Examples of trait implementation.
-        // Xi are traits, the shapes are structs.
-        //
-        //          Render   Log    Update
-        // Circle   x
-        // Rect     x        x
-        // Point    x        x      x
-        //
-        // /////////////////////////////////////////////////////////////////////////////
-
-        assert!(vtable_pointer::<Circle, DynRender>().is_some());
-        assert!(vtable_pointer::<Circle, DynLog>().is_none());
-        assert!(vtable_pointer::<Circle, DynUpdate>().is_none());
-
-        assert!(vtable_pointer::<Rect, DynRender>().is_some());
-        assert!(vtable_pointer::<Rect, DynLog>().is_some());
-        assert!(vtable_pointer::<Rect, DynUpdate>().is_none());
-
-        assert!(vtable_pointer::<Point, DynRender>().is_some());
-        assert!(vtable_pointer::<Point, DynLog>().is_some());
-        assert!(vtable_pointer::<Point, DynUpdate>().is_some());
-    }
+    use crate::{prelude::*, trait_reflection::vtable_pointer};
 
     #[test]
     fn test_macros() {
         struct Circle;
         struct Rect;
         struct Point;
-
-        impl Component for Circle {}
-        impl Component for Rect {}
-        impl Component for Point {}
 
         pub trait Render {}
         reflect!(Render);
@@ -264,22 +200,17 @@ mod tests {
         reflect!(Update);
 
         impl Render for Circle {}
-        reflect!(Render, Circle);
 
         impl Render for Rect {}
-        reflect!(Render, Rect);
-
         impl Log for Rect {}
-        reflect!(Log, Rect);
 
         impl Render for Point {}
-        reflect!(Render, Point);
-
         impl Log for Point {}
-        reflect!(Log, Point);
-
         impl Update for Point {}
-        reflect!(Update, Point);
+
+        reflect!(Circle: Render);
+        reflect!(Rect: Render, Log);
+        reflect!(Point: Render, Log, Update);
 
         // /////////////////////////////////////////////////////////////////////////////
         // Examples of trait implementation.
@@ -292,16 +223,16 @@ mod tests {
         //
         // /////////////////////////////////////////////////////////////////////////////
 
-        assert!(vtable_pointer::<Circle, DynRender>().is_some());
-        assert!(vtable_pointer::<Circle, DynLog>().is_none());
-        assert!(vtable_pointer::<Circle, DynUpdate>().is_none());
+        assert!(vtable_pointer::<Circle, dyn Render>().is_some());
+        assert!(vtable_pointer::<Circle, dyn Log>().is_none());
+        assert!(vtable_pointer::<Circle, dyn Update>().is_none());
 
-        assert!(vtable_pointer::<Rect, DynRender>().is_some());
-        assert!(vtable_pointer::<Rect, DynLog>().is_some());
-        assert!(vtable_pointer::<Rect, DynUpdate>().is_none());
+        assert!(vtable_pointer::<Rect, dyn Render>().is_some());
+        assert!(vtable_pointer::<Rect, dyn Log>().is_some());
+        assert!(vtable_pointer::<Rect, dyn Update>().is_none());
 
-        assert!(vtable_pointer::<Point, DynRender>().is_some());
-        assert!(vtable_pointer::<Point, DynLog>().is_some());
-        assert!(vtable_pointer::<Point, DynUpdate>().is_some());
+        assert!(vtable_pointer::<Point, dyn Render>().is_some());
+        assert!(vtable_pointer::<Point, dyn Log>().is_some());
+        assert!(vtable_pointer::<Point, dyn Update>().is_some());
     }
 }

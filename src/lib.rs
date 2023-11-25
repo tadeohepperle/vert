@@ -1,5 +1,6 @@
 #![feature(ptr_alignment_type)]
-#![feature(min_specialization)]
+#![feature(const_type_id)]
+#![feature(const_type_name)]
 
 pub mod app;
 pub mod arena;
@@ -10,10 +11,9 @@ pub mod trait_reflection;
 pub mod world;
 
 pub mod prelude {
-    pub use crate::component::Component;
+    pub use crate::reflect;
     pub use crate::system::System;
     pub use crate::trait_reflection::{
-        Implements, MultipleReflectedTraits, ReflectedTrait, ReflectedTraitInv,
+        DynTrait, Implementor, MultipleReflectedTraits, VTable, VTablePtrWithMeta,
     };
-    pub use vert_macros::reflect;
 }

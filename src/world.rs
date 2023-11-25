@@ -9,8 +9,8 @@ use std::collections::HashMap;
 use crate::{
     arena::{Arena, ArenaIndex, TypedArena},
     component::Component,
-    trait_reflection::{MultipleReflectedTraits, ReflectedTrait, VTablePtrWithMeta},
     // trait_companion::{MultiTraitCompanion, Reflectable, VTablePointer, VTablePointerWithMetadata},
+    trait_reflection::{DynTrait, Implementor, MultipleReflectedTraits, VTablePtrWithMeta},
 };
 
 /// W is some user defined world state. Aka global resources
@@ -28,6 +28,14 @@ impl<W> World<W> {
         &mut self.state
     }
 
+    pub fn arenas(&self) -> &Arenas {
+        &self.arenas
+    }
+
+    pub fn arenas_mut(&mut self) -> &mut Arenas {
+        &mut self.arenas
+    }
+
     pub fn new(world_state: W) -> Self {
         World {
             state: world_state,
@@ -43,7 +51,7 @@ pub struct Arenas {
 }
 
 fn arena_address<C: Component>() -> ArenaAddress {
-    TypeId::of::<C>()
+    C::id()
 }
 
 impl Arenas {
@@ -119,20 +127,19 @@ impl Debug for Arenas {
 }
 
 #[derive(Debug)]
-struct ArenaWithMetadata {
+pub struct ArenaWithMetadata {
     arena: Arena,
     // Maps the type ids of the trait companion struct to pointers for the
     trait_obj_pointers: HashMap<TypeId, VTablePtrWithMeta>,
 }
 
 impl ArenaWithMetadata {
-    fn new<C: Component, M: MultipleReflectedTraits>() -> Self {
+    fn new<C: Implementor, M: MultipleReflectedTraits>() -> Self {
         let arena = TypedArena::<C>::new();
-
-        let ptrs = unsafe { M::vtable_pointers::<C>() };
+        let ptrs = unsafe { C::dyn_traits() };
         let trait_obj_pointers: HashMap<TypeId, VTablePtrWithMeta> = ptrs
             .into_iter()
-            .filter_map(|(_, p)| p.map(|p| (p.dyn_trait_type_id, p)))
+            .map(|v| (v.dyn_trait_type_id, *v))
             .collect();
 
         ArenaWithMetadata {
@@ -141,26 +148,26 @@ impl ArenaWithMetadata {
         }
     }
 
-    pub fn trait_iter<'a, T: ReflectedTrait>(&'a self) -> Option<impl Iterator<Item = &'a T::Dyn>> {
-        let dyn_trait_type_id = T::dyn_trait_type_id();
+    pub fn trait_iter<'a, T: DynTrait>(&'a self) -> Option<impl Iterator<Item = &'a T>> {
+        let dyn_trait_type_id = T::id();
         let trait_obj_info = self.trait_obj_pointers.get(&dyn_trait_type_id)?;
         let iter = self.arena.iter_raw_ptrs().map(move |data_ptr| {
             let ptr_pair = (data_ptr, trait_obj_info.ptr);
-            let trait_obj_ref: &'a T::Dyn = unsafe { std::mem::transmute_copy(&ptr_pair) };
+            let trait_obj_ref: &'a T = unsafe { std::mem::transmute_copy(&ptr_pair) };
             trait_obj_ref
         });
         Some(iter)
     }
 
     /// Note: vtables for &mut T::Dyn and &T::Dyn trait objects are the same.
-    pub fn trait_iter_mut<'a, T: ReflectedTrait>(
+    pub fn trait_iter_mut<'a, T: DynTrait>(
         &'a mut self,
-    ) -> Option<impl Iterator<Item = &'a mut T::Dyn>> {
-        let dyn_trait_type_id = T::dyn_trait_type_id();
+    ) -> Option<impl Iterator<Item = &'a mut T>> {
+        let dyn_trait_type_id = T::id();
         let trait_obj_info = self.trait_obj_pointers.get(&dyn_trait_type_id)?;
         let iter = self.arena.iter_raw_ptrs().map(move |data_ptr| {
             let ptr_pair = (data_ptr, trait_obj_info.ptr);
-            let trait_obj_ref: &'a mut T::Dyn = unsafe { std::mem::transmute_copy(&ptr_pair) };
+            let trait_obj_ref: &'a mut T = unsafe { std::mem::transmute_copy(&ptr_pair) };
             trait_obj_ref
         });
         Some(iter)

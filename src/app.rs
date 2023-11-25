@@ -60,7 +60,7 @@ pub mod tests {
 
     #[test]
     fn construct_app() {
-        fn my_system(params: &mut World<()>, events: &mut Events) {}
+        fn my_system(_params: &mut World<()>, _events: &mut Events) {}
         let _a: App<(), ()> = App::new((), Box::new(my_system));
     }
 }
