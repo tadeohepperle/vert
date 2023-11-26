@@ -17,7 +17,7 @@ pub trait DynTrait: 'static {
 }
 
 pub trait Implementor: Sized + 'static {
-    unsafe fn dyn_traits() -> SmallVec<[VTablePtrWithMeta; 8]>;
+    unsafe fn dyn_traits() -> &'static [VTablePtrWithMeta];
 }
 
 // /////////////////////////////////////////////////////////////////////////////
@@ -41,6 +41,8 @@ pub struct VTablePtrWithMeta {
     /// type name of the dyn trait: e.g. "dyn vert::trait_reflection::types::Render"
     pub dyn_trait_name: &'static str,
 }
+unsafe impl Sync for VTablePtrWithMeta {}
+unsafe impl Send for VTablePtrWithMeta {}
 
 pub fn vtable_pointer<C: Implementor, T: DynTrait + ?Sized>() -> Option<VTablePtrWithMeta> {
     let dyn_trait_id = T::id();
@@ -100,6 +102,8 @@ multi_implements_impl_for_tuples!(A, B, C, D, E, F, G, H);
 multi_implements_impl_for_tuples!(A, B, C, D, E, F, G, H, I);
 multi_implements_impl_for_tuples!(A, B, C, D, E, F, G, H, I, J);
 
+use std::sync::OnceLock;
+
 // /////////////////////////////////////////////////////////////////////////////
 // Macros!
 // /////////////////////////////////////////////////////////////////////////////
@@ -151,27 +155,31 @@ macro_rules! reflect {
     };
     ($component:ident : $($trait:ident),+ ) => {
         impl Implementor for $component {
-            unsafe fn dyn_traits() -> SmallVec<[VTablePtrWithMeta; 8]>{
-                #[allow(invalid_value)]
-                let uninit: $component =
-                    unsafe { std::mem::MaybeUninit::<$component>::uninit().assume_init() };
-                let impls = smallvec![
-                    $(
-                        {
-                            let trait_obj: &dyn $trait = &uninit as &dyn $trait;
-                            if std::mem::size_of::<&dyn $trait>() != std::mem::size_of::<usize>() * 2 {
-                                panic!("Error in Implementor::dyn_traits, invalid fat pointer...")
+            unsafe fn dyn_traits() -> &'static [VTablePtrWithMeta]{
+                use std::sync::OnceLock;
+                static ONCE: OnceLock<Box<[VTablePtrWithMeta]>> = OnceLock::new();
+                ONCE.get_or_init(||{
+                    #[allow(invalid_value)]
+                    let uninit: $component =
+                        unsafe { std::mem::MaybeUninit::<$component>::uninit().assume_init() };
+                    let impls = vec![
+                        $(
+                            {
+                                let trait_obj: &dyn $trait = &uninit as &dyn $trait;
+                                if std::mem::size_of::<&dyn $trait>() != std::mem::size_of::<usize>() * 2 {
+                                    panic!("Error in Implementor::dyn_traits, invalid fat pointer...")
+                                }
+                                let vtable = &trait_obj as *const _ as *const VTable;
+                                VTablePtrWithMeta {
+                                    ptr: unsafe { (*vtable).ptr },
+                                    dyn_trait_id: std::any::TypeId::of::<dyn $trait>(),
+                                    dyn_trait_name: std::any::type_name::<dyn $trait>(),
+                                }
                             }
-                            let vtable = &trait_obj as *const _ as *const VTable;
-                            VTablePtrWithMeta {
-                                ptr: unsafe { (*vtable).ptr },
-                                dyn_trait_id: std::any::TypeId::of::<dyn $trait>(),
-                                dyn_trait_name: std::any::type_name::<dyn $trait>(),
-                            }
-                        }
-                    ),+
-                ];
-                impls
+                        ),+
+                    ];
+                    impls.into()
+                })
             }
         }
     };

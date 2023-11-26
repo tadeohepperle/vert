@@ -249,3 +249,36 @@ impl Debug for Arenas {
             .finish()
     }
 }
+
+/*
+
+so every frame we start with a full set of access restrictions and will run a series of systems on the world.
+if any two following systems do not acess shared mutable resources, they can be
+
+
+
+
+A world needs to be able to turn into a bitset of access restrictions;
+
+Idea: a world state is composed of parts:
+
+trait System:
+    type In;
+    type Out;
+
+System has
+    fn execute()
+
+
+
+WorldAccess<>
+
+The System
+
+
+
+
+
+
+
+*/
