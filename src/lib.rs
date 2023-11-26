@@ -1,6 +1,8 @@
 #![feature(ptr_alignment_type)]
 #![feature(const_type_id)]
 #![feature(const_type_name)]
+#![feature(associated_type_defaults)]
+#![feature(associated_type_bounds)]
 
 pub mod app;
 pub mod arena;

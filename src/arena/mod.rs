@@ -9,6 +9,7 @@ use std::{
 use self::blob::{Blob, TypedBlobMut, TypedBlobRef};
 
 mod blob;
+pub mod singleton_blob;
 // can index into an Arena
 #[derive(Debug, Clone, Copy)]
 pub struct ArenaIndex {
@@ -229,7 +230,7 @@ impl Arena {
                 gen: ref generation,
                 value,
             }) if *generation == i.generation => {
-                // borrow checker suck my dick, this shit works and should be safe.
+                // should be safe
                 let e: &'a T = unsafe { &*(value as *const T) };
                 Some(e)
             }
@@ -243,7 +244,7 @@ impl Arena {
                 gen: ref generation,
                 value,
             }) if *generation == i.generation => {
-                // borrow checker suck my dick, this shit works and should be safe.
+                // should be safe
                 let e: &'a mut T = unsafe { &mut *(value as *mut T) };
                 Some(e)
             }
@@ -318,7 +319,7 @@ impl Arena {
 //         panic!(
 //             "Untyped Arena dropped!
 // This is illegal, because the objects in the blob will not be dropped properly and leak memory.
-// Blob::drop_t::<T>() needs to be called on the blob. This is done in the drop implementation of TypedArena<T>.
+// Blob::free::<T>() needs to be called on the blob. This is done in the drop implementation of TypedArena<T>.
 // So convert the Untyped Arena into a TypedArena<T> first, before dropping it. Dropping without knowning the type T
 // is not possible because the T's stored in the arena could leak memory if their Drop implementation is not called."
 //         )
@@ -392,8 +393,8 @@ impl<T> TypedArena<T> {
         self.arena.iter_mut()
     }
 
-    pub fn drop_the_blob(self) {
-        self.arena.blob.drop_t::<T>();
+    pub fn free(self) {
+        self.arena.blob.free::<T>();
     }
 }
 

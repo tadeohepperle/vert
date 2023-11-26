@@ -153,7 +153,7 @@ impl Blob {
     }
 
     /// Warning!!! This **needs** to be called in orderto not leake resources!!!
-    pub fn drop_t<T>(mut self) {
+    pub fn free<T>(mut self) {
         self.assert_t_matches::<T>();
         if self.cap != 0 {
             while let Some(_) = self.pop::<T>() {}
@@ -334,7 +334,7 @@ mod tests {
         assert_eq!(&typed_blob[99], &last_human);
         assert_eq!(blob.pop::<Human>(), Some(last_human));
 
-        blob.drop_t::<Human>();
+        blob.free::<Human>();
     }
 
     /// this test can take about 20 seconds to run.
@@ -357,7 +357,7 @@ mod tests {
                 };
                 blob.push(s);
             }
-            blob.drop_t::<S>();
+            blob.free::<S>();
             // std::thread::sleep(Duration::from_millis(1));
             // println!("test_run {test_run} successful");
         }

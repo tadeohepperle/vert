@@ -20,6 +20,12 @@ pub trait Implementor: Sized + 'static {
     unsafe fn dyn_traits() -> &'static [VTablePtrWithMeta];
 }
 
+impl Implementor for () {
+    unsafe fn dyn_traits() -> &'static [VTablePtrWithMeta] {
+        &[]
+    }
+}
+
 // /////////////////////////////////////////////////////////////////////////////
 // Multi Traits
 // /////////////////////////////////////////////////////////////////////////////
