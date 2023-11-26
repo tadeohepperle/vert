@@ -21,9 +21,9 @@ pub struct ShouldShutdown(pub bool);
 pub struct ShutdownEvent;
 
 impl<W, T: MultipleReflectedTraits> App<W, T> {
-    pub fn new(world_state: W, system: Box<dyn System<W>>) -> Self {
+    pub fn new(world: World<W>, system: Box<dyn System<W>>) -> Self {
         App {
-            world: World::new(world_state),
+            world,
             system,
             phantom: PhantomData::<T>,
             events: Events::new(),

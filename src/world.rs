@@ -19,8 +19,8 @@ use crate::{
 
 /// W is some user defined world state. Aka global resources
 pub struct World<W> {
-    state: W,
-    arenas: Arenas,
+    pub state: W,
+    pub arenas: Arenas,
 }
 
 impl<W> World<W> {
@@ -88,7 +88,7 @@ impl Arenas {
         let arena = match self.arenas.entry(arena_address) {
             Entry::Occupied(e) => e.into_mut(),
             Entry::Vacant(vacant) => {
-                dbg!("insert the vtable for all traits:");
+                // dbg!("insert the vtable for all traits:");
                 // set the vtable pointers:
 
                 let dyn_traits = unsafe { C::dyn_traits() };
@@ -110,10 +110,10 @@ impl Arenas {
 
                     implementors.arena_vtables.push((arena_address, v.ptr));
                 }
-                dbg!("after");
+                // dbg!("after");
                 // create a new arena:
                 let arena = TypedArena::<C>::new();
-                dbg!("created arena");
+                // dbg!("created arena");
                 vacant.insert(arena.into_untyped())
             }
         };
@@ -189,30 +189,56 @@ impl Arenas {
             .flatten()
     }
 
-    pub fn trait_iter<'a, T: DynTrait + ?Sized>(&'a self) -> impl Iterator<Item = &'a T> {
-        dbg!("start trait iter");
+    pub fn implementors<T: DynTrait + ?Sized>(&self) -> SmallVec<[(TypeId, VTablePtr); 8]> {
         let dyn_trait_id = T::id();
-
         let implementors = self
             .dyn_traits
             .get(&dyn_trait_id)
             .map(|e| &e.arena_vtables)
             .cloned() // cloned not ideal, but okay.
             .unwrap_or_default();
+        implementors
+    }
 
-        implementors.into_iter().flat_map(|(c_id, v_table_ptr)| {
-            let arena = self
-                .arenas
-                .get(&c_id)
-                .expect("Arena that is registered in dyn_traits not found!");
-            arena.iter_raw_ptrs().map(move |data_ptr| {
-                // assemble a new trait object:
-                let ptr_pair = (data_ptr, v_table_ptr);
-                debug_assert_eq!(size_of::<&T>(), size_of::<(*const u8, &*const ())>()); // fat pointer
-                let trait_obj_ref: &'a T = unsafe { std::mem::transmute_copy(&ptr_pair) };
-                trait_obj_ref
+    pub fn trait_iter<'a, T: DynTrait + ?Sized>(&'a self) -> impl Iterator<Item = &'a T> {
+        self.implementors::<T>()
+            .into_iter()
+            .flat_map(|(c_id, v_table_ptr)| {
+                let arena = self
+                    .arenas
+                    .get(&c_id)
+                    .expect("Arena that is registered in dyn_traits not found!");
+                arena.iter_raw_ptrs().map(move |data_ptr| {
+                    // assemble a new trait object:
+                    let ptr_pair = (data_ptr, v_table_ptr);
+                    debug_assert_eq!(size_of::<&T>(), size_of::<(*const u8, &*const ())>()); // fat pointer
+                    let trait_obj_ref: &'a T = unsafe { std::mem::transmute_copy(&ptr_pair) };
+                    trait_obj_ref
+                })
             })
-        })
+    }
+
+    pub fn trait_iter_mut<'a, T: DynTrait + ?Sized>(
+        &'a mut self,
+    ) -> impl Iterator<Item = &'a mut T> {
+        self.implementors::<T>()
+            .into_iter()
+            .flat_map(|(c_id, v_table_ptr)| {
+                // getting the arena as `get` instead of as `get_mut` here is
+                // not good, but we use unsafe anyway to get our way, so we do not care much here.
+                let arena = self
+                    .arenas
+                    .get(&c_id)
+                    .expect("Arena that is registered in dyn_traits not found!");
+
+                arena.iter_raw_ptrs().map(move |data_ptr| {
+                    // assemble a new trait object:
+                    let ptr_pair = (data_ptr, v_table_ptr);
+                    debug_assert_eq!(size_of::<&mut T>(), size_of::<(*const u8, &*const ())>()); // fat pointer
+                    let trait_obj_ref: &'a mut T = unsafe { std::mem::transmute_copy(&ptr_pair) };
+                    trait_obj_ref
+                })
+            })
     }
 }
 
