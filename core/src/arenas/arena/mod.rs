@@ -8,7 +8,7 @@ use std::{
 
 use self::blob::{Blob, TypedBlobMut, TypedBlobRef};
 
-mod blob;
+pub mod blob;
 pub mod singleton_blob;
 // can index into an Arena
 #[derive(Debug, Clone, Copy)]

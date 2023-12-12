@@ -290,8 +290,7 @@ impl<'a> ExactSizeIterator for RawPtrIter<'a> {
 
 #[cfg(test)]
 mod tests {
-
-    use crate::arena::blob::Blob;
+    use crate::arenas::arena::blob::Blob;
 
     #[test]
     fn pushing_and_popping() {

@@ -1,3 +1,7 @@
+
+[workspace]
+members = ["core", "framework"]
+
 [package]
 name = "vert"
 version = "0.1.0"
@@ -9,7 +13,7 @@ license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
+[workspace.dependencies]
 anyhow = "1.0.75"
 nohash-hasher = "0.2.0"
 proc-macro2 = "1.0.69"
