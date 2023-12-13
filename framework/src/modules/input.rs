@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use glam::{vec2, Vec2};
+use glam::{vec2, Vec2, Vec3};
 use smallvec::SmallVec;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
@@ -44,6 +44,28 @@ impl Input {
         }
     }
 
+    pub fn space_shift_updown(&self) -> f32 {
+        let mut v = 0.0;
+        if self.keys.is_pressed(KeyCode::ShiftLeft) {
+            v -= 1.0;
+        }
+        if self.keys.is_pressed(KeyCode::Space) {
+            v += 1.0;
+        }
+        v
+    }
+
+    pub fn rf_updown(&self) -> f32 {
+        let mut v = 0.0;
+        if self.keys.is_pressed(KeyCode::KeyF) {
+            v -= 1.0;
+        }
+        if self.keys.is_pressed(KeyCode::KeyR) {
+            v += 1.0;
+        }
+        v
+    }
+
     pub fn arrow_vec(&self) -> glam::Vec2 {
         let mut v = Vec2::ZERO;
         if self.keys.is_pressed(KeyCode::ArrowUp) {
@@ -58,7 +80,11 @@ impl Input {
         if self.keys.is_pressed(KeyCode::ArrowRight) {
             v.x += 1.0;
         }
-        v.normalize()
+        if v != Vec2::ZERO {
+            v.normalize()
+        } else {
+            v
+        }
     }
 
     pub fn close_requested(&self) -> bool {

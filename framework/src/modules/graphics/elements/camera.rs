@@ -93,8 +93,12 @@ impl Camera {
         self.uniform.update_raw_and_buffer(queue);
     }
 
-    pub(crate) fn transform(&self) -> &CamTransform {
+    pub fn transform(&self) -> &CamTransform {
         &self.uniform.value.transform
+    }
+
+    pub fn transform_mut(&mut self) -> &mut CamTransform {
+        &mut self.uniform.value.transform
     }
 
     // todo!() fn camera_plane_point(

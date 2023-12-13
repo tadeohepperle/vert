@@ -1,6 +1,6 @@
 use vert_core::{arenas::arena::ArenaIndex, component::Component};
 
-use super::{input::Input, Modules};
+use super::{graphics::elements::camera::CamTransform, input::Input, time::Time, Modules};
 
 impl Modules {
     pub fn device(&self) -> &wgpu::Device {
@@ -29,5 +29,17 @@ impl Modules {
 
     pub fn input(&self) -> &Input {
         &self.input
+    }
+
+    pub fn cam_transform(&self) -> &CamTransform {
+        self.camera.transform()
+    }
+
+    pub fn cam_transform_mut(&mut self) -> &mut CamTransform {
+        self.camera.transform_mut()
+    }
+
+    pub fn time(&mut self) -> &Time {
+        &self.time
     }
 }
