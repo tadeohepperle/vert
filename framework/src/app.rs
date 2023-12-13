@@ -40,8 +40,8 @@ impl<S: StateT> App<S> {
             .build(&event_loop)
             .unwrap();
 
-        let modules = Modules::initialize(&window).await?;
-        let state = S::initialize(&modules).await?;
+        let mut modules = Modules::initialize(&window).await?;
+        let state = S::initialize(&mut modules).await?;
         let app = Self {
             event_loop,
             window,

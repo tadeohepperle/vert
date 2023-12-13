@@ -8,3 +8,6 @@ edition = "2021"
 [dependencies]
 anyhow = { workspace = true }
 smallvec = { workspace = true }
+
+[profile.dev]
+opt-level = 3

@@ -18,7 +18,7 @@ pub trait Prepare {
 
 pub trait Render {
     fn render<'s: 'encoder, 'pass, 'encoder>(
-        &'s mut self,
+        &'s self,
         render_pass: &'pass mut wgpu::RenderPass<'encoder>,
     );
 }

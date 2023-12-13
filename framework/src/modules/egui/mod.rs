@@ -104,7 +104,7 @@ impl Prepare for EguiState {
 
 impl Render for EguiState {
     fn render<'s: 'encoder, 'pass, 'encoder>(
-        &'s mut self,
+        &'s self,
         render_pass: &'pass mut wgpu::RenderPass<'encoder>,
     ) {
         let screen_descriptor = self.platform.screen_descriptor();

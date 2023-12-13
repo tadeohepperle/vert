@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use winit::dpi::PhysicalSize;
 
+use crate::modules::egui::EguiState;
+
 use super::{
     elements::{
         camera::{Camera, CameraBindGroup},
@@ -9,6 +11,7 @@ use super::{
         texture::Texture,
     },
     graphics_context::GraphicsContext,
+    Render,
 };
 
 pub struct Renderer {
@@ -42,6 +45,7 @@ impl Renderer {
         view: &wgpu::TextureView,
         encoder: &mut wgpu::CommandEncoder,
         arenas: &vert_core::arenas::Arenas,
+        egui_state: &EguiState,
     ) {
         // create a new renderpass:
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -71,9 +75,12 @@ impl Renderer {
             timestamp_writes: None,
         });
 
-        // render color meshes:
+        // // render color meshes:
         self.color_mesh_render_pipeline
             .render_color_meshes(&mut render_pass, arenas);
+
+        // render egui:
+        egui_state.render(&mut render_pass);
     }
 }
 

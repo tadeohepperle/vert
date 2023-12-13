@@ -49,6 +49,10 @@ impl Default for Time {
 }
 
 impl Time {
+    pub fn fps(&self) -> f64 {
+        self.stats.fps.avg
+    }
+
     pub fn delta_secs(&self) -> f32 {
         self.delta_time.as_secs_f32()
     }

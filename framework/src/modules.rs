@@ -1,4 +1,4 @@
-use std::{net::Shutdown, sync::Arc};
+use std::{cell::RefCell, net::Shutdown, sync::Arc};
 
 use vert_core::arenas::Arenas;
 use wgpu::CommandEncoder;
@@ -21,16 +21,17 @@ use self::{
 pub mod egui;
 pub mod graphics;
 pub mod input;
+pub mod module_ext;
 pub mod time;
 
 pub struct Modules {
-    arenas: Arenas,
-    graphics: GraphicsOwner,
-    renderer: Renderer,
-    camera: Camera,
-    input: Input,
-    time: Time,
-    egui: EguiState,
+    pub(crate) arenas: Arenas,
+    pub(crate) graphics: GraphicsOwner,
+    pub(crate) renderer: Renderer,
+    pub(crate) camera: Camera,
+    pub(crate) input: Input,
+    pub(crate) time: Time,
+    pub(crate) egui: EguiState,
     // todo: egui
 }
 
@@ -82,6 +83,10 @@ impl Modules {
             return Flow::Exit;
         }
 
+        if self.input.keys().just_pressed(KeyCode::KeyT) {
+            dbg!(self.time.fps());
+        }
+
         Flow::Continue
     }
 
@@ -105,7 +110,8 @@ impl Modules {
 
         // queue up all the render commands:
         let (surface_texture, view) = self.graphics.new_surface_texture_and_view();
-        self.renderer.render(&view, &mut encoder, &self.arenas);
+        self.renderer
+            .render(&view, &mut encoder, &self.arenas, &self.egui);
 
         // execute render commands and present:
         self.graphics
@@ -116,6 +122,7 @@ impl Modules {
     }
 
     pub fn end_frame(&mut self) -> Flow {
+        self.input.clear_at_end_of_frame();
         Flow::Continue
     }
 }

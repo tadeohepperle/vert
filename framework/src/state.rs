@@ -11,19 +11,22 @@ use crate::{
 /// User defined application state
 pub trait StateT: Sized {
     #[allow(async_fn_in_trait)]
-    async fn initialize(modules: &Modules) -> anyhow::Result<Self>;
+    async fn initialize(modules: &mut Modules) -> anyhow::Result<Self>;
 
     /// main game logic
-    fn update(&mut self, modules: &Modules) -> Flow {
+    /// todo!() it would be better to have &Modules with interior mutibility.
+    fn update(&mut self, modules: &mut Modules) -> Flow {
         Flow::Continue
     }
 
     // called before rendering is done. Perform GPU Updates here.
     fn prepare(&mut self, modules: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder) {}
+
+    // todo!() implement on shutdown e.g. for saving game state.
 }
 
 impl StateT for () {
-    async fn initialize(modules: &Modules) -> anyhow::Result<Self> {
+    async fn initialize(modules: &mut Modules) -> anyhow::Result<Self> {
         Ok(())
     }
 }

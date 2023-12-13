@@ -20,3 +20,7 @@ rand = "0.8.5"
 bytemuck = { version = "1.14.0", features = ["derive"] }
 vert-core = { path = "../core" }
 atomic_refcell = "0.1.13"
+
+
+[profile.dev.package."*"]
+opt-level = 3

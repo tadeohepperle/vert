@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use glam::{vec2, Vec2};
 use smallvec::SmallVec;
 use winit::{
@@ -21,6 +23,44 @@ pub struct Input {
 }
 
 impl Input {
+    pub fn wasd_vec(&self) -> glam::Vec2 {
+        let mut v = Vec2::ZERO;
+        if self.keys.is_pressed(KeyCode::KeyW) {
+            v.y += 1.0;
+        }
+        if self.keys.is_pressed(KeyCode::KeyS) {
+            v.y -= 1.0;
+        }
+        if self.keys.is_pressed(KeyCode::KeyA) {
+            v.x -= 1.0;
+        }
+        if self.keys.is_pressed(KeyCode::KeyD) {
+            v.x += 1.0;
+        }
+        if v != Vec2::ZERO {
+            v.normalize()
+        } else {
+            v
+        }
+    }
+
+    pub fn arrow_vec(&self) -> glam::Vec2 {
+        let mut v = Vec2::ZERO;
+        if self.keys.is_pressed(KeyCode::ArrowUp) {
+            v.y += 1.0;
+        }
+        if self.keys.is_pressed(KeyCode::ArrowDown) {
+            v.y -= 1.0;
+        }
+        if self.keys.is_pressed(KeyCode::ArrowLeft) {
+            v.x -= 1.0;
+        }
+        if self.keys.is_pressed(KeyCode::ArrowRight) {
+            v.x += 1.0;
+        }
+        v.normalize()
+    }
+
     pub fn close_requested(&self) -> bool {
         self.close_requested
     }
@@ -167,6 +207,8 @@ impl Input {
     }
 
     pub fn clear_at_end_of_frame(&mut self) {
+        // dbg!(self.keys.just_pressed.len());
+        // dbg!(self.mouse_buttons.just_pressed.len());
         self.keys.clear_at_end_of_frame();
         self.mouse_buttons.clear_at_end_of_frame();
         self.resized = None;
@@ -195,7 +237,7 @@ impl<T> Default for ElementStateCache<T> {
     }
 }
 
-impl<T: Copy + PartialEq> ElementStateCache<T> {
+impl<T: Copy + PartialEq + Debug> ElementStateCache<T> {
     pub fn is_pressed(&self, key: T) -> bool {
         self.pressed.contains(&key)
     }
@@ -207,6 +249,9 @@ impl<T: Copy + PartialEq> ElementStateCache<T> {
     }
 
     pub fn clear_at_end_of_frame(&mut self) {
+        // A weird note: forgetting to clear these leads to performance drops from 1400 fps to about 300 fps.
+        // Even though they don't seem to grow at all.
+        // - Tadeo Hepperle, 2023-12-13
         self.just_pressed.clear();
         self.just_released.clear();
     }
