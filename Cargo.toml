@@ -1,6 +1,7 @@
 
 [workspace]
 members = ["core", "framework"]
+exclude = ["core/examples/arenas"]
 
 [package]
 name = "vert"

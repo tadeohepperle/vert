@@ -173,9 +173,9 @@ macro_rules! reflect {
                         $(
                             {
                                 let trait_obj: &dyn $trait = &uninit as &dyn $trait;
-                                if std::mem::size_of::<&dyn $trait>() != std::mem::size_of::<usize>() * 2 {
-                                    panic!("Error in Implementor::dyn_traits, invalid fat pointer...")
-                                }
+                                // if std::mem::size_of::<&dyn $trait>() != std::mem::size_of::<usize>() * 2 {
+                                //     panic!("Error in Implementor::dyn_traits, invalid fat pointer...")
+                                // }
                                 let vtable = &trait_obj as *const _ as *const VTable;
                                 VTablePtrWithMeta {
                                     ptr: unsafe { (*vtable).ptr },

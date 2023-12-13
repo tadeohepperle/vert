@@ -108,14 +108,7 @@ fn new_component_arena<C: Component>(dyn_trait_registry: &mut DynTraitRegistry) 
     let arena_address = arena_address::<C>();
     // set the vtable pointers for traits implemented by each component:
     let dyn_traits = unsafe { C::dyn_traits() };
-    dbg!(&dyn_traits);
     for ptr_with_meta in dyn_traits {
-        dyn_trait_registry.insert_vtable_ptr(arena_address, *ptr_with_meta, false)
-    }
-
-    // set up a singleton resource for this type of component
-    let resource_dyn_traits = unsafe { C::dyn_traits() };
-    for ptr_with_meta in resource_dyn_traits {
         dyn_trait_registry.insert_vtable_ptr(arena_address, *ptr_with_meta, false)
     }
 

@@ -98,9 +98,9 @@ impl Modules {
         self.camera.prepare(&context.queue);
         self.egui.prepare(&self.graphics.context, encoder);
         // collect all the components that need preparation in this command encoder
-        for e in self.arenas.iter_component_traits_mut::<dyn Prepare>() {
-            e.prepare(context, encoder);
-        }
+        // for e in self.arenas.iter_component_traits_mut::<dyn Prepare>() {
+        //     e.prepare(context, encoder);
+        // }
     }
 
     pub(crate) fn prepare_and_render(&mut self, state: &mut impl StateT) {

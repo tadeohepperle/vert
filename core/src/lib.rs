@@ -6,6 +6,7 @@ pub mod trait_reflection;
 mod tests;
 
 pub mod prelude {
+    pub use crate::component::Component;
     pub use crate::reflect;
     pub use crate::trait_reflection::{
         DynTrait, Implementor, MultipleReflectedTraits, VTable, VTablePtrWithMeta,

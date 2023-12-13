@@ -445,16 +445,15 @@ impl<'a, T: 'static> Iterator for ArenaIterMut<'a, T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         while self.i < self.blob_len {
-            if let Entry::Occupied { gen, value } = &self.blob[self.i] {
+            if let Entry::Occupied { gen, value } = &mut self.blob[self.i] {
                 let index = ArenaIndex {
                     index: self.i,
                     generation: *gen,
                 };
                 self.i += 1;
                 // not sure if this will cause bugs:
-                // let longer_ref: &'a mut T = unsafe { &mut *(value as *const T as *mut T) };
-                todo!()
-                // return Some((index, longer_ref));
+                let longer_ref: &'a mut T = unsafe { &mut *(value as *mut T) };
+                return Some((index, longer_ref));
             } else {
                 self.i += 1;
             }
