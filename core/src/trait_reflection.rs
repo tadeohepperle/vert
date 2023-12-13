@@ -113,24 +113,28 @@ multi_implements_impl_for_tuples!(A, B, C, D, E, F, G, H, I, J);
 
 /// This macro can be applied to traits or specifying a struct and some traits it implements:
 /// ### Use on traits:
-/// ```rust,norun
+/// ```rust,no_run,ignore
+/// use vert_core::prelude::*;
 /// trait Render { }
 /// reflect!(Render)
 /// ```
 /// which expands to:
-/// ```rust,norun
+/// ```rust,no_run,ignore
 /// trait Render { }
 /// impl DynTrait for dyn Render {}
 /// ```
 ///
 /// ### Use on structs, specifying traits:
-/// ```rust,norun
+/// ```rust,no_run,ignore
+/// use vert_core::prelude::*;
+///
 /// trait Render { }
 /// struct Circle;
 /// reflect!(Circle: Render)
 /// ```
 /// which expands to:
-/// ```rust,norun
+/// ```rust,no_run,ignore
+///
 /// impl Implementor for Circle {
 ///     unsafe fn dyn_traits() -> &'static [VTablePtrWithMeta] {
 ///         const UNINIT: Circle =

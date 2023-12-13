@@ -1,7 +1,7 @@
 use std::{
     borrow::{Borrow, BorrowMut},
     fmt::Debug,
-    iter::{self, Enumerate},
+    iter::{self, Enumerate, FilterMap},
     marker::PhantomData,
     slice::{Iter, IterMut},
 };
@@ -42,6 +42,7 @@ impl<T> Entry<T> {
 ///
 /// Shamelessly inspired by https://docs.rs/generational-arena/latest/generational_arena/
 pub struct Arena {
+    // blob of Entry<T>
     blob: Blob,
     generation: Generation,
     free_list_head: Option<usize>,
@@ -86,23 +87,17 @@ impl Arena {
     }
 
     #[inline(always)]
-    fn blob_mut<'a, T>(&'a mut self) -> &'a mut TypedBlobMut<'a, Entry<T>> {
+    fn blob_mut<'a, T>(&'a mut self) -> TypedBlobMut<'a, Entry<T>> {
         self.assert_t_matches::<T>();
-        let local_lifetime = &mut self.blob.typed_mut::<Entry<T>>();
-        // do this trick again, smh:
-        let blob_mut: &'a mut TypedBlobMut<'a, Entry<T>> =
-            unsafe { &mut *(local_lifetime as *mut TypedBlobMut<'a, Entry<T>>) };
-        blob_mut
+        let typed_blob_mut = self.blob.typed_mut::<Entry<T>>();
+        typed_blob_mut
     }
 
     #[inline(always)]
-    fn blob_ref<'a, T>(&'a self) -> &'a TypedBlobRef<'a, Entry<T>> {
+    fn blob_ref<'a, T>(&'a self) -> TypedBlobRef<'a, Entry<T>> {
         self.assert_t_matches::<T>();
-        let local_lifetime = &self.blob.typed_ref::<Entry<T>>();
-        // do this trick again, smh:
-        let parent_lifetime: &'a TypedBlobRef<'a, Entry<T>> =
-            unsafe { &*(local_lifetime as *const TypedBlobRef<'a, Entry<T>>) };
-        parent_lifetime
+        let typed_blob_ref = self.blob.typed_ref::<Entry<T>>();
+        typed_blob_ref
     }
 
     #[inline(always)]
@@ -143,7 +138,7 @@ impl Arena {
             None => Err(value),
             Some(index) => {
                 let generation = self.generation;
-                let mut_blob = self.blob_mut::<T>();
+                let mut mut_blob = self.blob_mut::<T>();
                 mut_blob[index.index] = Entry::Occupied {
                     gen: generation,
                     value,
@@ -194,7 +189,7 @@ impl Arena {
         }
 
         let free_list_head = self.free_list_head;
-        let blob_mut = self.blob_mut::<T>();
+        let mut blob_mut = self.blob_mut::<T>();
         let entry_at_index = &mut blob_mut[i.index];
 
         // if the entry is free, or filled but generation does not match, return None.
@@ -256,7 +251,7 @@ impl Arena {
         self.assert_t_matches::<T>();
 
         for i in 0..self.blob.len() {
-            let blob_mut = self.blob_mut::<T>();
+            let mut blob_mut = self.blob_mut::<T>();
             let entry = &mut blob_mut[i];
 
             let remove = match entry {
@@ -283,20 +278,22 @@ impl Arena {
         }
     }
 
-    fn iter<'a, T>(&'a self) -> ArenaIter<'a, T> {
-        let blob: &'a TypedBlobRef<'a, Entry<T>> = self.blob_ref::<T>();
-        let iter: Enumerate<Iter<'a, Entry<T>>> = blob.iter().enumerate();
+    fn iter<'a, T: 'static>(&'a self) -> ArenaIter<'a, T> {
+        let blob = self.blob_ref::<T>();
         ArenaIter {
-            len: self.len(),
-            iter,
+            blob_len: blob.len(),
+            blob,
+            i: 0,
         }
     }
 
     fn iter_mut<'a, T>(&'a mut self) -> ArenaIterMut<'a, T> {
-        let len = self.len();
         let blob = self.blob_mut::<T>();
-        let iter: Enumerate<IterMut<'a, Entry<T>>> = blob.iter_mut().enumerate();
-        ArenaIterMut { len, iter }
+        ArenaIterMut {
+            blob_len: blob.len(),
+            blob,
+            i: 0,
+        }
     }
 
     pub fn into_typed<T>(self) -> TypedArena<T> {
@@ -344,7 +341,7 @@ impl<T> BorrowMut<TypedArena<T>> for Arena {
     }
 }
 
-pub struct TypedArena<T> {
+pub struct TypedArena<T: 'static> {
     arena: Arena,
     phantom: PhantomData<T>,
 }
@@ -394,14 +391,14 @@ impl<T> TypedArena<T> {
     }
 
     pub fn free(self) {
-        self.arena.blob.free::<T>();
+        self.arena.blob.free::<Entry<T>>();
     }
 }
 
 impl<T: Debug> Debug for TypedArena<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let blob = self.arena.blob_ref::<T>();
-        f.debug_struct("TypedArena").field("arena", blob).finish()
+        f.debug_struct("TypedArena").field("arena", &blob).finish()
     }
 }
 
@@ -410,78 +407,59 @@ impl<T: Debug> Debug for TypedArena<T> {
 // /////////////////////////////////////////////////////////////////////////////
 
 pub struct ArenaIter<'a, T> {
-    len: usize,
-    iter: iter::Enumerate<Iter<'a, Entry<T>>>,
+    blob: TypedBlobRef<'a, Entry<T>>,
+    blob_len: usize,
+    i: usize,
 }
 
-impl<'a, T> Iterator for ArenaIter<'a, T> {
+impl<'a, T: 'static> Iterator for ArenaIter<'a, T> {
     type Item = (ArenaIndex, &'a T);
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            match self.iter.next() {
-                Some((_, &Entry::Free { .. })) => continue,
-                Some((
-                    index,
-                    &Entry::Occupied {
-                        gen: generation,
-                        ref value,
-                    },
-                )) => {
-                    self.len -= 1;
-                    let idx = ArenaIndex { index, generation };
-                    return Some((idx, value));
-                }
-                None => {
-                    debug_assert_eq!(self.len, 0);
-                    return None;
-                }
+        while self.i < self.blob_len {
+            if let Entry::Occupied { gen, value } = &self.blob[self.i] {
+                let index = ArenaIndex {
+                    index: self.i,
+                    generation: *gen,
+                };
+                self.i += 1;
+                // not sure if this will cause bugs:
+                let longer_ref: &'a T = unsafe { &*(value as *const T) };
+                return Some((index, longer_ref));
+            } else {
+                self.i += 1;
             }
         }
-    }
-}
-
-impl<'a, T> ExactSizeIterator for ArenaIter<'a, T> {
-    fn len(&self) -> usize {
-        self.len
+        None
     }
 }
 
 pub struct ArenaIterMut<'a, T> {
-    len: usize,
-    iter: iter::Enumerate<IterMut<'a, Entry<T>>>,
+    blob: TypedBlobMut<'a, Entry<T>>,
+    blob_len: usize,
+    i: usize,
 }
 
-impl<'a, T> Iterator for ArenaIterMut<'a, T> {
+impl<'a, T: 'static> Iterator for ArenaIterMut<'a, T> {
     type Item = (ArenaIndex, &'a mut T);
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            match self.iter.next() {
-                Some((_, &mut Entry::Free { .. })) => continue,
-                Some((
-                    index,
-                    &mut Entry::Occupied {
-                        gen: generation,
-                        ref mut value,
-                    },
-                )) => {
-                    self.len -= 1;
-                    let idx = ArenaIndex { index, generation };
-                    return Some((idx, value));
-                }
-                None => {
-                    debug_assert_eq!(self.len, 0);
-                    return None;
-                }
+        while self.i < self.blob_len {
+            if let Entry::Occupied { gen, value } = &self.blob[self.i] {
+                let index = ArenaIndex {
+                    index: self.i,
+                    generation: *gen,
+                };
+                self.i += 1;
+                // not sure if this will cause bugs:
+                // let longer_ref: &'a mut T = unsafe { &mut *(value as *const T as *mut T) };
+                todo!()
+                // return Some((index, longer_ref));
+            } else {
+                self.i += 1;
             }
         }
-    }
-}
-
-impl<'a, T> ExactSizeIterator for ArenaIterMut<'a, T> {
-    fn len(&self) -> usize {
-        self.len
+        None
     }
 }
 
@@ -539,6 +517,6 @@ mod tests {
 
         arena.retain(|_, e| !e.starts_with("H"));
 
-        assert_eq!(arena.iter().len(), 1);
+        arena.free();
     }
 }

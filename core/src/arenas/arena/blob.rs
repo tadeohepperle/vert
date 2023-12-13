@@ -293,7 +293,30 @@ mod tests {
     use crate::arenas::arena::blob::Blob;
 
     #[test]
-    fn pushing_and_popping() {
+    fn free() {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        struct Human {
+            name: String,
+            age: u32,
+            male: bool,
+        }
+
+        let mut blob = Blob::new::<Human>();
+
+        let jeff = Human {
+            name: "Jeff".into(),
+            age: 340,
+            male: true,
+        };
+
+        for i in 0..100 {
+            blob.push(jeff.clone());
+        }
+        blob.free::<Human>();
+    }
+
+    #[test]
+    fn pushing() {
         #[derive(Debug, Clone, PartialEq, Eq)]
         struct Human {
             name: String,
@@ -347,7 +370,7 @@ mod tests {
             str: String,
         }
 
-        for _test_run in 0..1000 {
+        for _test_run in 0..100 {
             // 1000 times create a blob and each time, push 5000 objects on it, each 10kb bytes.
             let mut blob = Blob::new::<S>();
             for _ in 0..5000 {

@@ -108,6 +108,7 @@ fn new_component_arena<C: Component>(dyn_trait_registry: &mut DynTraitRegistry) 
     let arena_address = arena_address::<C>();
     // set the vtable pointers for traits implemented by each component:
     let dyn_traits = unsafe { C::dyn_traits() };
+    dbg!(&dyn_traits);
     for ptr_with_meta in dyn_traits {
         dyn_trait_registry.insert_vtable_ptr(arena_address, *ptr_with_meta, false)
     }
@@ -171,38 +172,28 @@ impl Arenas {
         let removed_value = component_arena.arena.remove(i);
         // if this component was the last one in this arena, remove the arena to not use up more space:
         if component_arena.arena.len() == 0 {
-            let arena_address = arena_address::<C>();
-            // remove arena:
-            let arena = self
-                .arenas
-                .remove(&arena_address)
-                .expect("Arena is present, because it was just queried");
-
-            // set the vtable pointers for traits implemented by each component:
-            let dyn_traits = unsafe { C::dyn_traits() };
-            for ptr_with_meta in dyn_traits {
-                self.dyn_traits_registry
-                    .remove_vtable_ptr(arena_address, *ptr_with_meta, false)
-            }
-
-            // set up a singleton resource for this type of component
-            let resource_dyn_traits = unsafe { C::dyn_traits() };
-            for ptr_with_meta in resource_dyn_traits {
-                self.dyn_traits_registry
-                    .remove_vtable_ptr(arena_address, *ptr_with_meta, false)
-            }
-
-            // drop arena:
-            // this triggers the Blob::free<C>() function that triggers the drop of all components stored in the blob e.g. Strings that need to free memory, vecs, etc...
-
-            let removed_arena = self
-                .arenas
-                .remove(&arena_address)
-                .expect("arena removed due to 0 elements was not found");
-            removed_arena.into_typed::<C>().free();
+            self.free_arena::<C>();
         }
         // remove the vtable pointers for this area from the
         removed_value
+    }
+
+    pub fn free_arena<C: Component>(&mut self) {
+        let arena_address = arena_address::<C>();
+
+        // set the vtable pointers for traits implemented by each component:
+        let dyn_traits = unsafe { C::dyn_traits() };
+        for ptr_with_meta in dyn_traits {
+            self.dyn_traits_registry
+                .remove_vtable_ptr(arena_address, *ptr_with_meta, false)
+        }
+
+        // remove arena:
+        let removed_arena = self
+            .arenas
+            .remove(&arena_address)
+            .expect("arena removed due to 0 elements was not found");
+        removed_arena.into_typed::<C>().free();
     }
 
     pub fn iter<C: Component>(&self) -> impl Iterator<Item = (ArenaIndex, &C)> {
@@ -289,11 +280,11 @@ pub struct ComponentArena {
 
 #[derive(Debug)]
 #[repr(C)]
-pub struct TypedComponentArena<C> {
+pub struct TypedComponentArena<C: Component> {
     arena: TypedArena<C>,
 }
 
-impl<T> Borrow<TypedComponentArena<T>> for ComponentArena {
+impl<T: Component> Borrow<TypedComponentArena<T>> for ComponentArena {
     fn borrow(&self) -> &TypedComponentArena<T> {
         self.arena.assert_t_matches::<T>();
         let ptr_to_self = self as *const ComponentArena;
@@ -302,7 +293,7 @@ impl<T> Borrow<TypedComponentArena<T>> for ComponentArena {
     }
 }
 
-impl<T> BorrowMut<TypedComponentArena<T>> for ComponentArena {
+impl<T: Component> BorrowMut<TypedComponentArena<T>> for ComponentArena {
     fn borrow_mut(&mut self) -> &mut TypedComponentArena<T> {
         self.arena.assert_t_matches::<T>();
         let ptr_to_self = self as *mut ComponentArena;
@@ -311,14 +302,14 @@ impl<T> BorrowMut<TypedComponentArena<T>> for ComponentArena {
     }
 }
 impl ComponentArena {
-    fn into_typed<C>(self) -> TypedComponentArena<C> {
+    fn into_typed<C: Component>(self) -> TypedComponentArena<C> {
         TypedComponentArena {
             arena: self.arena.into_typed(),
         }
     }
 }
 
-impl<T> TypedComponentArena<T> {
+impl<T: Component> TypedComponentArena<T> {
     pub fn free(self) {
         self.arena.free();
     }
