@@ -21,7 +21,7 @@ use self::{
 pub mod egui;
 pub mod graphics;
 pub mod input;
-pub mod module_ext;
+pub mod modules_ext;
 pub mod time;
 
 pub struct Modules {

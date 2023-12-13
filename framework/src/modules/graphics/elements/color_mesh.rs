@@ -13,7 +13,7 @@ use crate::{
     constants::DEPTH_FORMAT,
     modules::graphics::{
         graphics_context::{GraphicsContext, COLOR_FORMAT},
-        VertexT,
+        Prepare, VertexT,
     },
 };
 
@@ -239,10 +239,16 @@ impl VertexT for Vertex {
 // Abstractions
 // /////////////////////////////////////////////////////////////////////////////
 
-reflect!(SingleColorMesh :);
+reflect!(SingleColorMesh : Prepare);
 impl Component for SingleColorMesh {}
 pub struct SingleColorMesh {
     inner: ColorMeshObj,
+}
+
+impl Prepare for SingleColorMesh {
+    fn prepare(&mut self, context: &GraphicsContext, encoder: &mut wgpu::CommandEncoder) {
+        self.inner.transform.update_raw_and_buffer(&context.queue);
+    }
 }
 
 impl SingleColorMesh {
@@ -276,10 +282,16 @@ impl SingleColorMesh {
     }
 }
 
-reflect!(MultiColorMesh :);
+reflect!(MultiColorMesh : Prepare);
 impl Component for MultiColorMesh {}
 pub struct MultiColorMesh {
     inner: ColorMeshObj,
+}
+
+impl Prepare for MultiColorMesh {
+    fn prepare(&mut self, context: &GraphicsContext, encoder: &mut wgpu::CommandEncoder) {
+        self.inner.transform.update_raw_and_buffer(&context.queue);
+    }
 }
 
 impl MultiColorMesh {

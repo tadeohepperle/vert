@@ -1,4 +1,7 @@
-use vert_core::{arenas::arena::ArenaIndex, component::Component};
+use vert_core::{
+    arenas::{arena::ArenaIndex, Arenas},
+    component::Component,
+};
 
 use super::{graphics::elements::camera::CamTransform, input::Input, time::Time, Modules};
 
@@ -41,5 +44,9 @@ impl Modules {
 
     pub fn time(&mut self) -> &Time {
         &self.time
+    }
+
+    pub fn arenas_mut(&mut self) -> &mut Arenas {
+        &mut self.arenas
     }
 }

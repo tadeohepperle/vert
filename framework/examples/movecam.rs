@@ -46,6 +46,13 @@ impl StateT for MyState {
         cam_transform.pitch += arrows.y * ANGLE_SPEED * delta_time;
         cam_transform.yaw += arrows.x * ANGLE_SPEED * delta_time;
 
+        // move the cubes up and down:
+        let total_time = modules.time().total_secs();
+        for (_, cube) in modules.arenas_mut().iter_mut::<SingleColorMesh>() {
+            let t = cube.transform_mut();
+            t.position.y = ((total_time + t.position.z * 0.2) * 3.0).sin() * t.position.z * 0.1;
+        }
+
         Flow::Continue
     }
 
