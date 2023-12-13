@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use self::graphics_context::GraphicsContext;
+use vert_core::prelude::*;
 
 pub mod elements;
 pub mod graphics_context;
@@ -10,6 +11,7 @@ pub trait VertexT: Copy + bytemuck::Pod + bytemuck::Zeroable {
     fn desc() -> wgpu::VertexBufferLayout<'static>;
 }
 
+reflect!(Prepare);
 pub trait Prepare {
     fn prepare(&mut self, context: &GraphicsContext, encoder: &mut wgpu::CommandEncoder);
 }

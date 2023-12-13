@@ -2,12 +2,12 @@ use std::{borrow::BorrowMut, fmt::Write, sync::Arc};
 
 use atomic_refcell::AtomicRefCell;
 use tokio::sync::watch;
-use wgpu::SurfaceConfiguration;
+use wgpu::{SurfaceConfiguration, SurfaceTexture};
 use winit::{dpi::PhysicalSize, window::Window};
 
 use crate::utils::{Reader, Writer};
 
-const DESIRED_SURFACE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8UnormSrgb;
+pub const COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8UnormSrgb;
 
 /// not too expensive to clone
 #[derive(Debug, Clone)]
@@ -33,14 +33,14 @@ impl GraphicsContext {
     }
 }
 
-pub struct GraphicsContextUpdater {
+pub struct GraphicsOwner {
     pub context: GraphicsContext,
     pub surface_config: Writer<wgpu::SurfaceConfiguration>,
     pub size: Writer<PhysicalSize<u32>>,
     pub scale_factor: Writer<f64>,
 }
 
-impl GraphicsContextUpdater {
+impl GraphicsOwner {
     pub async fn intialize(window: &Window) -> anyhow::Result<Self> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
@@ -73,7 +73,7 @@ impl GraphicsContextUpdater {
             .formats
             .iter()
             .copied()
-            .find(|f| *f == DESIRED_SURFACE_FORMAT)
+            .find(|f| *f == COLOR_FORMAT)
             .expect("SURFACE_FORMAT not found in surface caps ");
 
         let size = window.inner_size();
@@ -107,7 +107,7 @@ impl GraphicsContextUpdater {
             scale_factor: scale_factor.reader(),
         };
 
-        let context_updater = GraphicsContextUpdater {
+        let context_updater = GraphicsOwner {
             surface_config,
             size,
             context,
@@ -116,9 +116,29 @@ impl GraphicsContextUpdater {
 
         Ok(context_updater)
     }
+
+    pub fn new_encoder(&self) -> wgpu::CommandEncoder {
+        self.context
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Encoder"),
+            })
+    }
+
+    pub fn new_surface_texture_and_view(&self) -> (SurfaceTexture, wgpu::TextureView) {
+        let output = self
+            .context
+            .surface
+            .get_current_texture()
+            .expect("wgpu surface error");
+        let view = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        (output, view)
+    }
 }
 
-impl GraphicsContextUpdater {
+impl GraphicsOwner {
     pub fn resize(&self, new_size: PhysicalSize<u32>) {
         let mut surface_config = self.surface_config.get_mut();
         surface_config.width = new_size.width;

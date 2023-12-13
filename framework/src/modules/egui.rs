@@ -3,11 +3,11 @@ use egui_demo_lib::DemoWindows;
 use egui_wgpu::{renderer::ScreenDescriptor, Renderer};
 use winit::{dpi::PhysicalSize, event::WindowEvent};
 
+use crate::constants::DEPTH_FORMAT;
+
 use self::platform::{Platform, PlatformDescriptor};
 
-use super::graphics::{
-    elements::texture::DEPTH_FORMAT, graphics_context::GraphicsContext, Prepare, Render,
-};
+use super::graphics::{graphics_context::GraphicsContext, Prepare, Render};
 
 pub mod platform;
 

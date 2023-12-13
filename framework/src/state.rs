@@ -1,3 +1,5 @@
+use wgpu::{CommandEncoder, Queue};
+
 use crate::{
     flow::Flow,
     modules::{
@@ -17,14 +19,7 @@ pub trait StateT: Sized {
     }
 
     // called before rendering is done. Perform GPU Updates here.
-    // fn prepare(
-    //     &mut self,
-    //     modules: &Modules,
-    //     graphics_context: &GraphicsContext,
-    //     encoder: &Encoder,
-    // ) -> Flow {
-    //     Flow::Continue
-    // }
+    fn prepare(&mut self, modules: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder) {}
 }
 
 impl StateT for () {

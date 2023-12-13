@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 use image::RgbaImage;
 
-pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+use crate::constants::DEPTH_FORMAT;
 
 pub struct Texture {
     pub name: Option<Cow<'static, str>>,

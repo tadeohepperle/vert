@@ -102,7 +102,7 @@ fn run_frame<S: StateT>(modules: &mut Modules, state: &mut S) -> Flow {
     // prepare (upload stuff to gpu)
     // state.prepare(modules)?; // todo!(reintegrate this)
     // render (render and present)
-    modules.prepare_and_render(state)?;
+    modules.prepare_and_render(state);
     // end frame (clear frame events, etc.)
     modules.end_frame()?;
     Flow::Continue

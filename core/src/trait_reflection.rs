@@ -2,9 +2,8 @@
 // // Super Simple Trait Reflection
 // // /////////////////////////////////////////////////////////////////////////////
 
-use std::any::TypeId;
-
 use smallvec::{smallvec, SmallVec};
+use std::any::TypeId;
 
 /// should only be implemented for `dyn MyTrait`
 pub trait DynTrait: 'static {
@@ -157,7 +156,7 @@ macro_rules! reflect {
     ($trait:ident) => {
         impl DynTrait for dyn $trait {}
     };
-    ($component:ident : $($trait:ident),+ ) => {
+    ($component:ident : $($trait:ident),* ) => {
         impl Implementor for $component {
             unsafe fn dyn_traits() -> &'static [VTablePtrWithMeta]{
                 use std::sync::OnceLock;
@@ -180,7 +179,7 @@ macro_rules! reflect {
                                     dyn_trait_name: std::any::type_name::<dyn $trait>(),
                                 }
                             }
-                        ),+
+                        ),*
                     ];
                     impls.into()
                 })
