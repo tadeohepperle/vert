@@ -2,27 +2,31 @@ use std::sync::Arc;
 
 use winit::dpi::PhysicalSize;
 
-use super::{graphics_context::GraphicsContext, texture::Texture};
+use super::{elements::texture::Texture, graphics_context::GraphicsContext};
 
 pub struct Renderer {
-    graphics_context: Arc<GraphicsContext>,
-    // depth_texture: Texture,
+    context: GraphicsContext,
+    depth_texture: Texture,
 }
 
 impl Renderer {
-    pub async fn initialize(graphics_context: Arc<GraphicsContext>) -> anyhow::Result<Self> {
+    pub async fn initialize(context: GraphicsContext) -> anyhow::Result<Self> {
+        let depth_texture = create_depth_texture(&context);
         Ok(Self {
-            graphics_context,
-            // depth_texture: todo!(),
+            context,
+            depth_texture,
         })
     }
 
-    pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
-        // todo!
-        // self.depth_texture = Texture::create_depth_texture(
-        //     &self.graphics_context.device,
-        //     self.graphics_context.surface_config(),
-        //     "depth_texture",
-        // );
+    pub fn resize(&mut self) {
+        // recreate the depth texture
+        self.depth_texture = create_depth_texture(&self.context);
     }
+}
+
+fn create_depth_texture(context: &GraphicsContext) -> Texture {
+    let surface_config = context.surface_config.get();
+    let depth_texture =
+        Texture::create_depth_texture(&context.device, &surface_config, "depth_texture");
+    depth_texture
 }

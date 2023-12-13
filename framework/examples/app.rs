@@ -1,4 +1,4 @@
-use vert_framework::app::{App, StateT};
+use vert_framework::{app::App, state::StateT};
 
 pub struct MyState {}
 

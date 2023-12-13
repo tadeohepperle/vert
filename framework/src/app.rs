@@ -5,18 +5,13 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-use crate::{flow::Flow, modules::Modules};
+use crate::{flow::Flow, modules::Modules, state::StateT};
 
 pub struct App<S: StateT> {
     event_loop: EventLoop<()>,
     window: Window,
     modules: Modules,
     state: S,
-}
-
-/// User defined application state
-pub trait StateT: Sized {
-    async fn initialize(modules: &Modules) -> anyhow::Result<Self>;
 }
 
 impl<S: StateT> App<S> {
@@ -100,15 +95,15 @@ impl<S: StateT> App<S> {
 }
 
 fn run_frame<S: StateT>(modules: &mut Modules, state: &mut S) -> Flow {
-    // preupdate
-
-    // update
-
-    // prepare
-
-    // render
-
-    // end frame
-
+    // begin frame (delta time, input construction)
+    modules.begin_frame()?;
+    // update (game logic)
+    state.update(modules)?;
+    // prepare (upload stuff to gpu)
+    // state.prepare(modules)?; // todo!(reintegrate this)
+    // render (render and present)
+    modules.prepare_and_render(state)?;
+    // end frame (clear frame events, etc.)
+    modules.end_frame()?;
     Flow::Continue
 }
