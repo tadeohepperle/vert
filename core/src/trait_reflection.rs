@@ -185,6 +185,7 @@ macro_rules! reflect {
                             }
                         ),*
                     ];
+                    std::mem::forget(uninit);
                     impls.into()
                 })
             }

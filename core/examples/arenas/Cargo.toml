@@ -10,3 +10,5 @@ edition = "2021"
 [dependencies]
 vert-core = { path = "../../" }
 tokio = { version = "1.34.0", features = ["rt-multi-thread"] }
+glam = "0.24.2"
+bytemuck = "1.14.0"
