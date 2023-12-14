@@ -110,7 +110,8 @@ impl Texture {
     }
 
     pub fn create_white_px_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
-        let white_px = RgbaImage::new(1, 1);
+        let mut white_px = RgbaImage::new(1, 1);
+        white_px.get_pixel_mut(0, 0).0 = [255, 255, 255, 255];
         Self::from_image(device, queue, &white_px)
     }
 

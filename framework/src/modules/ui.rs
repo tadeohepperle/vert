@@ -151,22 +151,24 @@ fn create_sorted_rect_instances(
     });
 
     // cache this to use it after the loop
-    let last_group_texture = rects.last().unwrap().texture.clone();
 
     let mut instances: Vec<UiRectInstance> = vec![];
     let mut texture_groups: Vec<(Range<u32>, Option<Arc<BindableTexture>>)> = vec![];
 
-    let mut last_texture_id: Option<u128> = None;
     let mut last_start_idx: usize = 0;
+    let mut last_texture_id: Option<u128> = None;
+    let mut last_group_texture: Option<Arc<BindableTexture>> =
+        rects.first().unwrap().texture.clone();
 
     for (i, rect) in rects.into_iter().enumerate() {
         instances.push(rect.instance);
         let texture_id = rect.texture.as_ref().map(|e| e.texture.id);
         if texture_id != last_texture_id {
-            let range = (last_start_idx as u32)..(i as u32 + 1);
-            texture_groups.push((range, rect.texture));
-            last_start_idx = i + 1;
+            let range = (last_start_idx as u32)..(i as u32);
+            texture_groups.push((range, last_group_texture));
+            last_start_idx = i;
             last_texture_id = texture_id;
+            last_group_texture = rect.texture;
         }
     }
 
@@ -174,6 +176,5 @@ fn create_sorted_rect_instances(
         let range = (last_start_idx as u32)..(instances.len() as u32);
         texture_groups.push((range, last_group_texture));
     }
-
     (instances, texture_groups)
 }

@@ -1,11 +1,15 @@
+use std::sync::Arc;
+
 use glam::vec3;
 use vert_framework::{
     app::App,
     flow::Flow,
     modules::{
+        assets::fetchable_asset::{AssetSource, ImageAsset},
         graphics::elements::{
             color::Color,
             color_mesh::SingleColorMesh,
+            texture::{BindableTexture, Texture},
             ui_rect::{UiRect, UiRectInstance},
         },
         Modules,
@@ -13,7 +17,9 @@ use vert_framework::{
     state::StateT,
 };
 
-pub struct MyState {}
+pub struct MyState {
+    test_texture: Arc<BindableTexture>,
+}
 
 impl StateT for MyState {
     async fn initialize(modules: &mut Modules) -> anyhow::Result<Self> {
@@ -26,7 +32,22 @@ impl StateT for MyState {
                 modules.spawn(color_mesh);
             }
         }
-        Ok(MyState {})
+
+        let image = AssetSource::from("./assets/test.png")
+            .fetch::<ImageAsset>()
+            .await
+            .unwrap();
+
+        let context = modules.graphics_context();
+        let test_texture = BindableTexture::new(
+            context,
+            context.rgba_bind_group_layout,
+            Texture::from_image(&context.device, &context.queue, &image.rgba),
+        );
+
+        Ok(MyState {
+            test_texture: Arc::new(test_texture),
+        })
     }
 
     fn update(&mut self, modules: &mut Modules) -> Flow {
@@ -69,6 +90,15 @@ impl StateT for MyState {
                 color: Color::RED,
             },
             texture: None,
+        });
+
+        ui.draw_rect(UiRect {
+            instance: UiRectInstance {
+                posbb: [400.0, 400.0, 600.0, 600.0],
+                uvbb: [0.0, 0.0, 1.0, 1.0],
+                color: Color::RED,
+            },
+            texture: Some(self.test_texture.clone()),
         });
 
         Flow::Continue

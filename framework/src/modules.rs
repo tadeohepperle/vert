@@ -150,4 +150,8 @@ impl Modules {
         self.input.clear_at_end_of_frame();
         Flow::Continue
     }
+
+    pub fn graphics_context(&self) -> &GraphicsContext {
+        &self.graphics.context
+    }
 }

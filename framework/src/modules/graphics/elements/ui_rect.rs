@@ -146,7 +146,7 @@ impl UiRectRenderPipeline {
     pub fn render_ui_rects<'s: 'e, 'p, 'e>(
         &'s self,
         render_pass: &'p mut RenderPass<'e>,
-        draw_rects: &'e PeparedRects,
+        prepared_rects: &'e PeparedRects,
     ) {
         render_pass.set_pipeline(&self.pipeline);
 
@@ -158,12 +158,12 @@ impl UiRectRenderPipeline {
         );
 
         // set the instance buffer: (no vertex buffer is used, instead just one big instance buffer that contains the sorted texture group ranges.)
-        render_pass.set_vertex_buffer(0, draw_rects.instance_buffer.buffer().slice(..));
+        render_pass.set_vertex_buffer(0, prepared_rects.instance_buffer.buffer().slice(..));
 
         // draw instanced ranges of the instance buffer for each texture region:
         let index_count = self.index_buffer.len();
         assert_eq!(index_count, 6);
-        for (range, texture) in draw_rects.texture_groups.iter() {
+        for (range, texture) in prepared_rects.texture_groups.iter() {
             let texture: &BindableTexture = match texture {
                 Some(texture) => texture,
                 None => &self.white_px,

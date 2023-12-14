@@ -27,6 +27,7 @@ struct Vertex {
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) color: vec4<f32>,
+    @location(1) uv: vec2<f32>,
 };
 
 
@@ -81,10 +82,15 @@ fn vs_main(
 
     out.clip_position = vec4<f32>(device_pos, 0.0, 1.0);
     out.color = vec4<f32>(vertex.uv, 0.0, 1.0);
+    out.uv = vertex.uv;
     return out;
 }
  
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return in.color;
+ let color = textureSample(t_diffuse, s_diffuse, in.uv);
+    if color.a < 0.1 {
+        discard;
+    }
+    return color;
 }
