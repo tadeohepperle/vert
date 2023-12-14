@@ -111,22 +111,6 @@ impl UiRectRenderPipeline {
         // just a simple rect:
         let index_buffer = IndexBuffer::new(vec![0, 1, 2, 0, 2, 3], &context.device);
 
-        let instances: VertexBuffer<UiRectInstance> = VertexBuffer::new(
-            vec![
-                UiRectInstance {
-                    posbb: [200.0, 200.0, 600.0, 600.0],
-                    uvbb: [0.0, 0.0, 1.0, 1.0],
-                    color: Color::RED,
-                },
-                UiRectInstance {
-                    posbb: [10.0, 40.0, 100.0, 100.0],
-                    uvbb: [0.0, 0.0, 1.0, 1.0],
-                    color: Color::BLUE,
-                },
-            ],
-            &context.device,
-        );
-
         UiRectRenderPipeline {
             pipeline,
             screen_space_bind_group,
@@ -182,6 +166,7 @@ pub struct UiRectInstance {
     // min x, min y, max x, max y
     pub uvbb: [f32; 4],
     pub color: Color,
+    pub border_radius: [f32; 4],
 }
 impl VertexT for UiRectInstance {
     fn desc() -> wgpu::VertexBufferLayout<'static> {
@@ -206,6 +191,12 @@ impl VertexT for UiRectInstance {
                 wgpu::VertexAttribute {
                     offset: mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
                     shader_location: 2,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                // border radius
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 12]>() as wgpu::BufferAddress,
+                    shader_location: 3,
                     format: wgpu::VertexFormat::Float32x4,
                 },
             ],
