@@ -74,6 +74,13 @@ see colored meshes, but additionally set bindgroup for the texture of each mesh?
 Not super important right now, probably combine with colored mesh, to have a single pipeline
 Probably
 
+### 3D Sprites and UI:
+
+have a:
+
+- texture
+- color
+
 # Lighting considerations
 
 - not made at all at the moment.
