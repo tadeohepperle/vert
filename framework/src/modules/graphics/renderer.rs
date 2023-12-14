@@ -8,7 +8,9 @@ use super::{
     elements::{
         camera::{Camera, CameraBindGroup},
         color_mesh::ColorMeshRenderPipeline,
+        screen_space::ScreenSpaceBindGroup,
         texture::Texture,
+        ui_rect::UiRectRenderPipeline,
     },
     graphics_context::GraphicsContext,
     Render,
@@ -18,19 +20,24 @@ pub struct Renderer {
     context: GraphicsContext,
     depth_texture: Texture,
     color_mesh_render_pipeline: ColorMeshRenderPipeline,
+    ui_rect_render_pipeline: UiRectRenderPipeline,
 }
 
 impl Renderer {
-    pub async fn initialize(
+    pub fn initialize(
         context: GraphicsContext,
         camera_bind_group: CameraBindGroup,
+        screen_space_bind_group: ScreenSpaceBindGroup,
     ) -> anyhow::Result<Self> {
         let depth_texture = create_depth_texture(&context);
         let color_mesh_render_pipeline = ColorMeshRenderPipeline::new(&context, camera_bind_group);
+        let ui_rect_render_pipeline = UiRectRenderPipeline::new(&context, screen_space_bind_group);
+
         Ok(Self {
             context,
             depth_texture,
             color_mesh_render_pipeline,
+            ui_rect_render_pipeline,
         })
     }
 
@@ -75,9 +82,13 @@ impl Renderer {
             timestamp_writes: None,
         });
 
-        // // render color meshes:
+        // render color meshes:
         self.color_mesh_render_pipeline
             .render_color_meshes(&mut render_pass, arenas);
+
+        // render ui rectangles:
+        self.ui_rect_render_pipeline
+            .render_ui_rects(&mut render_pass, arenas);
 
         // render egui:
         egui_state.render(&mut render_pass);

@@ -154,6 +154,7 @@ impl CamTransform {
 }
 
 pub struct Projection {
+    /// width / height
     aspect: f32,
     fovy: f32,
     znear: f32,

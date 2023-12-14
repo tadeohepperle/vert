@@ -7,6 +7,7 @@ use wgpu::BindGroupDescriptor;
 
 use crate::{constants::DEPTH_FORMAT, modules::graphics::graphics_context::GraphicsContext};
 
+#[derive(Debug)]
 pub struct BindableTexture {
     texture: Texture,
     bind_group: wgpu::BindGroup,
@@ -40,6 +41,7 @@ impl BindableTexture {
     }
 }
 
+#[derive(Debug)]
 pub struct Texture {
     pub name: Option<Cow<'static, str>>,
     pub texture: wgpu::Texture,

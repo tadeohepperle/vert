@@ -1,6 +1,7 @@
 use std::{
     any::TypeId,
     collections::HashMap,
+    marker::PhantomData,
     sync::{Arc, Mutex, Weak},
 };
 
@@ -13,7 +14,13 @@ type CacheKey = (AssetSource, TypeId);
 /// cheap to clone
 #[derive(Debug, Clone)]
 pub struct AssetServer {
-    assets: Arc<Mutex<HashMap<CacheKey, StoredErasedAsset>>>,
+    inner: Arc<Mutex<AssetServerInner>>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct AssetServerInner {
+    current_key: u32,
+    assets: HashMap<u32, StoredErasedAsset>,
 }
 
 /// Stores an Arc<T> or a Weak<T> for any type T, via type punning.
@@ -46,8 +53,42 @@ impl StoredErasedAsset {
 impl AssetServer {
     pub fn new() -> Self {
         AssetServer {
-            assets: Arc::new(Mutex::new(HashMap::new())),
+            inner: Arc::new(Mutex::new(Default::default())),
         }
+    }
+
+    // right now not very useful:
+
+    /// if `store_forever` is true, the asset is stored in the AssetServer forever until the end of the program.
+    /// This is achieved by storing an Arc in the AssetServer instead of a Weak.
+    pub fn store<T: AssetT>(&self, asset: T, store_forever: bool) -> Arc<T> {
+        let mut inner = self.inner.lock().expect("poison");
+        // determine the key and create the arc:
+        let key = inner.current_key;
+        inner.current_key += 1;
+        let asset_arc = Arc::new(asset);
+
+        // if `store_forever`, we clone this arc before storing it, so the reference count will stay >= 1 forever.
+        // otherwise we
+        let arc_inner_ptr: *const () = if store_forever {
+            let strong = asset_arc.clone();
+            unsafe { std::mem::transmute(strong) }
+        } else {
+            let weak = Arc::downgrade(&asset_arc);
+            unsafe { std::mem::transmute(weak) }
+        };
+        let stored_asset = StoredErasedAsset {
+            type_id: TypeId::of::<T>(),
+            is_weak: !store_forever,
+            arc_inner_ptr,
+        };
+
+        // insert into hashmap
+        debug_assert!(inner.assets.get(&key).is_none());
+        inner.assets.insert(key, stored_asset);
+
+        // return the arc:
+        asset_arc
     }
 
     // pub fn get<T: AssetT>(&asset_source);

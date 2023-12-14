@@ -221,7 +221,9 @@ impl Input {
             WindowEvent::ScaleFactorChanged {
                 scale_factor: _,
                 inner_size_writer: _,
-            } => {}
+            } => {
+                // todo!()
+            }
             WindowEvent::ThemeChanged(_) => {}
             WindowEvent::Occluded(_) => {}
             WindowEvent::RedrawRequested => {}

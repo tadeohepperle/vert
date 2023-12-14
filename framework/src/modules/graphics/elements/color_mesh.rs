@@ -18,8 +18,9 @@ use crate::{
 };
 
 use super::{
-    buffer::{InstanceBuffer, ToRaw, UniformBuffer},
+    buffer::InstanceBuffer,
     camera::CameraBindGroup,
+    color::Color,
     transform::{Transform, TransformRaw},
 };
 
@@ -186,7 +187,7 @@ impl ColorMesh {
                 let z = p[2];
                 Vertex {
                     pos: [x, y, z],
-                    color: [x, y, z, 1.0],
+                    color: Color::new(x, y, z),
                 }
             })
             .collect();
@@ -210,7 +211,7 @@ impl ColorMesh {
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
     pub pos: [f32; 3],
-    pub color: [f32; 4],
+    pub color: Color,
 }
 
 impl VertexT for Vertex {

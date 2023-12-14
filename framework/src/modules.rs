@@ -10,7 +10,10 @@ use self::{
     assets::AssetServer,
     egui::EguiState,
     graphics::{
-        elements::camera::{CamTransform, Camera},
+        elements::{
+            camera::{CamTransform, Camera},
+            screen_space::{self, ScreenSpace},
+        },
         graphics_context::{GraphicsContext, GraphicsOwner},
         renderer::Renderer,
         Prepare,
@@ -30,6 +33,7 @@ pub struct Modules {
     pub(crate) graphics: GraphicsOwner,
     pub(crate) renderer: Renderer,
     pub(crate) camera: Camera,
+    pub(crate) screen_space: ScreenSpace,
     pub(crate) input: Input,
     pub(crate) time: Time,
     pub(crate) egui: EguiState,
@@ -43,8 +47,12 @@ impl Modules {
         let graphics_context = GraphicsOwner::intialize(window).await?;
 
         let camera = Camera::new_default(&graphics_context.context);
-        let renderer =
-            Renderer::initialize(graphics_context.context.clone(), camera.bind_group()).await?;
+        let screen_space = ScreenSpace::new(&graphics_context.context);
+        let renderer = Renderer::initialize(
+            graphics_context.context.clone(),
+            camera.bind_group(),
+            screen_space.bind_group(),
+        )?;
 
         let input = Input::default();
         let time = Time::default();
@@ -55,9 +63,10 @@ impl Modules {
             arenas,
             graphics: graphics_context,
             renderer,
+            camera,
+            screen_space,
             input,
             time,
-            camera,
             egui,
             assets,
         })
@@ -75,6 +84,7 @@ impl Modules {
         self.graphics.resize(new_size); // needs to be before renderer resize
         self.renderer.resize();
         self.camera.resize(new_size.width, new_size.height);
+        self.screen_space.resize(new_size.width, new_size.height);
     }
 
     pub(crate) fn begin_frame(&mut self) -> Flow {
@@ -99,6 +109,7 @@ impl Modules {
     fn prepare_commands(&mut self, encoder: &mut wgpu::CommandEncoder, state: &mut impl StateT) {
         let context = &self.graphics.context;
         self.camera.prepare(&context.queue);
+        self.screen_space.prepare(&context.queue);
         self.egui.prepare(&self.graphics.context, encoder);
         // collect all the components that need preparation in this command encoder
         for e in self.arenas.iter_component_traits_mut::<dyn Prepare>() {
