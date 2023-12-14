@@ -7,6 +7,7 @@ use winit::{dpi::PhysicalSize, keyboard::KeyCode};
 use crate::{flow::Flow, state::StateT};
 
 use self::{
+    assets::AssetServer,
     egui::EguiState,
     graphics::{
         elements::camera::{CamTransform, Camera},
@@ -18,10 +19,10 @@ use self::{
     time::Time,
 };
 
+pub mod assets;
 pub mod egui;
 pub mod graphics;
 pub mod input;
-pub mod modules_ext;
 pub mod time;
 
 pub struct Modules {
@@ -32,6 +33,7 @@ pub struct Modules {
     pub(crate) input: Input,
     pub(crate) time: Time,
     pub(crate) egui: EguiState,
+    pub(crate) assets: AssetServer,
     // todo: egui
 }
 
@@ -46,7 +48,7 @@ impl Modules {
 
         let input = Input::default();
         let time = Time::default();
-
+        let assets = AssetServer::new();
         let egui = EguiState::new(&graphics_context.context);
 
         Ok(Self {
@@ -57,6 +59,7 @@ impl Modules {
             time,
             camera,
             egui,
+            assets,
         })
     }
 

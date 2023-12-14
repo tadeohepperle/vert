@@ -3,7 +3,10 @@ use vert_core::{
     component::Component,
 };
 
-use super::{graphics::elements::camera::CamTransform, input::Input, time::Time, Modules};
+use crate::modules::{
+    assets::AssetServer, graphics::elements::camera::CamTransform, input::Input, time::Time,
+    Modules,
+};
 
 impl Modules {
     pub fn device(&self) -> &wgpu::Device {
@@ -30,8 +33,16 @@ impl Modules {
         self.egui.context()
     }
 
+    pub fn time(&mut self) -> &Time {
+        &self.time
+    }
+
     pub fn input(&self) -> &Input {
         &self.input
+    }
+
+    pub fn assets(&mut self) -> &AssetServer {
+        &self.assets
     }
 
     pub fn cam_transform(&self) -> &CamTransform {
@@ -40,10 +51,6 @@ impl Modules {
 
     pub fn cam_transform_mut(&mut self) -> &mut CamTransform {
         self.camera.transform_mut()
-    }
-
-    pub fn time(&mut self) -> &Time {
-        &self.time
     }
 
     pub fn arenas_mut(&mut self) -> &mut Arenas {

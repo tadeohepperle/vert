@@ -3,8 +3,42 @@
 use std::borrow::Cow;
 
 use image::RgbaImage;
+use wgpu::BindGroupDescriptor;
 
-use crate::constants::DEPTH_FORMAT;
+use crate::{constants::DEPTH_FORMAT, modules::graphics::graphics_context::GraphicsContext};
+
+pub struct BindableTexture {
+    texture: Texture,
+    bind_group: wgpu::BindGroup,
+}
+
+impl BindableTexture {
+    pub fn new(
+        context: &GraphicsContext,
+        layout: &wgpu::BindGroupLayout,
+        texture: Texture,
+    ) -> Self {
+        let bind_group = context.device.create_bind_group(&BindGroupDescriptor {
+            label: None,
+            layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                },
+            ],
+        });
+
+        BindableTexture {
+            texture,
+            bind_group,
+        }
+    }
+}
 
 pub struct Texture {
     pub name: Option<Cow<'static, str>>,
