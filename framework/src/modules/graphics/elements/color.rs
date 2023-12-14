@@ -1,5 +1,6 @@
 use glam::{Vec3, Vec4};
 
+/// An SRGB color.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Color {
@@ -23,6 +24,24 @@ impl Color {
 
     pub const fn new(r: f32, g: f32, b: f32) -> Self {
         Color { r, g, b, a: 1.0 }
+    }
+
+    /// creates colors from rgb and maps them into srgb space
+    ///
+    /// srgb_color = ((rgb_color / 255 + 0.055) / 1.055) ^ 2.4
+    pub fn u8(r: u8, g: u8, b: u8) -> Self {
+        /// srgb_color = ((rgb_color / 255 + 0.055) / 1.055) ^ 2.4
+        #[inline]
+        pub fn color_map_to_srgb(u: u8) -> f32 {
+            ((u as f32 / 255.0 + 0.055) / 1.055).powf(2.4)
+        }
+
+        Color {
+            r: color_map_to_srgb(r),
+            g: color_map_to_srgb(g),
+            b: color_map_to_srgb(b),
+            a: 1.0,
+        }
     }
 
     pub const fn alpha(self, a: f32) -> Self {

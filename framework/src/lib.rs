@@ -1,4 +1,5 @@
 #![feature(try_trait_v2)]
+#![feature(const_fn_floating_point_arithmetic)]
 
 pub mod app;
 pub mod constants;

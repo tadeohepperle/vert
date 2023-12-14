@@ -85,7 +85,6 @@ fn vs_main(
     let x = f32(1 - i32(idx)) * 0.5;
     let y = f32(i32(idx & 1u) * 2 - 1) * 0.5;
 
-
     out.size = instance.posbb.zw - instance.posbb.xy;
     let center = (instance.posbb.xy + instance.posbb.zw) * 0.5;
     out.offset = vertex.pos - center;
@@ -98,8 +97,10 @@ fn vs_main(
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let image_color = textureSample(t_diffuse, s_diffuse, in.uv);
-    let color = mix(image_color, in.color, in.color.a);
-    
+    let color = mix(image_color.rgb, image_color.rgb * in.color.rgb, in.color.a);
+
+
+
     /// the borders are counterclockwise: topleft, topright, bottomright, bottomleft
     let sdf = rounded_box_sdf(in.offset, in.size, vec4(100.0, 80.0, 40.0, 20.0));
     let dist = (sdf + 1000.0 )/ 2000.0;
@@ -107,14 +108,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     
 
     if sdf > 0.0 {
-        discard;
-        // return vec4<f32>(0.0);
+   
+        return vec4<f32>(0.0);
     }
-    return vec4(dist, dist, dist, 1.0);
-    // // if color.a < 0.1 {
-    // //     discard;
-    // // }
-    // return color;
+    return vec4(color, image_color.a);
 }
 
 

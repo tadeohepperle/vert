@@ -97,7 +97,7 @@ impl StateT for MyState {
             instance: UiRectInstance {
                 posbb: [400.0, 400.0, 600.0, 600.0],
                 uvbb: [0.0, 0.0, 1.0, 1.0],
-                color: Color::RED.alpha(0.0),
+                color: Color::RED.alpha(0.1),
                 border_radius: [50.0, 0.0, 0.0, 0.0],
             },
             texture: Some(self.test_texture.clone()),
@@ -105,9 +105,9 @@ impl StateT for MyState {
 
         ui.draw_rect(UiRect {
             instance: UiRectInstance {
-                posbb: [700.0, 200.0, 2000.0, 1600.0],
+                posbb: [700.0, 200.0, 2000.0, total_time.sin() * 400.0 + 1000.0],
                 uvbb: [0.0, 0.0, 1.0, 1.0],
-                color: Color::RED.alpha(0.2),
+                color: Color::u8(249, 151, 0).alpha(0.9),
                 border_radius: [0.0, 0.0, 10.0, 10.0],
             },
             texture: Some(self.test_texture.clone()),
