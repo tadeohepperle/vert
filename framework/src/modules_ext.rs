@@ -5,7 +5,7 @@ use vert_core::{
 
 use crate::modules::{
     assets::AssetServer, graphics::elements::camera::CamTransform, input::Input, time::Time,
-    Modules,
+    ui::ImmediateUi, Modules,
 };
 
 impl Modules {
@@ -31,6 +31,10 @@ impl Modules {
 
     pub fn egui(&self) -> egui::Context {
         self.egui.context()
+    }
+
+    pub fn ui(&mut self) -> &mut ImmediateUi {
+        &mut self.ui
     }
 
     pub fn time(&mut self) -> &Time {

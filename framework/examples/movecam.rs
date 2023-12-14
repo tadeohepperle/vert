@@ -2,7 +2,14 @@ use glam::vec3;
 use vert_framework::{
     app::App,
     flow::Flow,
-    modules::{graphics::elements::color_mesh::SingleColorMesh, Modules},
+    modules::{
+        graphics::elements::{
+            color::Color,
+            color_mesh::SingleColorMesh,
+            ui_rect::{UiRect, UiRectInstance},
+        },
+        Modules,
+    },
     state::StateT,
 };
 
@@ -52,6 +59,17 @@ impl StateT for MyState {
             let t = cube.transform_mut();
             t.position.y = ((total_time + t.position.z * 0.2) * 3.0).sin() * t.position.z * 0.1;
         }
+
+        // draw rects:
+        let ui = modules.ui();
+        ui.draw_rect(UiRect {
+            instance: UiRectInstance {
+                posbb: [200.0, 200.0, 300.0, 500.0],
+                uvbb: [0.0, 0.0, 1.0, 0.5],
+                color: Color::RED,
+            },
+            texture: None,
+        });
 
         Flow::Continue
     }

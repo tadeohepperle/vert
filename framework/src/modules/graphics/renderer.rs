@@ -89,7 +89,7 @@ impl Renderer {
 
         // render ui rectangles:
         self.ui_rect_render_pipeline
-            .render_ui_rects(&mut render_pass, ui.draw_rects());
+            .render_ui_rects(&mut render_pass, ui.prepared_rects());
 
         // render egui:
         egui.render(&mut render_pass);

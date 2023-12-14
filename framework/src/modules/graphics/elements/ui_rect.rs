@@ -9,7 +9,7 @@ use crate::{
     constants::{COLOR_FORMAT, DEPTH_FORMAT},
     modules::{
         graphics::{graphics_context::GraphicsContext, VertexT},
-        ui::{DrawRects, RectInstanceBuffer},
+        ui::{PeparedRects, RectInstanceBuffer},
     },
 };
 
@@ -56,13 +56,16 @@ impl UiRectRenderPipeline {
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("ColoredMesh Pipelinelayout"),
-                bind_group_layouts: &[screen_space_bind_group.layout()],
+                label: Some("Ui Rect Pipelinelayout"),
+                bind_group_layouts: &[
+                    screen_space_bind_group.layout(),
+                    context.rgba_bind_group_layout,
+                ],
                 push_constant_ranges: &[],
             });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("ColoredMesh Pipeline"),
+            label: Some("Ui Rect Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -143,7 +146,7 @@ impl UiRectRenderPipeline {
     pub fn render_ui_rects<'s: 'e, 'p, 'e>(
         &'s self,
         render_pass: &'p mut RenderPass<'e>,
-        draw_rects: &'e DrawRects,
+        draw_rects: &'e PeparedRects,
     ) {
         render_pass.set_pipeline(&self.pipeline);
 
@@ -155,7 +158,7 @@ impl UiRectRenderPipeline {
         );
 
         // set the instance buffer: (no vertex buffer is used, instead just one big instance buffer that contains the sorted texture group ranges.)
-        render_pass.set_vertex_buffer(1, draw_rects.instance_buffer.buffer().slice(..));
+        render_pass.set_vertex_buffer(0, draw_rects.instance_buffer.buffer().slice(..));
 
         // draw instanced ranges of the instance buffer for each texture region:
         let index_count = self.index_buffer.len();

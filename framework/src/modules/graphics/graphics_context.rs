@@ -159,7 +159,7 @@ impl GraphicsOwner {
 
 pub fn create_rgba_bind_group_layout(device: &wgpu::Device) -> &'static BindGroupLayout {
     static RGBA_BIND_GROUP_LAYOUT: OnceLock<BindGroupLayout> = OnceLock::new();
-    let e: &'static BindGroupLayout = RGBA_BIND_GROUP_LAYOUT.get_or_init(|| {
+    RGBA_BIND_GROUP_LAYOUT.get_or_init(|| {
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[
@@ -181,6 +181,5 @@ pub fn create_rgba_bind_group_layout(device: &wgpu::Device) -> &'static BindGrou
                 },
             ],
         })
-    });
-    todo!()
+    })
 }

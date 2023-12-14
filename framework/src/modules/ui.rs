@@ -25,40 +25,37 @@ pub struct ImmediateUi {
     /// cleared every frame
     rect_queue: Vec<UiRect>,
     /// written to and recreated if too small
-    draw_rects: DrawRects,
+    prepared_rects: PeparedRects,
 }
 
 impl ImmediateUi {
     pub fn new(context: GraphicsContext) -> Self {
-        let draw_rects = DrawRects::new(&context.device);
+        let draw_rects = PeparedRects::new(&context.device);
 
         ImmediateUi {
             context,
             rect_queue: vec![],
-            draw_rects,
+            prepared_rects: draw_rects,
         }
     }
 
-    pub fn add_rect(&mut self, ui_rect: UiRect) {
+    pub fn draw_rect(&mut self, ui_rect: UiRect) {
         self.rect_queue.push(ui_rect);
     }
 
-    pub fn begin_frame(&mut self) {
-        self.rect_queue.clear();
-    }
-
-    pub(crate) fn draw_rects(&self) -> &DrawRects {
-        &self.draw_rects
+    pub(crate) fn prepared_rects(&self) -> &PeparedRects {
+        &self.prepared_rects
     }
 }
 
 impl Prepare for ImmediateUi {
     fn prepare(&mut self, context: &GraphicsContext, encoder: &mut wgpu::CommandEncoder) {
         let rects = std::mem::take(&mut self.rect_queue);
-        self.draw_rects.prepare(rects, context);
+        self.prepared_rects.prepare(rects, context);
     }
 }
 
+#[derive(Debug)]
 pub struct RectInstanceBuffer {
     len: usize,
     cap: usize,
@@ -71,15 +68,16 @@ impl RectInstanceBuffer {
     }
 }
 
+#[derive(Debug)]
 /// We can sort all rects into the texture groups they have. This way we have only N-TextureGroups draw calls.
-pub struct DrawRects {
+pub struct PeparedRects {
     /// Buffer with instances (sorted)
     pub instance_buffer: RectInstanceBuffer,
     /// texture_regions, refer to regions of the sorted buffer.
     pub texture_groups: Vec<(Range<u32>, Option<Arc<BindableTexture>>)>,
 }
 
-impl DrawRects {
+impl PeparedRects {
     /// create an new DrawRects backed by a gpu buffer with RECT_BUFFER_MIN_SIZE elements in it.
     pub fn new(device: &wgpu::Device) -> Self {
         let n_bytes = std::mem::size_of::<UiRectInstance>() * RECT_BUFFER_MIN_SIZE;
@@ -95,7 +93,7 @@ impl DrawRects {
             buffer,
         };
 
-        DrawRects {
+        PeparedRects {
             instance_buffer: instances,
             texture_groups: vec![],
         }

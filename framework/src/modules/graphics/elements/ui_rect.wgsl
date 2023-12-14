@@ -7,6 +7,11 @@ struct ScreenSpace {
 @group(0) @binding(0)
 var<uniform> screen: ScreenSpace;
 
+@group(1) @binding(0)
+var t_diffuse: texture_2d<f32>;
+@group(1) @binding(1)
+var s_diffuse: sampler;
+
 struct Instance {
     @location(0) posbb: vec4<f32>,
     @location(1) uvbb: vec4<f32>,
