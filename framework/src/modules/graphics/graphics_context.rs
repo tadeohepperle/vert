@@ -1,8 +1,12 @@
-use std::{borrow::BorrowMut, fmt::Write, sync::Arc};
+use std::{
+    borrow::BorrowMut,
+    fmt::Write,
+    sync::{Arc, OnceLock},
+};
 
 use atomic_refcell::AtomicRefCell;
 use tokio::sync::watch;
-use wgpu::{SurfaceConfiguration, SurfaceTexture};
+use wgpu::{BindGroupLayout, Device, SurfaceConfiguration, SurfaceTexture};
 use winit::{dpi::PhysicalSize, window::Window};
 
 use crate::utils::{Reader, Writer};
@@ -18,6 +22,7 @@ pub struct GraphicsContext {
     pub queue: Arc<wgpu::Queue>,
     pub surface: Arc<wgpu::Surface>,
     pub surface_format: wgpu::TextureFormat,
+    pub rgba_bind_group_layout: &'static wgpu::BindGroupLayout,
     pub surface_config: Reader<wgpu::SurfaceConfiguration>,
     pub size: Reader<PhysicalSize<u32>>,
     pub scale_factor: Reader<f64>,
@@ -88,6 +93,8 @@ impl GraphicsOwner {
         };
         surface.configure(&device, &surface_config);
 
+        let rgba_bind_group_layout = create_rgba_bind_group_layout(&device);
+
         // let (surface_config_tx, surface_config_rx) = watch::channel(surface_config);
         // let (size_tx, size_rx) = watch::channel(size);
 
@@ -105,6 +112,7 @@ impl GraphicsOwner {
             surface_config: surface_config.reader(),
             size: size.reader(),
             scale_factor: scale_factor.reader(),
+            rgba_bind_group_layout,
         };
 
         let context_updater = GraphicsOwner {
@@ -147,4 +155,32 @@ impl GraphicsOwner {
             .surface
             .configure(&self.context.device, &surface_config);
     }
+}
+
+pub fn create_rgba_bind_group_layout(device: &wgpu::Device) -> &'static BindGroupLayout {
+    static RGBA_BIND_GROUP_LAYOUT: OnceLock<BindGroupLayout> = OnceLock::new();
+    let e: &'static BindGroupLayout = RGBA_BIND_GROUP_LAYOUT.get_or_init(|| {
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+        })
+    });
+    todo!()
 }

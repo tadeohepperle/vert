@@ -1,4 +1,4 @@
-use std::{borrow::Cow, mem::size_of};
+use std::{borrow::Cow, marker::PhantomData, mem::size_of};
 
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 

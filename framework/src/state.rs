@@ -20,7 +20,7 @@ pub trait StateT: Sized {
     }
 
     // called before rendering is done. Perform GPU Updates here.
-    fn prepare(&mut self, modules: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder) {}
+    fn prepare(&mut self, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder) {}
 
     // todo!() implement on shutdown e.g. for saving game state.
 }

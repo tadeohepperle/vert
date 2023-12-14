@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use winit::dpi::PhysicalSize;
 
-use crate::modules::egui::EguiState;
+use crate::modules::{egui::EguiState, ui::ImmediateUi};
 
 use super::{
     elements::{
@@ -52,7 +52,8 @@ impl Renderer {
         view: &wgpu::TextureView,
         encoder: &mut wgpu::CommandEncoder,
         arenas: &vert_core::arenas::Arenas,
-        egui_state: &EguiState,
+        egui: &EguiState,
+        ui: &ImmediateUi,
     ) {
         // create a new renderpass:
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -88,10 +89,10 @@ impl Renderer {
 
         // render ui rectangles:
         self.ui_rect_render_pipeline
-            .render_ui_rects(&mut render_pass, arenas);
+            .render_ui_rects(&mut render_pass, ui.draw_rects());
 
         // render egui:
-        egui_state.render(&mut render_pass);
+        egui.render(&mut render_pass);
     }
 }
 

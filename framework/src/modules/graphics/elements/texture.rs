@@ -3,14 +3,15 @@
 use std::borrow::Cow;
 
 use image::RgbaImage;
+use rand::{thread_rng, Rng};
 use wgpu::BindGroupDescriptor;
 
 use crate::{constants::DEPTH_FORMAT, modules::graphics::graphics_context::GraphicsContext};
 
 #[derive(Debug)]
 pub struct BindableTexture {
-    texture: Texture,
-    bind_group: wgpu::BindGroup,
+    pub texture: Texture,
+    pub bind_group: wgpu::BindGroup,
 }
 
 impl BindableTexture {
@@ -44,10 +45,17 @@ impl BindableTexture {
 #[derive(Debug)]
 pub struct Texture {
     pub name: Option<Cow<'static, str>>,
+    pub id: u128,
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
     pub size: wgpu::Extent3d,
+}
+
+impl PartialEq for Texture {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
 }
 
 impl Texture {
@@ -97,14 +105,16 @@ impl Texture {
             sampler,
             size,
             name: None,
+            id: thread_rng().gen(),
         }
     }
 
-    pub fn from_image(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        rgba: &RgbaImage,
-    ) -> anyhow::Result<Self> {
+    pub fn create_white_px_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
+        let white_px = RgbaImage::new(1, 1);
+        Self::from_image(device, queue, &white_px)
+    }
+
+    pub fn from_image(device: &wgpu::Device, queue: &wgpu::Queue, rgba: &RgbaImage) -> Self {
         let dimensions = rgba.dimensions();
 
         let format = wgpu::TextureFormat::Rgba8UnormSrgb;
@@ -140,7 +150,7 @@ impl Texture {
             size,
         );
 
-        Ok(texture)
+        texture
     }
 
     fn create_2d_texture(
@@ -205,6 +215,7 @@ impl Texture {
             sampler,
             size,
             name: None,
+            id: thread_rng().gen(),
         }
     }
 }

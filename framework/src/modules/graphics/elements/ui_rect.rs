@@ -1,19 +1,23 @@
 use std::sync::Arc;
 
 use glam::{UVec2, Vec2};
+use image::RgbaImage;
 use vert_core::{arenas::Arenas, prelude::*};
 use wgpu::{PrimitiveState, RenderPass, ShaderModuleDescriptor};
 
 use crate::{
     constants::{COLOR_FORMAT, DEPTH_FORMAT},
-    modules::graphics::{graphics_context::GraphicsContext, VertexT},
+    modules::{
+        graphics::{graphics_context::GraphicsContext, VertexT},
+        ui::{DrawRects, RectInstanceBuffer},
+    },
 };
 
 use super::{
     buffer::{IndexBuffer, InstanceBuffer, VertexBuffer},
     color::Color,
     screen_space::ScreenSpaceBindGroup,
-    texture::BindableTexture,
+    texture::{BindableTexture, Texture},
 };
 
 reflect!(UiRect:);
@@ -28,12 +32,20 @@ pub struct UiRectRenderPipeline {
     pipeline: wgpu::RenderPipeline,
     screen_space_bind_group: ScreenSpaceBindGroup,
     index_buffer: IndexBuffer,
-    instances: VertexBuffer<UiRectInstance>,
+    /// used for setting the texture bindgroups for rects where no texture is defined.
+    white_px: BindableTexture,
 }
 
 impl UiRectRenderPipeline {
     pub fn new(context: &GraphicsContext, screen_space_bind_group: ScreenSpaceBindGroup) -> Self {
         let device = &context.device;
+
+        let white_px = BindableTexture::new(
+            context,
+            context.rgba_bind_group_layout,
+            Texture::create_white_px_texture(device, &context.queue),
+        );
+
         let shader = device.create_shader_module(ShaderModuleDescriptor {
             label: Some("Ui Rect Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("ui_rect.wgsl").into()),
@@ -116,25 +128,46 @@ impl UiRectRenderPipeline {
             pipeline,
             screen_space_bind_group,
             index_buffer,
-            instances,
+            white_px,
         }
     }
 
+    /// Tadeo Hepperle, 2023-12-14, Interesting note: We don't need a vertex buffer to draw the rects.
+    /// It is totally enough to have just one index buffer, that goes 0,1,3,0,2,3 to create a rect.
+    /// And We have one instance buffer, where each rect has some data about it.
+    /// Based on the index we can determine vertex position and color and uv for all of the 4 vertices in the vertex shader.
+    /// That saves a lot of bandwidth, because for example for vertex positions, we just need 4 floats as a bounding box for the rect,
+    /// instead of 4x2 floats if we would specify 4 vertices.
+    ///
+    /// I first thought we cannot draw without a vertex buffer and just an instance buffer in place of it, but it works well.
     pub fn render_ui_rects<'s: 'e, 'p, 'e>(
         &'s self,
         render_pass: &'p mut RenderPass<'e>,
-        arenas: &'e Arenas,
+        draw_rects: &'e DrawRects,
     ) {
         render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, &self.screen_space_bind_group.bind_group(), &[]);
 
-        render_pass.set_vertex_buffer(0, self.instances.buffer().slice(..));
-        // render_pass.set_vertex_buffer(1, obj.transform.buffer().slice(..));
+        // screen space info and index buffer are fixed, because all rects have just 4 verts / 2 triangles.
+        render_pass.set_bind_group(0, &self.screen_space_bind_group.bind_group(), &[]);
         render_pass.set_index_buffer(
             self.index_buffer.buffer().slice(..),
             wgpu::IndexFormat::Uint32,
         );
-        render_pass.draw_indexed(0..self.index_buffer.len(), 0, 0..self.instances.len());
+
+        // set the instance buffer: (no vertex buffer is used, instead just one big instance buffer that contains the sorted texture group ranges.)
+        render_pass.set_vertex_buffer(1, draw_rects.instance_buffer.buffer().slice(..));
+
+        // draw instanced ranges of the instance buffer for each texture region:
+        let index_count = self.index_buffer.len();
+        assert_eq!(index_count, 6);
+        for (range, texture) in draw_rects.texture_groups.iter() {
+            let texture: &BindableTexture = match texture {
+                Some(texture) => texture,
+                None => &self.white_px,
+            };
+            render_pass.set_bind_group(1, &texture.bind_group, &[]);
+            render_pass.draw_indexed(0..index_count, 0, range.start..range.end);
+        }
     }
 }
 

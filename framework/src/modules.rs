@@ -20,6 +20,7 @@ use self::{
     },
     input::Input,
     time::Time,
+    ui::ImmediateUi,
 };
 
 pub mod assets;
@@ -27,6 +28,7 @@ pub mod egui;
 pub mod graphics;
 pub mod input;
 pub mod time;
+pub mod ui;
 
 pub struct Modules {
     pub(crate) arenas: Arenas,
@@ -37,6 +39,7 @@ pub struct Modules {
     pub(crate) input: Input,
     pub(crate) time: Time,
     pub(crate) egui: EguiState,
+    pub(crate) ui: ImmediateUi,
     pub(crate) assets: AssetServer,
     // todo: egui
 }
@@ -58,6 +61,7 @@ impl Modules {
         let time = Time::default();
         let assets = AssetServer::new();
         let egui = EguiState::new(&graphics_context.context);
+        let ui = ImmediateUi::new(graphics_context.context.clone());
 
         Ok(Self {
             arenas,
@@ -69,6 +73,7 @@ impl Modules {
             time,
             egui,
             assets,
+            ui,
         })
     }
 
@@ -108,9 +113,15 @@ impl Modules {
     /// - add commands to a `CommandEncoder` and submit it later to be executed before the render commands.
     fn prepare_commands(&mut self, encoder: &mut wgpu::CommandEncoder, state: &mut impl StateT) {
         let context = &self.graphics.context;
-        self.camera.prepare(&context.queue);
-        self.screen_space.prepare(&context.queue);
+        let queue: &wgpu::Queue = &context.queue;
+        self.camera.prepare(queue);
+        self.screen_space.prepare(queue);
         self.egui.prepare(&self.graphics.context, encoder);
+        self.ui.prepare(context, encoder);
+
+        // user defined state:
+        state.prepare(queue, encoder);
+
         // collect all the components that need preparation in this command encoder
         for e in self.arenas.iter_component_traits_mut::<dyn Prepare>() {
             e.prepare(context, encoder);
@@ -125,7 +136,7 @@ impl Modules {
         // queue up all the render commands:
         let (surface_texture, view) = self.graphics.new_surface_texture_and_view();
         self.renderer
-            .render(&view, &mut encoder, &self.arenas, &self.egui);
+            .render(&view, &mut encoder, &self.arenas, &self.egui, &self.ui);
 
         // execute render commands and present:
         self.graphics
