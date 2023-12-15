@@ -9,6 +9,7 @@ use super::{
     elements::{
         camera::{Camera, CameraBindGroup},
         color_mesh::ColorMeshRenderPipeline,
+        rect_3d::Rect3DRenderPipeline,
         screen_space::ScreenSpaceBindGroup,
         texture::Texture,
         ui_rect::UiRectRenderPipeline,
@@ -22,6 +23,7 @@ pub struct Renderer {
     depth_texture: Texture,
     color_mesh_render_pipeline: ColorMeshRenderPipeline,
     ui_rect_render_pipeline: UiRectRenderPipeline,
+    rect_3d_render_pipeline: Rect3DRenderPipeline,
     msaa_texture: MSAATexture,
 }
 
@@ -34,8 +36,10 @@ impl Renderer {
         let depth_texture = create_depth_texture(&context, 4);
         let msaa_texture = create_msaa_texure(&context, 4);
 
-        let color_mesh_render_pipeline = ColorMeshRenderPipeline::new(&context, camera_bind_group);
+        let color_mesh_render_pipeline =
+            ColorMeshRenderPipeline::new(&context, camera_bind_group.clone());
         let ui_rect_render_pipeline = UiRectRenderPipeline::new(&context, screen_space_bind_group);
+        let rect_3d_render_pipeline = Rect3DRenderPipeline::new(&context, camera_bind_group);
 
         Ok(Self {
             context,
@@ -43,6 +47,7 @@ impl Renderer {
             msaa_texture,
             color_mesh_render_pipeline,
             ui_rect_render_pipeline,
+            rect_3d_render_pipeline,
         })
     }
 
@@ -61,7 +66,6 @@ impl Renderer {
         ui: &ImmediateUi,
     ) {
         // create a new renderpass:
-
         let color_attachment = self.msaa_color_attachment(view);
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Renderpass"),
@@ -82,10 +86,18 @@ impl Renderer {
         self.color_mesh_render_pipeline
             .render_color_meshes(&mut render_pass, arenas);
 
-        // // render ui rectangles:
+        // render ui rectangles:
         self.ui_rect_render_pipeline.render_ui_rects(
             &mut render_pass,
-            ui.prepared_rects(),
+            ui.prepared_ui_rects(),
+            ui.text_atlas_texture(),
+        );
+
+        // render 3d triangles:
+
+        self.rect_3d_render_pipeline.render_3d_rects(
+            &mut render_pass,
+            ui.prepared_3d_rects(),
             ui.text_atlas_texture(),
         );
 
@@ -111,7 +123,7 @@ impl Renderer {
         }
     }
 
-    fn non_msaa_color_attackment<'a>(
+    fn non_msaa_color_attachment<'a>(
         &'a self,
         view: &'a wgpu::TextureView,
     ) -> RenderPassColorAttachment<'a> {

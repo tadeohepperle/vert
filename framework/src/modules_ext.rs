@@ -3,9 +3,12 @@ use vert_core::{
     component::Component,
 };
 
-use crate::modules::{
-    assets::AssetServer, graphics::elements::camera::CamTransform, input::Input, time::Time,
-    ui::ImmediateUi, Modules,
+use crate::{
+    batteries::Battery,
+    modules::{
+        assets::AssetServer, graphics::elements::camera::CamTransform, input::Input, time::Time,
+        ui::ImmediateUi, Modules,
+    },
 };
 
 impl Modules {
@@ -59,5 +62,11 @@ impl Modules {
 
     pub fn arenas_mut(&mut self) -> &mut Arenas {
         &mut self.arenas
+    }
+
+    pub fn add<T: Battery>(&mut self, battery: T) {
+        // todo! we dont even have a check here if this battery already exists... but anyway soon we will
+        // through batteries away and implement proper systems.
+        self.batteries.as_mut().unwrap().add(battery);
     }
 }

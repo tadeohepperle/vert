@@ -4,7 +4,11 @@ use vert_core::arenas::Arenas;
 use wgpu::CommandEncoder;
 use winit::{dpi::PhysicalSize, keyboard::KeyCode};
 
-use crate::{flow::Flow, state::StateT};
+use crate::{
+    batteries::{self, Batteries},
+    flow::Flow,
+    state::StateT,
+};
 
 use self::{
     assets::AssetServer,
@@ -41,6 +45,7 @@ pub struct Modules {
     pub(crate) egui: EguiState,
     pub(crate) ui: ImmediateUi,
     pub(crate) assets: AssetServer,
+    pub(crate) batteries: Option<Batteries>,
     // todo: egui
 }
 
@@ -56,6 +61,8 @@ impl Modules {
             camera.bind_group(),
             screen_space.bind_group(),
         )?;
+
+        let batteries = Batteries::new();
 
         let input = Input::default();
         let time = Time::default();
@@ -74,6 +81,7 @@ impl Modules {
             egui,
             assets,
             ui,
+            batteries: Some(batteries),
         })
     }
 
@@ -105,6 +113,11 @@ impl Modules {
             dbg!(self.time.fps());
         }
 
+        // take out of state and put back in later bc of ownership issues.
+        let mut batteries = self.batteries.take().unwrap();
+        batteries.update(self);
+        self.batteries = Some(batteries);
+
         Flow::Continue
     }
 
@@ -118,6 +131,8 @@ impl Modules {
         self.screen_space.prepare(queue);
         self.egui.prepare(&self.graphics.context, encoder);
         self.ui.prepare(context, encoder);
+
+        self.batteries.as_mut().unwrap().prepare(queue, encoder);
 
         // user defined state:
         state.prepare(queue, encoder);

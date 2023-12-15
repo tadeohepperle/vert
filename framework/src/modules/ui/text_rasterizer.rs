@@ -16,8 +16,9 @@ use wgpu::Queue;
 use crate::modules::graphics::{
     elements::{
         color::Color,
+        rect::{Rect, RectTexture, RectWithTexture},
         texture::{BindableTexture, Texture},
-        ui_rect::{Rect, UiRect, UiRectInstance, UiRectTexture},
+        ui_rect::UiRect,
     },
     graphics_context::GraphicsContext,
 };
@@ -160,7 +161,7 @@ impl TextRasterizer {
         rasterizer
     }
 
-    pub(crate) fn draw_text(&mut self, draw_text: &DrawText) -> Vec<UiRect> {
+    pub(crate) fn draw_ui_text(&mut self, draw_text: &DrawText) -> Vec<RectWithTexture<UiRect>> {
         // // rasterize all characters in the text (if not done so for the respective character):
         // // we work under the assumption that all characters same font size and font here... (Needs to be optimized in the future)
         // let mut char_atlas_positions: HashMap<char, Option<Rect>> = HashMap::new();
@@ -201,7 +202,7 @@ impl TextRasterizer {
         );
 
         // create ui rectangles that point to the correct
-        let mut ui_rects: Vec<UiRect> = vec![];
+        let mut ui_rects: Vec<RectWithTexture<UiRect>> = vec![];
 
         for glyph_pos in layout.glyphs() {
             let char = glyph_pos.parent;
@@ -215,14 +216,14 @@ impl TextRasterizer {
                     offset: [glyph_pos.x, glyph_pos.y],
                     size: [glyph_pos.width as f32, glyph_pos.height as f32],
                 };
-                let rect = UiRect {
-                    instance: UiRectInstance {
+                let rect = RectWithTexture {
+                    instance: UiRect {
                         pos,
                         uv: atlas_uv,
                         color: draw_text.color,
                         border_radius: [0.0; 4],
                     },
-                    texture: UiRectTexture::Text,
+                    texture: RectTexture::Text,
                 };
                 ui_rects.push(rect);
             }

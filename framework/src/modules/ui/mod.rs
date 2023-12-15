@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cmp::Ordering, ops::Range, sync::Arc};
+use std::{borrow::Cow, cmp::Ordering, marker::PhantomData, ops::Range, sync::Arc};
 
 use bytemuck::Zeroable;
 use egui::{ahash::HashMap, Vec2};
@@ -12,16 +12,18 @@ use self::text_rasterizer::{DrawText, FontHandle, TextRasterizer};
 
 use super::graphics::{
     elements::{
+        buffer::ToRaw,
+        rect::{PeparedRects, RectTexture, RectWithTexture},
+        rect_3d::Rect3D,
         texture::{BindableTexture, Texture},
-        ui_rect::{UiRect, UiRectInstance, UiRectRenderPipeline, UiRectTexture},
+        transform::Transform,
+        ui_rect::{UiRect, UiRectRenderPipeline},
     },
     graphics_context::GraphicsContext,
     Prepare, Render,
 };
 
 pub mod text_rasterizer;
-
-const RECT_BUFFER_MIN_SIZE: usize = 256;
 
 /// Immediate mode ui drawing. Collects rects that are then drawn by the renderer.
 /// This is my own take on a Immediate mode UI lib like egui.
@@ -31,9 +33,11 @@ const RECT_BUFFER_MIN_SIZE: usize = 256;
 /// big instance buffer.
 pub struct ImmediateUi {
     /// cleared every frame
-    rect_queue: Vec<UiRect>,
+    ui_rect_queue: Vec<RectWithTexture<UiRect>>,
+    rect_3d_queue: Vec<RectWithTexture<Rect3D>>,
     /// written to and recreated if too small
-    prepared_rects: PeparedRects,
+    prepared_ui_rects: PeparedRects<UiRect>,
+    prepared_3d_rects: PeparedRects<Rect3D>,
     // /////////////////////////////////////////////////////////////////////////////
     // Text related things:
     // /////////////////////////////////////////////////////////////////////////////
@@ -42,30 +46,53 @@ pub struct ImmediateUi {
 
 impl ImmediateUi {
     pub fn new(context: GraphicsContext) -> Self {
-        let draw_rects = PeparedRects::new(&context.device);
+        let prepared_ui_rects = PeparedRects::new(&context.device);
+        let prepared_3d_rects = PeparedRects::new(&context.device);
         let text_rasterizer = TextRasterizer::new(context);
         ImmediateUi {
             text_rasterizer,
-            rect_queue: vec![],
-            prepared_rects: draw_rects,
+            ui_rect_queue: vec![],
+            rect_3d_queue: vec![],
+            prepared_ui_rects,
+            prepared_3d_rects,
         }
     }
 
-    // pub fn draw_text(&mut self,text: "" , pos: Vec2 ){
-
-    // }
-
+    /// draw text in ui space
     pub fn draw_text(&mut self, text: &DrawText) {
-        let rects = self.text_rasterizer.draw_text(text);
-        self.rect_queue.extend(rects);
+        let rects = self.text_rasterizer.draw_ui_text(text);
+        self.ui_rect_queue.extend(rects);
     }
 
-    pub fn draw_rect(&mut self, ui_rect: UiRect) {
-        self.rect_queue.push(ui_rect);
+    /// like drawing text in ui space, but transformed by the transform. one pixel here should be 0.01 units in 3d space.
+    pub fn draw_3d_text(&mut self, text: &DrawText, transform: &Transform) {
+        let transform_raw = transform.to_raw();
+        let rects = self.text_rasterizer.draw_ui_text(text);
+        let rects_3d = rects.into_iter().map(|e| RectWithTexture {
+            instance: Rect3D {
+                ui_rect: e.instance,
+                transform: transform_raw,
+            },
+            texture: e.texture,
+        });
+
+        self.rect_3d_queue.extend(rects_3d);
     }
 
-    pub(crate) fn prepared_rects(&self) -> &PeparedRects {
-        &self.prepared_rects
+    pub fn draw_ui_rect(&mut self, ui_rect: RectWithTexture<UiRect>) {
+        self.ui_rect_queue.push(ui_rect);
+    }
+
+    pub fn draw_3d_rect(&mut self, rect_3d: RectWithTexture<Rect3D>) {
+        self.rect_3d_queue.push(rect_3d);
+    }
+
+    pub(crate) fn prepared_ui_rects(&self) -> &PeparedRects<UiRect> {
+        &self.prepared_ui_rects
+    }
+
+    pub(crate) fn prepared_3d_rects(&self) -> &PeparedRects<Rect3D> {
+        &self.prepared_3d_rects
     }
 
     pub(crate) fn text_atlas_texture(&self) -> &BindableTexture {
@@ -75,124 +102,12 @@ impl ImmediateUi {
 
 impl Prepare for ImmediateUi {
     fn prepare(&mut self, context: &GraphicsContext, encoder: &mut wgpu::CommandEncoder) {
-        let rects = std::mem::take(&mut self.rect_queue);
-        self.prepared_rects.prepare(rects, context);
+        let rects = std::mem::take(&mut self.ui_rect_queue);
+        self.prepared_ui_rects.prepare(rects, context);
+
+        let rects = std::mem::take(&mut self.rect_3d_queue);
+        self.prepared_3d_rects.prepare(rects, context);
     }
-}
-
-#[derive(Debug)]
-pub struct RectInstanceBuffer {
-    len: usize,
-    cap: usize,
-    buffer: wgpu::Buffer,
-}
-
-impl RectInstanceBuffer {
-    pub fn buffer(&self) -> &wgpu::Buffer {
-        &self.buffer
-    }
-}
-
-#[derive(Debug)]
-/// We can sort all rects into the texture groups they have. This way we have only N-TextureGroups draw calls.
-pub struct PeparedRects {
-    /// Buffer with instances (sorted)
-    pub instance_buffer: RectInstanceBuffer,
-    /// texture_regions, refer to regions of the sorted buffer.
-    pub texture_groups: Vec<(Range<u32>, UiRectTexture)>,
-}
-
-impl PeparedRects {
-    /// create an new DrawRects backed by a gpu buffer with RECT_BUFFER_MIN_SIZE elements in it.
-    pub fn new(device: &wgpu::Device) -> Self {
-        let n_bytes = std::mem::size_of::<UiRectInstance>() * RECT_BUFFER_MIN_SIZE;
-        let zeros = vec![0u8; n_bytes];
-        let buffer = device.create_buffer_init(&BufferInitDescriptor {
-            contents: bytemuck::cast_slice(&zeros),
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            label: None,
-        });
-        let instances = RectInstanceBuffer {
-            len: 0,
-            cap: RECT_BUFFER_MIN_SIZE,
-            buffer,
-        };
-
-        PeparedRects {
-            instance_buffer: instances,
-            texture_groups: vec![],
-        }
-    }
-
-    /// sorts the rects after their textures and updates the GPU buffer. If GPU buffer too small, create a new one with 2x the last capacity.
-    pub fn prepare(&mut self, rects: Vec<UiRect>, context: &GraphicsContext) {
-        let (mut instances, texture_groups) = create_sorted_rect_instances(rects);
-        self.texture_groups = texture_groups;
-        self.instance_buffer.len = instances.len();
-        if self.instance_buffer.cap <= instances.len() {
-            // the space in the buffer is enough, just write all rects to the buffer.
-            context.queue.write_buffer(
-                &self.instance_buffer.buffer,
-                0,
-                bytemuck::cast_slice(&instances),
-            )
-        } else {
-            // space is not enough, we need to create a new buffer:
-            let mut new_cap = RECT_BUFFER_MIN_SIZE;
-            while instances.len() > new_cap {
-                new_cap *= 2;
-            }
-            // fill up with zeroed elements:
-            for _ in 0..(new_cap - instances.len()) {
-                instances.push(UiRectInstance::zeroed());
-            }
-            // create a new buffer, now with probably 2x the size:
-            self.instance_buffer.cap = new_cap;
-            self.instance_buffer.buffer =
-                context.device.create_buffer_init(&BufferInitDescriptor {
-                    contents: bytemuck::cast_slice(&instances),
-                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                    label: None,
-                });
-        }
-    }
-}
-
-fn create_sorted_rect_instances(
-    mut rects: Vec<UiRect>,
-) -> (Vec<UiRectInstance>, Vec<(Range<u32>, UiRectTexture)>) {
-    if rects.is_empty() {
-        return (vec![], vec![]);
-    }
-
-    rects.sort_by(|a, b| a.texture.cmp(&b.texture));
-
-    // cache this to use it after the loop
-
-    let mut instances: Vec<UiRectInstance> = vec![];
-    let mut texture_groups: Vec<(Range<u32>, UiRectTexture)> = vec![];
-
-    let mut last_start_idx: usize = 0;
-    let mut last_texture: UiRectTexture = rects.first().unwrap().texture.clone();
-    let mut last_texture_id: u128 = last_texture.id();
-
-    for (i, rect) in rects.into_iter().enumerate() {
-        instances.push(rect.instance);
-        let texture_id = rect.texture.id();
-        if texture_id != last_texture_id {
-            let range = (last_start_idx as u32)..(i as u32);
-            texture_groups.push((range, last_texture));
-            last_start_idx = i;
-            last_texture = rect.texture;
-            last_texture_id = texture_id;
-        }
-    }
-
-    if last_start_idx < instances.len() {
-        let range = (last_start_idx as u32)..(instances.len() as u32);
-        texture_groups.push((range, last_texture));
-    }
-    (instances, texture_groups)
 }
 
 // pub struct FontDescriptor {

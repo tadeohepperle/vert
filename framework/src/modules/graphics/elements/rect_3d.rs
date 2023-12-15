@@ -1,44 +1,45 @@
-use std::{ops::DivAssign, sync::Arc};
-
-use glam::{UVec2, Vec2};
-use image::RgbaImage;
-use vert_core::{arenas::Arenas, prelude::*};
+use vert_core::prelude::*;
 use wgpu::{PrimitiveState, RenderPass, ShaderModuleDescriptor};
 
 use crate::{
     constants::{COLOR_FORMAT, DEPTH_FORMAT},
-    modules::graphics::{elements::rect::RectTexture, graphics_context::GraphicsContext, VertexT},
+    modules::graphics::{graphics_context::GraphicsContext, VertexT},
 };
 
 use super::{
     buffer::IndexBuffer,
+    camera::CameraBindGroup,
     color::Color,
-    rect::{PeparedRects, Rect, RectT},
-    screen_space::ScreenSpaceBindGroup,
+    rect::{PeparedRects, Rect, RectT, RectTexture},
     texture::{BindableTexture, Texture},
+    transform::TransformRaw,
+    ui_rect::UiRect,
 };
 
+impl RectT for Rect3D {}
+
+/// Should be drawn in one big instance buffer for all rectangles.
+/// No vertex buffer needed.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct UiRect {
-    // min x, min y, size x, size y
-    pub pos: Rect,
-    // min x, min y, size x, size y
-    pub uv: Rect,
-    pub color: Color,
-    pub border_radius: [f32; 4],
+pub struct Rect3D {
+    pub ui_rect: UiRect,
+    // the transform of this Rect3D instance in 3d space.
+    // the pos should be seen as an offset from this position.
+    // If the transform is not rotated, the
+    pub transform: TransformRaw,
 }
 
-impl RectT for UiRect {}
-
-impl VertexT for UiRect {
+impl VertexT for Rect3D {
     fn desc() -> wgpu::VertexBufferLayout<'static> {
         use std::mem;
         wgpu::VertexBufferLayout {
-            array_stride: mem::size_of::<UiRect>() as wgpu::BufferAddress,
+            array_stride: mem::size_of::<Rect3D>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &[
-                // pos
+                // pos   (this pos in kinda unnecessary since in the shader it is combined with the transform mat4 below)
+                // so we could also combine it upfront. But lets keep it, to have an easier time calculating letter layouts.
+                // (in one word we probably will just have the same transform Mat4 for all letters, but they differ in their pos.)
                 wgpu::VertexAttribute {
                     offset: 0,
                     shader_location: 0,
@@ -62,21 +63,55 @@ impl VertexT for UiRect {
                     shader_location: 3,
                     format: wgpu::VertexFormat::Float32x4,
                 },
+                // leave one free slot here for later...
+                // ...
+                // transform (this is quite a lot of date for each transform, hmmmmm....)
+                // maybe not the best idea to have this on instances? Going back to separate vertex and instance buffers?
+                // imagine we have a text with 100 letters, then we send 100 times the same Mat4, same border radius and same color to the gpu for each instance.
+                // This is clearly not optimal. But maybe fine at the moment.
+                // On the other hand having the transforms for each letter means it is super simple to make letters rain down in like a spell casting game or so.
+                //
+                // but also letters never need border radius, so this is also a waste here... probably split up pipelines for font rendering and rect rendering in the future.
+                // definitely when we want rects that not only have border radius but also real borders, box shadows and other sdf stuff.
+                //
+                // We could also use 2 fields for the color to indicate gradients, etc. Useful for text? Idk. But for UI rects this would be nice.
+                // again this probably more applies for ui rects and not the 3d rects.
+                // or should we set the transform by setting a bindgroup and combining it all? So many options...
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 16]>() as wgpu::BufferAddress,
+                    shader_location: 5,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 20]>() as wgpu::BufferAddress,
+                    shader_location: 6,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 24]>() as wgpu::BufferAddress,
+                    shader_location: 7,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 28]>() as wgpu::BufferAddress,
+                    shader_location: 8,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
             ],
         }
     }
 }
 
-pub struct UiRectRenderPipeline {
+pub struct Rect3DRenderPipeline {
     pipeline: wgpu::RenderPipeline,
-    screen_space_bind_group: ScreenSpaceBindGroup,
+    camera_bind_group: CameraBindGroup,
     index_buffer: IndexBuffer,
     /// used for setting the texture bindgroups for rects where no texture is defined.
     white_px: BindableTexture,
 }
 
-impl UiRectRenderPipeline {
-    pub fn new(context: &GraphicsContext, screen_space_bind_group: ScreenSpaceBindGroup) -> Self {
+impl Rect3DRenderPipeline {
+    pub fn new(context: &GraphicsContext, camera_bind_group: CameraBindGroup) -> Self {
         let device = &context.device;
 
         let white_px = BindableTexture::new(
@@ -86,25 +121,22 @@ impl UiRectRenderPipeline {
         );
 
         let shader = device.create_shader_module(ShaderModuleDescriptor {
-            label: Some("Ui Rect Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("ui_rect.wgsl").into()),
+            label: Some("Rect 3d Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("rect_3d.wgsl").into()),
         });
 
         // No vertices, just instances
-        let vertex_and_transform_layout: [wgpu::VertexBufferLayout; 1] = [UiRect::desc()];
+        let vertex_and_transform_layout: [wgpu::VertexBufferLayout; 1] = [Rect3D::desc()];
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Ui Rect Pipelinelayout"),
-                bind_group_layouts: &[
-                    screen_space_bind_group.layout(),
-                    context.rgba_bind_group_layout,
-                ],
+                label: Some("Rect 3d Pipelinelayout"),
+                bind_group_layouts: &[camera_bind_group.layout(), context.rgba_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Ui Rect Pipeline"),
+            label: Some("Rect 3d Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -150,32 +182,25 @@ impl UiRectRenderPipeline {
         // just a simple rect:
         let index_buffer = IndexBuffer::new(vec![0, 1, 2, 0, 2, 3], &context.device);
 
-        UiRectRenderPipeline {
+        Rect3DRenderPipeline {
             pipeline,
-            screen_space_bind_group,
+            camera_bind_group,
             index_buffer,
             white_px,
         }
     }
 
-    /// Tadeo Hepperle, 2023-12-14, Interesting note: We don't need a vertex buffer to draw the rects.
-    /// It is totally enough to have just one index buffer, that goes 0,1,3,0,2,3 to create a rect.
-    /// And We have one instance buffer, where each rect has some data about it.
-    /// Based on the index we can determine vertex position and color and uv for all of the 4 vertices in the vertex shader.
-    /// That saves a lot of bandwidth, because for example for vertex positions, we just need 4 floats as a bounding box for the rect,
-    /// instead of 4x2 floats if we would specify 4 vertices.
     ///
-    /// I first thought we cannot draw without a vertex buffer and just an instance buffer in place of it, but it works well.
-    pub fn render_ui_rects<'s: 'e, 'p, 'e>(
+    pub fn render_3d_rects<'s: 'e, 'p, 'e>(
         &'s self,
         render_pass: &'p mut RenderPass<'e>,
-        prepared_rects: &'e PeparedRects<UiRect>,
+        prepared_rects: &'e PeparedRects<Rect3D>,
         text_atlas_texture: &'e BindableTexture,
     ) {
         render_pass.set_pipeline(&self.pipeline);
 
         // screen space info and index buffer are fixed, because all rects have just 4 verts / 2 triangles.
-        render_pass.set_bind_group(0, &self.screen_space_bind_group.bind_group(), &[]);
+        render_pass.set_bind_group(0, &self.camera_bind_group.bind_group(), &[]);
         render_pass.set_index_buffer(
             self.index_buffer.buffer().slice(..),
             wgpu::IndexFormat::Uint32,

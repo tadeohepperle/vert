@@ -10,11 +10,8 @@ use wgpu::{
 use vert_core::prelude::*;
 
 use crate::{
-    constants::DEPTH_FORMAT,
-    modules::graphics::{
-        graphics_context::{GraphicsContext, COLOR_FORMAT},
-        Prepare, VertexT,
-    },
+    constants::{COLOR_FORMAT, DEPTH_FORMAT},
+    modules::graphics::{graphics_context::GraphicsContext, Prepare, VertexT},
 };
 
 use super::{

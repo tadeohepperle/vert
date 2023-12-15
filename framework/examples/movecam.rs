@@ -9,8 +9,9 @@ use vert_framework::{
         graphics::elements::{
             color::Color,
             color_mesh::SingleColorMesh,
+            rect::{Rect, RectTexture, RectWithTexture},
             texture::{BindableTexture, Texture},
-            ui_rect::{Rect, UiRect, UiRectInstance, UiRectTexture},
+            ui_rect::UiRect,
         },
         ui::text_rasterizer::DrawText,
         Modules,
@@ -85,24 +86,24 @@ impl StateT for MyState {
 
         // draw rects:
         let ui = modules.ui();
-        ui.draw_rect(UiRect {
-            instance: UiRectInstance {
+        ui.draw_ui_rect(RectWithTexture {
+            instance: UiRect {
                 pos: Rect::new([200.0, 500.0], [300.0, 150.0]),
                 uv: Rect::default(),
                 color: Color::new(total_time.sin().abs(), 1.0, 0.0),
                 border_radius: [20.0, 20.0, 20.0, 20.0],
             },
-            texture: UiRectTexture::White,
+            texture: RectTexture::White,
         });
 
-        ui.draw_rect(UiRect {
-            instance: UiRectInstance {
+        ui.draw_ui_rect(RectWithTexture {
+            instance: UiRect {
                 pos: Rect::new([200.0, 200.0], [150.0, 120.0]),
                 uv: Rect::default(),
                 color: Color::RED.alpha(0.1),
                 border_radius: [50.0, 0.0, 25.0, 0.0],
             },
-            texture: UiRectTexture::Custom(self.test_texture.clone()),
+            texture: RectTexture::Custom(self.test_texture.clone()),
         });
 
         ui.draw_text(&DrawText {
@@ -133,8 +134,8 @@ impl StateT for MyState {
             color: Color::GREEN,
         });
 
-        ui.draw_rect(UiRect {
-            instance: UiRectInstance {
+        ui.draw_ui_rect(RectWithTexture {
+            instance: UiRect {
                 pos: Rect::new(
                     [200.0, 350.0],
                     [400.0, (total_time * 4.0).sin() * 30.0 + 50.0],
@@ -143,7 +144,7 @@ impl StateT for MyState {
                 color: Color::u8(249, 151, 0).alpha(0.9),
                 border_radius: [0.0, 0.0, 16.0, 10.0],
             },
-            texture: UiRectTexture::Custom(self.test_texture.clone()),
+            texture: RectTexture::Custom(self.test_texture.clone()),
         });
 
         Flow::Continue

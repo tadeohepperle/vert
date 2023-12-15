@@ -9,9 +9,10 @@ use tokio::sync::watch;
 use wgpu::{BindGroupLayout, Device, SurfaceConfiguration, SurfaceTexture};
 use winit::{dpi::PhysicalSize, window::Window};
 
-use crate::utils::{Reader, Writer};
-
-pub const COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8UnormSrgb;
+use crate::{
+    constants::COLOR_FORMAT,
+    utils::{Reader, Writer},
+};
 
 /// not too expensive to clone
 #[derive(Debug, Clone)]
