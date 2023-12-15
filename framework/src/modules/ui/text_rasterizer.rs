@@ -1,13 +1,24 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{borrow::Cow, collections::HashMap, sync::Arc};
 
+use egui::Widget;
 use etagere::AtlasAllocator;
-use fontdue::{Font, FontSettings};
-use glam::{ivec2, IVec2};
+use fontdue::{
+    layout::{
+        CoordinateSystem, HorizontalAlign, Layout, LayoutSettings, TextStyle, VerticalAlign,
+        WrapStyle,
+    },
+    Font, FontSettings,
+};
+use glam::{ivec2, vec2, IVec2, Vec2};
 use image::{Rgba, RgbaImage};
 use wgpu::Queue;
 
 use crate::modules::graphics::{
-    elements::texture::{BindableTexture, Texture},
+    elements::{
+        color::Color,
+        texture::{BindableTexture, Texture},
+        ui_rect::{Rect, UiRect, UiRectInstance, UiRectTexture},
+    },
     graphics_context::GraphicsContext,
 };
 
@@ -65,21 +76,16 @@ impl Glyph {
         image
     }
 
-    fn offset_and_size(&self) -> OffsetAndSize {
-        OffsetAndSize {
-            offset: self.offset_in_atlas,
-            size: ivec2(self.metrics.width as i32, self.metrics.height as i32),
+    fn offset_and_size(&self) -> Rect {
+        Rect {
+            offset: self.offset_in_atlas.as_vec2(),
+            size: vec2(self.metrics.width as f32, self.metrics.height as f32),
         }
     }
 }
 
-pub struct OffsetAndSize {
-    pub offset: IVec2,
-    pub size: IVec2,
-}
-
 impl TextRasterizer {
-    pub fn get_or_rasterize_char(&mut self, glyph_key: &GlyphKey) -> OffsetAndSize {
+    pub fn get_or_rasterize_char(&mut self, glyph_key: &GlyphKey) -> Rect {
         if let Some(glyph) = self.glyphs.get(glyph_key) {
             glyph.offset_and_size()
         } else {
@@ -101,11 +107,20 @@ impl TextRasterizer {
         }
     }
 
+    // pub fn get_layout(&self) {
+    //     let mut layout = Layout::<f32>::new(CoordinateSystem::PositiveYUp);
+
+    //     layout.glyphs();
+    //     // layout.reset(&LayoutSettings{ x: todo!(), y: todo!(), max_width: todo!(), max_height: todo!(), horizontal_align: todo!(), vertical_align: todo!(), line_height: todo!(), wrap_style: todo!(), wrap_hard_breaks: todo!() })
+    //     // let font = self.fonts.get(&self.default_font).unwrap();
+    //     // layout.append(&[font], &TextStyle::new("Hello ", 35.0, 0));
+    // }
+
     pub fn atlas_texture(&self) -> &Arc<BindableTexture> {
         &self.atlas_texture
     }
 
-    pub fn default_font(&self) -> FontHandle {
+    pub fn default_font_handle(&self) -> FontHandle {
         self.default_font
     }
 
@@ -147,6 +162,67 @@ impl TextRasterizer {
         };
 
         rasterizer
+    }
+
+    pub(crate) fn draw_text(&self, draw_text: &DrawText) -> Vec<UiRect> {
+        // rasterize all characters in the text (if not done so for the respective character):
+
+        // calculate a layout for each glyph in the text:
+        let mut layout: Layout<()> = Layout::new(CoordinateSystem::PositiveYUp);
+        layout.reset(&LayoutSettings {
+            x: draw_text.pos.x,
+            y: draw_text.pos.y,
+            max_width: draw_text.max_width,
+            max_height: None,
+            horizontal_align: HorizontalAlign::Left,
+            vertical_align: VerticalAlign::Top,
+            line_height: 1.0,
+            wrap_style: WrapStyle::Word,
+            wrap_hard_breaks: true,
+        });
+        let default_font = self.default_font();
+        layout.append(
+            &[default_font],
+            &TextStyle {
+                text: &draw_text.text,
+                px: draw_text.font_size,
+                font_index: 0,
+                user_data: (),
+            },
+        );
+
+        todo!()
+
+        // // create ui rectangles that point to the correct
+        // let ui_rects = layout
+        //     .glyphs()
+        //     .iter()
+        //     .map(|g| {
+        //         let char = g.parent;
+        //         let atlas_pos = self.get_or_rasterize_char(&GlyphKey {
+        //             font: self.default_font,
+        //             size: Fontsize(draw_text.font_size),
+        //             char,
+        //         });
+        //         // self.glyphs.get(char).unwrap();
+        //         todo!()
+        //         // UiRect {
+        //         //     instance: UiRectInstance {
+        //         //         posbb: ,
+        //         //         uvbb: [atlas_pos.offset.x, atlas_pos.offset.y,],
+        //         //         color: todo!(),
+        //         //         border_radius: todo!(),
+        //         //     },
+        //         //     texture: UiRectTexture::Text,
+        //         // }
+        //     })
+        //     .collect();
+
+        // ui_rects
+    }
+
+    fn default_font(&self) -> &Font {
+        self.fonts.get(&self.default_font).unwrap()
     }
 }
 
@@ -217,4 +293,43 @@ fn update_texture_region(texture: &Texture, image: &RgbaImage, offset: IVec2, qu
         },
         size,
     );
+}
+
+pub struct DrawText {
+    text: String,
+    pos: Vec2,
+    font_size: f32,
+    max_width: Option<f32>,
+    color: Color,
+}
+
+impl DrawText {
+    pub fn new(text: impl Into<String>) -> Self {
+        DrawText {
+            text: text.into(),
+            ..Default::default()
+        }
+    }
+
+    pub fn pos(mut self, pos: Vec2) -> Self {
+        self.pos = pos;
+        self
+    }
+
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = color;
+        self
+    }
+}
+
+impl Default for DrawText {
+    fn default() -> Self {
+        Self {
+            text: "Hello".to_string(),
+            pos: Default::default(),
+            font_size: 24.0,
+            max_width: None,
+            color: Color::GREEN,
+        }
+    }
 }

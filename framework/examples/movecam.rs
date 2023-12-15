@@ -10,7 +10,7 @@ use vert_framework::{
             color::Color,
             color_mesh::SingleColorMesh,
             texture::{BindableTexture, Texture},
-            ui_rect::{UiRect, UiRectInstance},
+            ui_rect::{UiRect, UiRectInstance, UiRectTexture},
         },
         Modules,
     },
@@ -90,7 +90,7 @@ impl StateT for MyState {
                 color: Color::RED,
                 border_radius: [20.0, 20.0, 20.0, 20.0],
             },
-            texture: None,
+            texture: UiRectTexture::White,
         });
 
         ui.draw_rect(UiRect {
@@ -100,7 +100,7 @@ impl StateT for MyState {
                 color: Color::RED.alpha(0.1),
                 border_radius: [50.0, 0.0, 0.0, 0.0],
             },
-            texture: Some(self.test_texture.clone()),
+            texture: UiRectTexture::Custom(self.test_texture.clone()),
         });
 
         ui.draw_rect(UiRect {
@@ -110,7 +110,7 @@ impl StateT for MyState {
                 color: Color::u8(249, 151, 0).alpha(0.9),
                 border_radius: [0.0, 0.0, 10.0, 10.0],
             },
-            texture: Some(self.test_texture.clone()),
+            texture: UiRectTexture::Custom(self.test_texture.clone()),
         });
 
         Flow::Continue

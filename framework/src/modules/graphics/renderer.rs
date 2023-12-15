@@ -88,8 +88,11 @@ impl Renderer {
             .render_color_meshes(&mut render_pass, arenas);
 
         // render ui rectangles:
-        self.ui_rect_render_pipeline
-            .render_ui_rects(&mut render_pass, ui.prepared_rects());
+        self.ui_rect_render_pipeline.render_ui_rects(
+            &mut render_pass,
+            ui.prepared_rects(),
+            ui.text_atlas_texture(),
+        );
 
         // render egui:
         egui.render(&mut render_pass);

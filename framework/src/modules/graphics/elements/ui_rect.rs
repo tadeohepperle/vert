@@ -25,7 +25,48 @@ impl Component for UiRect {}
 #[derive(Debug, Clone)]
 pub struct UiRect {
     pub instance: UiRectInstance,
-    pub texture: Option<Arc<BindableTexture>>,
+    pub texture: UiRectTexture,
+}
+
+#[derive(Debug, Clone)]
+pub enum UiRectTexture {
+    White,
+    Text,
+    Custom(Arc<BindableTexture>),
+}
+
+impl UiRectTexture {
+    #[inline]
+    pub fn id(&self) -> u128 {
+        match self {
+            UiRectTexture::White => 0,
+            UiRectTexture::Text => 1,
+            UiRectTexture::Custom(tex) => tex.texture.id,
+        }
+    }
+}
+
+impl PartialEq for UiRectTexture {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Custom(l0), Self::Custom(r0)) => l0.texture.id == r0.texture.id,
+            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+        }
+    }
+}
+
+impl Eq for UiRectTexture {}
+
+impl PartialOrd for UiRectTexture {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(Ord::cmp(&self, &other))
+    }
+}
+
+impl Ord for UiRectTexture {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.id().cmp(&other.id())
+    }
 }
 
 pub struct UiRectRenderPipeline {
@@ -131,6 +172,7 @@ impl UiRectRenderPipeline {
         &'s self,
         render_pass: &'p mut RenderPass<'e>,
         prepared_rects: &'e PeparedRects,
+        text_atlas_texture: &'e BindableTexture,
     ) {
         render_pass.set_pipeline(&self.pipeline);
 
@@ -148,11 +190,12 @@ impl UiRectRenderPipeline {
         let index_count = self.index_buffer.len();
         assert_eq!(index_count, 6);
         for (range, texture) in prepared_rects.texture_groups.iter() {
-            let texture: &BindableTexture = match texture {
-                Some(texture) => texture,
-                None => &self.white_px,
+            let texture_bind_group: &wgpu::BindGroup = match texture {
+                UiRectTexture::White => &self.white_px.bind_group,
+                UiRectTexture::Text => &text_atlas_texture.bind_group,
+                UiRectTexture::Custom(tex) => &tex.bind_group,
             };
-            render_pass.set_bind_group(1, &texture.bind_group, &[]);
+            render_pass.set_bind_group(1, texture_bind_group, &[]);
             render_pass.draw_indexed(0..index_count, 0, range.start..range.end);
         }
     }
@@ -202,4 +245,10 @@ impl VertexT for UiRectInstance {
             ],
         }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Rect {
+    pub offset: Vec2,
+    pub size: Vec2,
 }

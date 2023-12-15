@@ -2,14 +2,18 @@ use std::{borrow::Cow, cmp::Ordering, ops::Range, sync::Arc};
 
 use bytemuck::Zeroable;
 use egui::{ahash::HashMap, Vec2};
-use wgpu::util::{BufferInitDescriptor, DeviceExt};
+use glam::IVec2;
+use wgpu::{
+    util::{BufferInitDescriptor, DeviceExt},
+    Color,
+};
 
-use self::text_rasterizer::TextRasterizer;
+use self::text_rasterizer::{DrawText, FontHandle, TextRasterizer};
 
 use super::graphics::{
     elements::{
         texture::{BindableTexture, Texture},
-        ui_rect::{UiRect, UiRectInstance, UiRectRenderPipeline},
+        ui_rect::{UiRect, UiRectInstance, UiRectRenderPipeline, UiRectTexture},
     },
     graphics_context::GraphicsContext,
     Prepare, Render,
@@ -51,12 +55,21 @@ impl ImmediateUi {
 
     // }
 
+    pub fn draw_text(&mut self, text: &DrawText) {
+        let rects = self.text_rasterizer.draw_text(text);
+        self.rect_queue.extend(rects);
+    }
+
     pub fn draw_rect(&mut self, ui_rect: UiRect) {
         self.rect_queue.push(ui_rect);
     }
 
     pub(crate) fn prepared_rects(&self) -> &PeparedRects {
         &self.prepared_rects
+    }
+
+    pub(crate) fn text_atlas_texture(&self) -> &BindableTexture {
+        &self.text_rasterizer.atlas_texture()
     }
 }
 
@@ -86,7 +99,7 @@ pub struct PeparedRects {
     /// Buffer with instances (sorted)
     pub instance_buffer: RectInstanceBuffer,
     /// texture_regions, refer to regions of the sorted buffer.
-    pub texture_groups: Vec<(Range<u32>, Option<Arc<BindableTexture>>)>,
+    pub texture_groups: Vec<(Range<u32>, UiRectTexture)>,
 }
 
 impl PeparedRects {
@@ -147,46 +160,37 @@ impl PeparedRects {
 
 fn create_sorted_rect_instances(
     mut rects: Vec<UiRect>,
-) -> (
-    Vec<UiRectInstance>,
-    Vec<(Range<u32>, Option<Arc<BindableTexture>>)>,
-) {
+) -> (Vec<UiRectInstance>, Vec<(Range<u32>, UiRectTexture)>) {
     if rects.is_empty() {
         return (vec![], vec![]);
     }
 
-    rects.sort_by(|a, b| match (&a.texture, &b.texture) {
-        (None, None) => Ordering::Equal,
-        (None, Some(_)) => Ordering::Less,
-        (Some(_), None) => Ordering::Greater,
-        (Some(a), Some(b)) => a.texture.id.cmp(&b.texture.id),
-    });
+    rects.sort_by(|a, b| a.texture.cmp(&b.texture));
 
     // cache this to use it after the loop
 
     let mut instances: Vec<UiRectInstance> = vec![];
-    let mut texture_groups: Vec<(Range<u32>, Option<Arc<BindableTexture>>)> = vec![];
+    let mut texture_groups: Vec<(Range<u32>, UiRectTexture)> = vec![];
 
     let mut last_start_idx: usize = 0;
-    let mut last_texture_id: Option<u128> = None;
-    let mut last_group_texture: Option<Arc<BindableTexture>> =
-        rects.first().unwrap().texture.clone();
+    let mut last_texture: UiRectTexture = rects.first().unwrap().texture.clone();
+    let mut last_texture_id: u128 = last_texture.id();
 
     for (i, rect) in rects.into_iter().enumerate() {
         instances.push(rect.instance);
-        let texture_id = rect.texture.as_ref().map(|e| e.texture.id);
+        let texture_id = rect.texture.id();
         if texture_id != last_texture_id {
             let range = (last_start_idx as u32)..(i as u32);
-            texture_groups.push((range, last_group_texture));
+            texture_groups.push((range, last_texture));
             last_start_idx = i;
+            last_texture = rect.texture;
             last_texture_id = texture_id;
-            last_group_texture = rect.texture;
         }
     }
 
     if last_start_idx < instances.len() {
         let range = (last_start_idx as u32)..(instances.len() as u32);
-        texture_groups.push((range, last_group_texture));
+        texture_groups.push((range, last_texture));
     }
     (instances, texture_groups)
 }
