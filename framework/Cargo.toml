@@ -21,6 +21,8 @@ bytemuck = { version = "1.14.0", features = ["derive"] }
 vert-core = { path = "../core" }
 atomic_refcell = "0.1.13"
 reqwest = "0.11.22"
+fontdue = "0.8.0"
+etagere = "0.2.10"
 
 
 [profile.dev.package."*"]

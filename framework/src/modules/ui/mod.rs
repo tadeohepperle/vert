@@ -1,16 +1,21 @@
-use std::{cmp::Ordering, ops::Range, sync::Arc};
+use std::{borrow::Cow, cmp::Ordering, ops::Range, sync::Arc};
 
 use bytemuck::Zeroable;
+use egui::{ahash::HashMap, Vec2};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
+
+use self::text_rasterizer::TextRasterizer;
 
 use super::graphics::{
     elements::{
-        texture::BindableTexture,
+        texture::{BindableTexture, Texture},
         ui_rect::{UiRect, UiRectInstance, UiRectRenderPipeline},
     },
     graphics_context::GraphicsContext,
     Prepare, Render,
 };
+
+pub mod text_rasterizer;
 
 const RECT_BUFFER_MIN_SIZE: usize = 256;
 
@@ -21,23 +26,30 @@ const RECT_BUFFER_MIN_SIZE: usize = 256;
 /// Before rendering (prepare stage) all the rects in the rect_queue are sorted after their textures and written into one
 /// big instance buffer.
 pub struct ImmediateUi {
-    context: GraphicsContext,
     /// cleared every frame
     rect_queue: Vec<UiRect>,
     /// written to and recreated if too small
     prepared_rects: PeparedRects,
+    // /////////////////////////////////////////////////////////////////////////////
+    // Text related things:
+    // /////////////////////////////////////////////////////////////////////////////
+    text_rasterizer: TextRasterizer,
 }
 
 impl ImmediateUi {
     pub fn new(context: GraphicsContext) -> Self {
         let draw_rects = PeparedRects::new(&context.device);
-
+        let text_rasterizer = TextRasterizer::new(context);
         ImmediateUi {
-            context,
+            text_rasterizer,
             rect_queue: vec![],
             prepared_rects: draw_rects,
         }
     }
+
+    // pub fn draw_text(&mut self,text: "" , pos: Vec2 ){
+
+    // }
 
     pub fn draw_rect(&mut self, ui_rect: UiRect) {
         self.rect_queue.push(ui_rect);
@@ -178,3 +190,14 @@ fn create_sorted_rect_instances(
     }
     (instances, texture_groups)
 }
+
+// pub struct FontDescriptor {
+//     size: f32,
+//     name: Cow<'static, str>,
+// }
+
+// pub struct FontAtlas {
+//     font: fontdue::Font,
+//     atlas: etagere::AtlasAllocator,
+//     atlas_texture: Texture,
+// }

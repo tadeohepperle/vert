@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use anyhow::anyhow;
 use image::RgbaImage;
 use tokio::sync::oneshot;
 
@@ -20,6 +21,15 @@ impl FetchableAssetT for ImageAsset {
         let image = image::load_from_memory(bytes)?;
         let rgba = image.to_rgba8();
         Ok(ImageAsset { rgba })
+    }
+}
+
+impl FetchableAssetT for fontdue::Font {
+    /// ttf bytes
+    fn from_bytes(bytes: &[u8]) -> Result<Self, anyhow::Error> {
+        let font = fontdue::Font::from_bytes(bytes, fontdue::FontSettings::default())
+            .map_err(|e| anyhow!("fontdue error: {e}"))?;
+        Ok(font)
     }
 }
 
