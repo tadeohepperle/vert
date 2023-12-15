@@ -1,14 +1,11 @@
 // Inspired by: https://www.shadertoy.com/view/fsdyzB
-
-
-struct ScreenSpace {
-    width: f32,
-    height: f32,
-    aspect: f32,
+struct Camera {
+    view_pos: vec4<f32>,
+    view_proj: mat4x4<f32>,
 }
 
 @group(0) @binding(0)
-var<uniform> screen: ScreenSpace;
+var<uniform> camera: Camera;
 
 @group(1) @binding(0)
 var t_diffuse: texture_2d<f32>;
@@ -22,8 +19,15 @@ struct Instance {
     @location(1) uv: vec4<f32>,
     @location(2) color: vec4<f32>,
     @location(3) border_radius: vec4<f32>,
+    
+    /// transform
+    @location(5) col1: vec4<f32>,
+    @location(6) col2: vec4<f32>,
+    @location(7) col3: vec4<f32>,
+    @location(8) translation: vec4<f32>,
 }
 
+// we calculate the vertices here in the shader instead of passing a vertex buffer
 struct Vertex {
     pos: vec2<f32>,
     uv: vec2<f32>
@@ -75,27 +79,29 @@ fn vs_main(
     @builtin(vertex_index) idx: u32,
     instance: Instance,
 ) -> VertexOutput {
-    var out: VertexOutput;
 
     let vertex = rect_vertex(idx, instance.pos, instance.uv);
-    let device_pos = vec2<f32>((vertex.pos.x / screen.width) * 2.0  - 1.0, 1.0 - (vertex.pos.y / screen.height) * 2.0) ; // + (screen.width * 0.1) + (screen.height* 0.1)
-    // let x = f32(1 - i32(idx)) * 0.5;
-    // let y = f32(i32(idx & 1u) * 2 - 1) * 0.5;
-    // out.clip_position = vec4<f32>(x, y, 0.0, 1.0);
-    // out.color = vec4<f32>(x, y, 0.0, 1.0);
+    // offset as if it was on a screen that is the xy plane, with 100 pixels per unit.
+    let xy_plane_offset = vec3<f32>(vertex.pos.x / 100.0, vertex.pos.y / 100.0, 0.0);
+    
 
-    let x = f32(1 - i32(idx)) * 0.5;
-    let y = f32(i32(idx & 1u) * 2 - 1) * 0.5;
+    let model_matrix = mat4x4<f32>(
+        instance.col1,
+        instance.col2,
+        instance.col3,
+        instance.translation,
+    );
+    let world_position = vec4<f32>(vertex.pos, 0.0, 1.0);
 
+    var out: VertexOutput;
+    out.clip_position = camera.view_proj * model_matrix * world_position;
 
     out.border_radius = instance.border_radius;
     out.size = instance.pos.zw;
     let center = instance.pos.xy + instance.pos.zw * 0.5;
     out.offset = vertex.pos - center;
-    out.clip_position = vec4<f32>(device_pos, 0.0, 1.0);
     out.color = instance.color;
     out.uv = vertex.uv;
-
     return out;
 }
  

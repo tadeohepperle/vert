@@ -12,6 +12,7 @@ use vert_framework::{
             color_mesh::SingleColorMesh,
             rect::{Rect, RectTexture, RectWithTexture},
             texture::{BindableTexture, Texture},
+            transform::Transform,
             ui_rect::UiRect,
         },
         ui::text_rasterizer::DrawText,
@@ -27,6 +28,27 @@ impl StateT for MyState {
         modules.add_battery(SpawnSomeCubes);
         modules.add_battery(SimpleCamController);
         Ok(MyState)
+    }
+
+    fn update(&mut self, modules: &mut Modules) -> Flow {
+        modules.ui().draw_text(&DrawText {
+            text: "Hello".into(),
+            font_layout_size: 64.0,
+            font_texture_size: 64.0,
+            ..Default::default()
+        });
+
+        modules.ui().draw_3d_text(
+            &DrawText {
+                text: "Hello".into(),
+                font_layout_size: 64.0,
+                font_texture_size: 64.0,
+                ..Default::default()
+            },
+            &Transform::default(),
+        );
+
+        Flow::Continue
     }
 }
 

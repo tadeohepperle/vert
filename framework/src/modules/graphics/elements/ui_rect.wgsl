@@ -24,6 +24,7 @@ struct Instance {
     @location(3) border_radius: vec4<f32>,
 }
 
+// we calculate the vertices here in the shader instead of passing a vertex buffer
 struct Vertex {
     pos: vec2<f32>,
     uv: vec2<f32>
@@ -79,14 +80,6 @@ fn vs_main(
 
     let vertex = rect_vertex(idx, instance.pos, instance.uv);
     let device_pos = vec2<f32>((vertex.pos.x / screen.width) * 2.0  - 1.0, 1.0 - (vertex.pos.y / screen.height) * 2.0) ; // + (screen.width * 0.1) + (screen.height* 0.1)
-    // let x = f32(1 - i32(idx)) * 0.5;
-    // let y = f32(i32(idx & 1u) * 2 - 1) * 0.5;
-    // out.clip_position = vec4<f32>(x, y, 0.0, 1.0);
-    // out.color = vec4<f32>(x, y, 0.0, 1.0);
-
-    let x = f32(1 - i32(idx)) * 0.5;
-    let y = f32(i32(idx & 1u) * 2 - 1) * 0.5;
-
 
     out.border_radius = instance.border_radius;
     out.size = instance.pos.zw;

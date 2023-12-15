@@ -360,10 +360,10 @@ impl Default for DrawText {
         Self {
             text: "Hello".to_string(),
             pos: Default::default(),
-            font_texture_size: 80.0,
+            font_texture_size: 32.0,
             max_width: None,
             color: Color::GREEN,
-            font_layout_size: 240.0,
+            font_layout_size: 32.0,
         }
     }
 }

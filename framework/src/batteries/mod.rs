@@ -1,4 +1,5 @@
-//! batteries are some simple systems that run every frame.
+//! batteries are some simple systems that can setup some state and run every frame.
+//! Can be thought of as a simple equivalent to bevy Plugins.
 
 use vert_core::prelude::*;
 use vert_core::{arenas::arena::TypedArena, component::Component, reflect};
