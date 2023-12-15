@@ -1,6 +1,6 @@
 use super::Battery;
 
-pub struct SimpleCamController {}
+pub struct SimpleCamController;
 
 impl Battery for SimpleCamController {
     fn update(&mut self, modules: &mut crate::modules::Modules) {

@@ -5,8 +5,10 @@ use vert_core::{arenas::arena::TypedArena, component::Component, reflect};
 
 use crate::modules::Modules;
 pub mod simple_cam_controller;
+pub mod spawn_some_cubes;
 
 pub use simple_cam_controller::SimpleCamController;
+pub use spawn_some_cubes::SpawnSomeCubes;
 
 /// a first draft for systems that run each frame.
 /// Later we want to introduce more complicated systems and replace batteries, this is just a workaround right now.
@@ -34,10 +36,11 @@ impl Batteries {
         }
     }
 
-    pub fn add<T: Battery>(&mut self, battery: T) {
+    pub fn add<T: Battery>(&mut self, mut battery: T, modules: &mut Modules) {
         // todo! we dont even have a check here if this battery already exists... but anyway soon we will
         // through batteries away and implement proper systems.
 
+        battery.initialize(modules);
         self.arena
             .as_mut()
             .unwrap()
@@ -53,7 +56,8 @@ impl Drop for Batteries {
 
 reflect!(Battery);
 pub trait Battery: 'static {
-    fn update(&mut self, modules: &mut Modules);
+    fn initialize(&mut self, modules: &mut Modules) {}
+    fn update(&mut self, modules: &mut Modules) {}
     fn prepare(&mut self, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder) {}
     // todo: explicit order?
 }

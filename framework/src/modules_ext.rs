@@ -64,9 +64,12 @@ impl Modules {
         &mut self.arenas
     }
 
-    pub fn add<T: Battery>(&mut self, battery: T) {
+    pub fn add_battery<T: Battery>(&mut self, battery: T) {
         // todo! we dont even have a check here if this battery already exists... but anyway soon we will
         // through batteries away and implement proper systems.
-        self.batteries.as_mut().unwrap().add(battery);
+
+        let mut batteries = self.batteries.take().unwrap();
+        batteries.add(battery, self);
+        self.batteries = Some(batteries);
     }
 }
