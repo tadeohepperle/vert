@@ -22,7 +22,7 @@ use crate::modules::graphics::{
     graphics_context::GraphicsContext,
 };
 
-pub const DEFAULT_FONT: &[u8] = include_bytes!("../../../assets/Lora.ttf");
+pub const DEFAULT_FONT: &[u8] = include_bytes!("../../../assets/Oswald-Medium.ttf");
 
 pub const TEXT_ATLAS_SIZE: u32 = 2048;
 pub const TEXT_ATLAS_SIZE_F: f32 = TEXT_ATLAS_SIZE as f32;

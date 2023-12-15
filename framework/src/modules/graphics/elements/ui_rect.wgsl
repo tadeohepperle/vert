@@ -78,7 +78,7 @@ fn vs_main(
     var out: VertexOutput;
 
     let vertex = rect_vertex(idx, instance.pos, instance.uv);
-    let device_pos = vec2<f32>((vertex.pos.x / screen.width)  - 1.0, 1.0 -((vertex.pos.y / screen.height))) ; // + (screen.width * 0.1) + (screen.height* 0.1)
+    let device_pos = vec2<f32>((vertex.pos.x / screen.width) * 2.0  - 1.0, 1.0 - (vertex.pos.y / screen.height) * 2.0) ; // + (screen.width * 0.1) + (screen.height* 0.1)
     // let x = f32(1 - i32(idx)) * 0.5;
     // let y = f32(i32(idx & 1u) * 2 - 1) * 0.5;
     // out.clip_position = vec4<f32>(x, y, 0.0, 1.0);
@@ -104,24 +104,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
 
     let image_color = textureSample(t_diffuse, s_diffuse, in.uv);
-    return image_color;
-    // let color = mix(image_color.rgb, image_color.rgb * in.color.rgb, in.color.a);
+    let color = mix(image_color.rgb, image_color.rgb * in.color.rgb, in.color.a);
 
+ 
 
-    // // return mix(image_color, vec4<f32>(1.0,0.0,0.0,1.0), 0.5);
+    // return mix(image_color, vec4<f32>(1.0,0.0,0.0,1.0), 0.5);
 
-
-    // /// the borders are counterclockwise: topleft, topright, bottomright, bottomleft
-    // let sdf = rounded_box_sdf(in.offset, in.size, in.border_radius);
-    // let dist = (sdf + 1000.0 )/ 2000.0;
-
-    
-
-    // if sdf > 0.0 {
-    //     discard;
-    //     // return vec4<f32>(0.0);
-    // }
-    // return vec4(color, image_color.a);
+    /// the borders are counterclockwise: topleft, topright, bottomright, bottomleft
+    let sdf = rounded_box_sdf(in.offset, in.size, in.border_radius); 
+    let opacity = min(image_color.a, smoothstep( 1.0, 0.0, sdf + 0.5)); // the + 0.5 makes the edge a bit smoother
+    return vec4(color, opacity);
 }
 
 
