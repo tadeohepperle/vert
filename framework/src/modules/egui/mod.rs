@@ -44,12 +44,7 @@ impl EguiState {
             style: Default::default(),
         });
 
-        let renderer = Renderer::new(
-            &context.device,
-            context.surface_format,
-            Some(DEPTH_FORMAT),
-            1,
-        );
+        let renderer = Renderer::new(&context.device, context.surface_format, None, 1);
         // renderer.render(render_pass, paint_jobs, self.platform);
         EguiState {
             platform,
@@ -71,6 +66,34 @@ impl EguiState {
     pub fn begin_frame(&mut self, total_elapsed_seconds: f64) {
         self.platform.begin_frame(total_elapsed_seconds);
         // self.demo_windows.ui(&self.context()); // activate this to see the demo windows!
+    }
+
+    /// runs a separate render pass for egui
+    pub fn render<'a>(
+        &'a self,
+        encoder: &'a mut wgpu::CommandEncoder,
+        view: &'a wgpu::TextureView,
+    ) {
+        let color_attachment = wgpu::RenderPassColorAttachment {
+            view: &view,
+            resolve_target: None,
+            ops: wgpu::Operations {
+                load: wgpu::LoadOp::Load,
+                store: wgpu::StoreOp::Discard,
+            },
+        };
+
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Renderpass"),
+            color_attachments: &[Some(color_attachment)],
+            depth_stencil_attachment: None,
+            occlusion_query_set: None,
+            timestamp_writes: None,
+        });
+
+        let screen_descriptor = self.platform.screen_descriptor();
+        self.renderer
+            .render(&mut render_pass, &self.paint_jobs, &screen_descriptor);
     }
 }
 
@@ -102,16 +125,16 @@ impl Prepare for EguiState {
     }
 }
 
-impl Render for EguiState {
-    fn render<'s: 'encoder, 'pass, 'encoder>(
-        &'s self,
-        render_pass: &'pass mut wgpu::RenderPass<'encoder>,
-    ) {
-        let screen_descriptor = self.platform.screen_descriptor();
-        self.renderer
-            .render(render_pass, &self.paint_jobs, &screen_descriptor);
-    }
-}
+// impl Render for EguiState {
+//     fn render<'s: 'encoder, 'pass, 'encoder>(
+//         &'s self,
+//         render_pass: &'pass mut wgpu::RenderPass<'encoder>,
+//     ) {
+//         let screen_descriptor = self.platform.screen_descriptor();
+//         self.renderer
+//             .render(render_pass, &self.paint_jobs, &screen_descriptor);
+//     }
+// }
 
 /*
 

@@ -90,9 +90,8 @@ impl ColorMeshRenderPipeline {
                 bias: wgpu::DepthBiasState::default(),
             }),
             multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
+                count: 4,
+                ..Default::default()
             },
             multiview: None,
         });

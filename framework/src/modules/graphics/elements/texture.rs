@@ -63,10 +63,12 @@ impl Texture {
         self.name.as_ref().map(|e| e.as_ref())
     }
 
+    /// note: layers important for msaa
     pub fn create_depth_texture(
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
         label: &str,
+        sample_count: u32,
     ) -> Self {
         let format = DEPTH_FORMAT;
         let size = wgpu::Extent3d {
@@ -78,7 +80,7 @@ impl Texture {
             label: Some(label),
             size,
             mip_level_count: 1,
-            sample_count: 1,
+            sample_count,
             dimension: wgpu::TextureDimension::D2,
             format,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,

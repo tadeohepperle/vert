@@ -65,7 +65,7 @@ impl GraphicsOwner {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    features: wgpu::Features::empty(),
+                    features: wgpu::Features::MULTIVIEW,
                     limits: wgpu::Limits::default(),
                 },
                 None,
@@ -89,7 +89,7 @@ impl GraphicsOwner {
             height: size.height,
             present_mode: surface_caps.present_modes[0],
             alpha_mode: surface_caps.alpha_modes[0],
-            view_formats: vec![],
+            view_formats: vec![wgpu::TextureFormat::Bgra8UnormSrgb],
         };
         surface.configure(&device, &surface_config);
 

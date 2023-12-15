@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use glam::vec3;
+use glam::{vec2, vec3};
 use vert_framework::{
     app::App,
     flow::Flow,
@@ -10,8 +10,9 @@ use vert_framework::{
             color::Color,
             color_mesh::SingleColorMesh,
             texture::{BindableTexture, Texture},
-            ui_rect::{UiRect, UiRectInstance, UiRectTexture},
+            ui_rect::{Rect, UiRect, UiRectInstance, UiRectTexture},
         },
+        ui::text_rasterizer::DrawText,
         Modules,
     },
     state::StateT,
@@ -76,42 +77,63 @@ impl StateT for MyState {
 
         // move the cubes up and down:
         let total_time = modules.time().total_secs();
-        for (_, cube) in modules.arenas_mut().iter_mut::<SingleColorMesh>() {
-            let t = cube.transform_mut();
-            t.position.y = ((total_time + t.position.z * 0.2) * 3.0).sin() * t.position.z * 0.1;
-        }
+        // for (_, cube) in modules.arenas_mut().iter_mut::<SingleColorMesh>() {
+        //     let t = cube.transform_mut();
+        //     t.position.y = ((total_time + t.position.z * 0.2) * 3.0).sin() * t.position.z * 0.1;
+        // }
 
         // draw rects:
         let ui = modules.ui();
         ui.draw_rect(UiRect {
             instance: UiRectInstance {
-                posbb: [200.0, 200.0, 300.0, 500.0],
-                uvbb: [0.0, 0.0, 1.0, 0.5],
+                pos: Rect::new([200.0, 200.0], [600.0, 300.0]),
+                uv: Rect::default(),
                 color: Color::RED,
                 border_radius: [20.0, 20.0, 20.0, 20.0],
             },
             texture: UiRectTexture::White,
         });
 
-        ui.draw_rect(UiRect {
-            instance: UiRectInstance {
-                posbb: [400.0, 400.0, 600.0, 600.0],
-                uvbb: [0.0, 0.0, 1.0, 1.0],
-                color: Color::RED.alpha(0.1),
-                border_radius: [50.0, 0.0, 0.0, 0.0],
-            },
-            texture: UiRectTexture::Custom(self.test_texture.clone()),
-        });
+        // ui.draw_rect(UiRect {
+        //     instance: UiRectInstance {
+        //         pos: Rect::new([400.0, 400.0], [300.0, 700.0]),
+        //         uv: Rect::default(),
+        //         color: Color::RED.alpha(0.1),
+        //         border_radius: [50.0, 0.0, 0.0, 0.0],
+        //     },
+        //     texture: UiRectTexture::Custom(self.test_texture.clone()),
+        // });
 
-        ui.draw_rect(UiRect {
-            instance: UiRectInstance {
-                posbb: [700.0, 200.0, 2000.0, total_time.sin() * 400.0 + 1000.0],
-                uvbb: [0.0, 0.0, 1.0, 1.0],
-                color: Color::u8(249, 151, 0).alpha(0.9),
-                border_radius: [0.0, 0.0, 10.0, 10.0],
-            },
-            texture: UiRectTexture::Custom(self.test_texture.clone()),
-        });
+        // ui.draw_text(&DrawText {
+        //     text: "I render my fonts as quads with UV coordinates\nin one big atlas texture. (This is 64px)".into(),
+        //     pos: vec2(700.0, 700.0),
+        //     font_texture_size: 64.0,
+        //     font_layout_size: 64.0,
+        //     max_width: Some(900.0),
+        //     color: Color::GREEN,
+        // });
+
+        // ui.draw_text(&DrawText {
+        //     text: "The fonts are rasterized and I use MSSAx4 but it does not seem to help.\nCould the issue be texture filtering?\n E.g. the resolution is too high leading to crisp edges? (This is 24px)".into(),
+        //     pos: vec2(750.0, 1300.0),
+        //     font_texture_size: 24.0,
+        //     font_layout_size: 24.0,
+        //     max_width: Some(900.0),
+        //     color: Color::GREEN,
+        // });
+
+        // ui.draw_rect(UiRect {
+        //     instance: UiRectInstance {
+        //         pos: Rect::new(
+        //             [600.0, 200.0],
+        //             [400.0, (total_time * 4.0).sin() * 200.0 + 500.0],
+        //         ),
+        //         uv: Rect::default(),
+        //         color: Color::u8(249, 151, 0).alpha(0.9),
+        //         border_radius: [0.0, 0.0, 10.0, 10.0],
+        //     },
+        //     texture: UiRectTexture::Custom(self.test_texture.clone()),
+        // });
 
         Flow::Continue
     }

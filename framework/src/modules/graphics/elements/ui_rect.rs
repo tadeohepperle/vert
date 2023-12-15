@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{ops::DivAssign, sync::Arc};
 
 use glam::{UVec2, Vec2};
 use image::RgbaImage;
@@ -119,7 +119,7 @@ impl UiRectRenderPipeline {
                 targets: &[Some(wgpu::ColorTargetState {
                     format: COLOR_FORMAT,
                     blend: Some(wgpu::BlendState {
-                        alpha: wgpu::BlendComponent::REPLACE,
+                        alpha: wgpu::BlendComponent::OVER,
                         color: wgpu::BlendComponent::OVER,
                     }),
                     write_mask: wgpu::ColorWrites::ALL,
@@ -142,9 +142,8 @@ impl UiRectRenderPipeline {
                 bias: wgpu::DepthBiasState::default(),
             }),
             multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
+                count: 4,
+                ..Default::default()
             },
             multiview: None,
         });
@@ -204,10 +203,10 @@ impl UiRectRenderPipeline {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct UiRectInstance {
-    // min x, min y, max x, max y
-    pub posbb: [f32; 4],
-    // min x, min y, max x, max y
-    pub uvbb: [f32; 4],
+    // min x, min y, size x, size y
+    pub pos: Rect,
+    // min x, min y, size x, size y
+    pub uv: Rect,
     pub color: Color,
     pub border_radius: [f32; 4],
 }
@@ -247,8 +246,35 @@ impl VertexT for UiRectInstance {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Rect {
-    pub offset: Vec2,
-    pub size: Vec2,
+    /// min x, min y (top left corner)
+    pub offset: [f32; 2],
+    /// size x, size y
+    pub size: [f32; 2],
 }
+
+impl Rect {
+    pub const fn new(offset: [f32; 2], size: [f32; 2]) -> Self {
+        Self { offset, size }
+    }
+}
+
+impl Default for Rect {
+    fn default() -> Self {
+        Self {
+            offset: [0.0, 0.0],
+            size: [1.0, 1.0],
+        }
+    }
+}
+
+// impl DivAssign<f32> for Rect {
+//     fn div_assign(&mut self, rhs: f32) {
+//         self.offset[0] /= rhs;
+//         self.offset[1] /= rhs;
+//         self.size[0] /= rhs;
+//         self.size[1] /= rhs;
+//     }
+// }

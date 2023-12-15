@@ -136,7 +136,10 @@ impl Modules {
         // queue up all the render commands:
         let (surface_texture, view) = self.graphics.new_surface_texture_and_view();
         self.renderer
-            .render(&view, &mut encoder, &self.arenas, &self.egui, &self.ui);
+            .render(&view, &mut encoder, &self.arenas, &self.ui);
+
+        // render egui: (egui does its own render pass, does not need msaa and other stuff)
+        self.egui.render(&mut encoder, &view);
 
         // execute render commands and present:
         self.graphics
