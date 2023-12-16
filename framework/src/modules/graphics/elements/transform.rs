@@ -14,6 +14,11 @@ pub struct Transform {
 }
 
 impl Transform {
+    pub fn with_scale(mut self, s: f32) -> Self {
+        self.scale = Vec3::splat(s);
+        self
+    }
+
     #[inline]
     pub fn rotate(&mut self, rotation: Quat) {
         self.rotation = rotation * self.rotation;

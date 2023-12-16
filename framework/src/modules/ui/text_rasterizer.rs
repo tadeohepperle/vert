@@ -104,15 +104,6 @@ impl TextRasterizer {
         }
     }
 
-    // pub fn get_layout(&self) {
-    //     let mut layout = Layout::<f32>::new(CoordinateSystem::PositiveYUp);
-
-    //     layout.glyphs();
-    //     // layout.reset(&LayoutSettings{ x: todo!(), y: todo!(), max_width: todo!(), max_height: todo!(), horizontal_align: todo!(), vertical_align: todo!(), line_height: todo!(), wrap_style: todo!(), wrap_hard_breaks: todo!() })
-    //     // let font = self.fonts.get(&self.default_font).unwrap();
-    //     // layout.append(&[font], &TextStyle::new("Hello ", 35.0, 0));
-    // }
-
     pub fn atlas_texture(&self) -> &Arc<BindableTexture> {
         &self.atlas_texture
     }
@@ -161,28 +152,23 @@ impl TextRasterizer {
         rasterizer
     }
 
-    pub(crate) fn draw_ui_text(&mut self, draw_text: &DrawText) -> Vec<RectWithTexture<UiRect>> {
-        // // rasterize all characters in the text (if not done so for the respective character):
-        // // we work under the assumption that all characters same font size and font here... (Needs to be optimized in the future)
-        // let mut char_atlas_positions: HashMap<char, Option<Rect>> = HashMap::new();
-        // for char in draw_text.text.chars() {
-        //     if !char_atlas_positions.contains_key(&char) {
-        //         let glyph_key = GlyphKey {
-        //             font: self.default_font,
-        //             size: Fontsize(draw_text.font_size),
-        //             char,
-        //         };
-        //         let atlas_pos = self.get_or_rasterize_char(&glyph_key);
-        //         char_atlas_positions.insert(char, atlas_pos);
-        //     }
-        // }
-
+    /// lays out the text giving back the positions and uv positions in the texture atlas of all glyphs.
+    ///
+    /// If encountering glyphs not yet rasterized to the texture, it writes them into the text atlas texture.
+    pub fn layout_and_rasterize_text(
+        &mut self,
+        text: &String,
+        pos: Vec2,
+        font_texture_size: f32,
+        font_layout_size: f32,
+        max_width: Option<f32>,
+    ) -> LayoutTextResult {
         // calculate a layout for each glyph in the text:
         let mut layout: Layout<()> = Layout::new(CoordinateSystem::PositiveYDown);
         layout.reset(&LayoutSettings {
-            x: draw_text.pos.x,
-            y: draw_text.pos.y,
-            max_width: draw_text.max_width,
+            x: pos.x,
+            y: pos.y,
+            max_width,
             max_height: None,
             horizontal_align: HorizontalAlign::Left,
             vertical_align: VerticalAlign::Top,
@@ -194,47 +180,56 @@ impl TextRasterizer {
         layout.append(
             &[default_font],
             &TextStyle {
-                text: &draw_text.text,
-                px: draw_text.font_layout_size,
+                text,
+                px: font_layout_size,
                 font_index: 0,
                 user_data: (),
             },
         );
 
         // create ui rectangles that point to the correct
-        let mut ui_rects: Vec<RectWithTexture<UiRect>> = vec![];
+        let mut glyph_pos_and_uv: Vec<(Rect, Rect)> = vec![];
+        let mut max_x: f32 = pos.x; // top left corner
+        let mut max_y: f32 = pos.y; // top left corner
 
         for glyph_pos in layout.glyphs() {
             let char = glyph_pos.parent;
             let atlas_uv = self.get_or_rasterize_char(&GlyphKey {
                 font: self.default_font,
-                size: Fontsize(draw_text.font_texture_size),
+                size: Fontsize(font_texture_size),
                 char,
             });
+
+            max_x = max_x.max(glyph_pos.x + glyph_pos.width as f32);
+            max_y = max_y.max(glyph_pos.y + glyph_pos.height as f32);
+
             if let Some(atlas_uv) = atlas_uv {
                 let pos = Rect {
                     offset: [glyph_pos.x, glyph_pos.y],
                     size: [glyph_pos.width as f32, glyph_pos.height as f32],
                 };
-                let rect = RectWithTexture {
-                    instance: UiRect {
-                        pos,
-                        uv: atlas_uv,
-                        color: draw_text.color,
-                        border_radius: [0.0; 4],
-                    },
-                    texture: RectTexture::Text,
-                };
-                ui_rects.push(rect);
+                glyph_pos_and_uv.push((pos, atlas_uv));
             }
         }
 
-        ui_rects
+        LayoutTextResult {
+            glyph_pos_and_uv,
+            total_rect: Rect {
+                offset: [pos.x, pos.y],
+                size: [max_x - pos.x, max_y - pos.y],
+            },
+        }
     }
 
     fn default_font(&self) -> &Font {
         self.fonts.get(&self.default_font).unwrap()
     }
+}
+
+pub struct LayoutTextResult {
+    pub glyph_pos_and_uv: Vec<(Rect, Rect)>,
+    // total bounding rect of the text. Can be used e.g. for centering all of the glyphs by shifting them by half the size or so.
+    pub total_rect: Rect,
 }
 
 fn rasterize(

@@ -56,35 +56,39 @@ impl StateT for MyState {
 
         modules.gizmos().draw_xyz();
 
-        modules.ui().draw_text(&DrawText {
-            text: "Hello".into(),
-            font_layout_size: 64.0,
-            font_texture_size: 64.0,
-            ..Default::default()
-        });
+        // modules.ui().draw_text(&DrawText {
+        //     text: "Hello".into(),
+        //     font_layout_size: 64.0,
+        //     font_texture_size: 64.0,
+        //     ..Default::default()
+        // });
 
         modules.ui().draw_3d_text(
             &DrawText {
-                text: "Hello".into(),
+                text: "Hello, I would like some sandwiches please".into(),
                 font_layout_size: 64.0,
-                font_texture_size: 64.0,
+                font_texture_size: 200.0,
+                max_width: Some(400.0),
                 ..Default::default()
             },
             &Transform::default(),
         );
 
+        let total_time = modules.time().total_secs();
         modules.ui().draw_3d_rect(RectWithTexture {
-            instance: Rect3D {
+            rect: Rect3D {
                 ui_rect: UiRect {
                     pos: Rect {
-                        offset: [100.0, 100.0],
+                        offset: [0.0, 0.0],
                         size: [100.0, 200.0],
                     },
                     uv: Rect::default(),
                     color: Color::YELLOW,
                     border_radius: [0.0, 0.0, 0.0, 0.0],
                 },
-                transform: Transform::default().to_raw(),
+                transform: Transform::from(vec3(2.0, 0.0, 0.0))
+                    // .with_scale(total_time.sin() + 2.0)
+                    .to_raw(),
             },
             texture: RectTexture::Custom(self.test_texture.clone()),
         });

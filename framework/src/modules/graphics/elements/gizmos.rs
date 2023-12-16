@@ -31,13 +31,13 @@ impl GizmosRenderer {
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Rect 3d Pipelinelayout"),
-                bind_group_layouts: &[camera_bind_group.layout(), context.rgba_bind_group_layout],
+                label: Some("Gizmos Pipelinelayout"),
+                bind_group_layouts: &[camera_bind_group.layout()],
                 push_constant_ranges: &[],
             });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Rect 3d Pipeline"),
+            label: Some("Gizmos Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -178,6 +178,9 @@ impl GizmosRenderer {
     }
 
     pub fn render<'s: 'e, 'p, 'e>(&'s self, render_pass: &'p mut RenderPass<'e>) {
+        if self.vertex_buffer.buffer_len() == 0 {
+            return;
+        }
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_bind_group(0, &self.camera_bind_group.bind_group(), &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.buffer().slice(..));

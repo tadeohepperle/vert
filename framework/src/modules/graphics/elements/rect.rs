@@ -34,7 +34,7 @@ impl Default for Rect {
 
 #[derive(Debug, Clone)]
 pub struct RectWithTexture<T: RectT> {
-    pub instance: T,
+    pub rect: T,
     pub texture: RectTexture,
 }
 
@@ -133,7 +133,7 @@ fn create_sorted_rect_instances<T: RectT>(
     let mut last_texture_id: u128 = last_texture.id();
 
     for (i, rect) in rects.into_iter().enumerate() {
-        instances.push(rect.instance);
+        instances.push(rect.rect);
         let texture_id = rect.texture.id();
         if texture_id != last_texture_id {
             let range = (last_start_idx as u32)..(i as u32);

@@ -87,6 +87,8 @@ impl Renderer {
             timestamp_writes: None,
         });
 
+        self.gizmos_renderer.render(&mut render_pass);
+
         // render color meshes:
         self.color_mesh_render_pipeline
             .render_color_meshes(&mut render_pass, arenas);
@@ -98,10 +100,7 @@ impl Renderer {
             ui.text_atlas_texture(),
         );
 
-        self.gizmos_renderer.render(&mut render_pass);
-
         // render 3d triangles:
-
         self.rect_3d_render_pipeline.render_3d_rects(
             &mut render_pass,
             ui.prepared_3d_rects(),

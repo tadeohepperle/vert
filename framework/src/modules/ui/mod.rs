@@ -13,7 +13,7 @@ use self::text_rasterizer::{DrawText, FontHandle, TextRasterizer};
 use super::graphics::{
     elements::{
         buffer::ToRaw,
-        rect::{PeparedRects, RectTexture, RectWithTexture},
+        rect::{PeparedRects, Rect, RectTexture, RectWithTexture},
         rect_3d::Rect3D,
         texture::{BindableTexture, Texture},
         transform::Transform,
@@ -59,31 +59,82 @@ impl ImmediateUi {
     }
 
     /// draw text in ui space
-    pub fn draw_text(&mut self, text: &DrawText) {
-        let rects = self.text_rasterizer.draw_ui_text(text);
-        self.ui_rect_queue.extend(rects);
+    pub fn draw_text(&mut self, draw_text: &DrawText) {
+        let layout_result = self.text_rasterizer.layout_and_rasterize_text(
+            &draw_text.text,
+            draw_text.pos,
+            draw_text.font_texture_size,
+            draw_text.font_layout_size,
+            draw_text.max_width,
+        );
+
+        let iter = layout_result
+            .glyph_pos_and_uv
+            .into_iter()
+            .map(|(pos, uv)| RectWithTexture {
+                rect: UiRect {
+                    pos,
+                    uv,
+                    color: draw_text.color,
+                    border_radius: [0.0, 0.0, 0.0, 0.0],
+                },
+                texture: RectTexture::Text,
+            });
+
+        self.ui_rect_queue.extend(iter);
     }
 
     /// like drawing text in ui space, but transformed by the transform. one pixel here should be 0.01 units in 3d space.
-    pub fn draw_3d_text(&mut self, text: &DrawText, transform: &Transform) {
+    pub fn draw_3d_text(&mut self, draw_text: &DrawText, transform: &Transform) {
         let transform_raw = transform.to_raw();
-        let rects = self.text_rasterizer.draw_ui_text(text);
-        let rects_3d = rects.into_iter().map(|e| RectWithTexture {
-            instance: Rect3D {
-                ui_rect: e.instance,
-                transform: transform_raw,
-            },
-            texture: e.texture,
-        });
 
-        self.rect_3d_queue.extend(rects_3d);
+        let layout_result = self.text_rasterizer.layout_and_rasterize_text(
+            &draw_text.text,
+            draw_text.pos,
+            draw_text.font_texture_size,
+            draw_text.font_layout_size,
+            draw_text.max_width,
+        );
+
+        // size of the total region the layout covers
+        // (we do this such that text with offset 0,0 and transform 0,0,0 is centered at the 0,0,0 pos instead of having only its top left corner at 0,0,0)
+        let layout_size_x = layout_result.total_rect.size[0] * 0.5;
+        let layout_size_y = layout_result.total_rect.size[1] * 0.5;
+        let center_to_layout = |mut r: Rect| -> Rect {
+            r.offset = [r.offset[0] - layout_size_x, r.offset[1] - layout_size_y];
+            r
+        };
+
+        let iter = layout_result
+            .glyph_pos_and_uv
+            .into_iter()
+            .map(|(pos, uv)| RectWithTexture {
+                rect: Rect3D {
+                    ui_rect: UiRect {
+                        pos: center_to_layout(pos),
+                        uv,
+                        color: draw_text.color,
+                        border_radius: [0.0, 0.0, 0.0, 0.0],
+                    },
+                    transform: transform_raw,
+                },
+                texture: RectTexture::Text,
+            });
+
+        self.rect_3d_queue.extend(iter);
     }
 
     pub fn draw_ui_rect(&mut self, ui_rect: RectWithTexture<UiRect>) {
         self.ui_rect_queue.push(ui_rect);
     }
 
-    pub fn draw_3d_rect(&mut self, rect_3d: RectWithTexture<Rect3D>) {
+    pub fn draw_3d_rect(&mut self, mut rect_3d: RectWithTexture<Rect3D>) {
+        // lets artificially center the rect. Such that if the user provides, transform 0,0,0 and offset 0,
+        // the sprite is centered at 0,0,0 and not having only its top left corner at 0,0,0.
+        let rect = &mut rect_3d.rect.ui_rect.pos;
+        rect.offset[0] -= rect.size[0] * 0.5;
+        rect.offset[1] -= rect.size[1] * 0.5;
+
         self.rect_3d_queue.push(rect_3d);
     }
 

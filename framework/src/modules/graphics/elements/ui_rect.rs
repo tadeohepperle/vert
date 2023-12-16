@@ -172,6 +172,10 @@ impl UiRectRenderPipeline {
         prepared_rects: &'e PeparedRects<UiRect>,
         text_atlas_texture: &'e BindableTexture,
     ) {
+        if prepared_rects.texture_groups.is_empty() {
+            return;
+        }
+
         render_pass.set_pipeline(&self.pipeline);
 
         // screen space info and index buffer are fixed, because all rects have just 4 verts / 2 triangles.

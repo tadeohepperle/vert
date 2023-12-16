@@ -87,7 +87,7 @@ impl StateT for MyState {
         // draw rects:
         let ui = modules.ui();
         ui.draw_ui_rect(RectWithTexture {
-            instance: UiRect {
+            rect: UiRect {
                 pos: Rect::new([200.0, 500.0], [300.0, 150.0]),
                 uv: Rect::default(),
                 color: Color::new(total_time.sin().abs(), 1.0, 0.0),
@@ -97,7 +97,7 @@ impl StateT for MyState {
         });
 
         ui.draw_ui_rect(RectWithTexture {
-            instance: UiRect {
+            rect: UiRect {
                 pos: Rect::new([200.0, 200.0], [150.0, 120.0]),
                 uv: Rect::default(),
                 color: Color::RED.alpha(0.1),
@@ -135,7 +135,7 @@ impl StateT for MyState {
         });
 
         ui.draw_ui_rect(RectWithTexture {
-            instance: UiRect {
+            rect: UiRect {
                 pos: Rect::new(
                     [200.0, 350.0],
                     [400.0, (total_time * 4.0).sin() * 30.0 + 50.0],

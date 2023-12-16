@@ -83,7 +83,6 @@ fn vs_main(
     let vertex = rect_vertex(idx, instance.pos, instance.uv);
     // offset as if it was on a screen that is the xy plane, with 100 pixels per unit.
     let xy_plane_offset = vec2<f32>(vertex.pos.x / 100.0, -vertex.pos.y / 100.0);
-    
 
     let model_matrix = mat4x4<f32>(
         instance.col1,
