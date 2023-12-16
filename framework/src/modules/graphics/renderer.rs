@@ -24,7 +24,6 @@ use super::{
     Render,
 };
 
-pub mod bloom;
 pub mod screen_space;
 
 pub struct Renderer {

@@ -1,5 +1,5 @@
 use rand::{thread_rng, Rng};
-use wgpu::RenderPass;
+use wgpu::{RenderPass, ShaderModule, ShaderModuleDescriptor};
 
 use crate::{
     constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT, SURFACE_COLOR_FORMAT},
@@ -9,7 +9,10 @@ use crate::{
     },
 };
 
-use super::bloom::BloomPipeline;
+use self::tonemapping::ToneMappingPipeline;
+
+pub mod bloom;
+pub mod tonemapping;
 
 pub struct ScreenSpaceRenderer {
     msaa_depth_texture: DepthTexture,
@@ -17,23 +20,39 @@ pub struct ScreenSpaceRenderer {
     hdr_msaa_texture: HdrTexture,
     /// only 1 sample, the hdr_msaa_texture resolves into the hdr_resolve_texture.
     hdr_resolve_texture: HdrTexture,
-    hdr_to_u8_pipeline: HdrToU8Pipeline,
+    tone_mapping_pipeline: ToneMappingPipeline,
     // bloom_pipeline: BloomPipeline,
+    screen_vertex_shader: ShaderModule,
 }
 
 impl ScreenSpaceRenderer {
     pub fn create(context: &GraphicsContext) -> Self {
+        // setup textures
         let msaa_depth_texture = DepthTexture::create(&context);
         let msaa_hdr_texture = HdrTexture::create_screen_sized(context, MSAA_SAMPLE_COUNT);
         let hdr_resolve_target_texture = HdrTexture::create_screen_sized(context, 1);
-        let hdr_to_u8_pipeline = HdrToU8Pipeline::new(&context);
+
+        // setup shader where a single triangle covers the entire screen
+        let screen_vertex_shader = context.device.create_shader_module(ShaderModuleDescriptor {
+            label: Some("Ui Rect Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("screen.vert.wgsl").into()),
+        });
+        let screen_vertex_state = wgpu::VertexState {
+            module: &screen_vertex_shader,
+            entry_point: "vs_main",
+            buffers: &[],
+        };
+
+        // setup pipelines for postprocessing and tonemapping
+        let tone_mapping_pipeline = ToneMappingPipeline::new(&context, screen_vertex_state);
 
         // let bloom_pipeline = BloomPipeline::new(&context);
         ScreenSpaceRenderer {
             msaa_depth_texture,
             hdr_msaa_texture: msaa_hdr_texture,
             hdr_resolve_texture: hdr_resolve_target_texture,
-            hdr_to_u8_pipeline,
+            screen_vertex_shader,
+            tone_mapping_pipeline,
             // bloom_pipeline,
         }
     }
@@ -98,7 +117,7 @@ impl ScreenSpaceRenderer {
             timestamp_writes: None,
         });
 
-        self.hdr_to_u8_pipeline.process(
+        self.tone_mapping_pipeline.process(
             &mut hdr_to_u8_pass,
             &self.hdr_resolve_texture.texture.bind_group,
         );
@@ -251,73 +270,5 @@ impl HdrTexture {
             },
             sample_count,
         }
-    }
-}
-
-struct HdrToU8Pipeline {
-    pipeline: wgpu::RenderPipeline,
-}
-
-impl HdrToU8Pipeline {
-    pub fn new(context: &GraphicsContext) -> Self {
-        let shader = context
-            .device
-            .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("Rect 3d Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("hdr.wgsl").into()),
-            });
-        let pipeline_layout =
-            context
-                .device
-                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: None,
-                    bind_group_layouts: &[context.rgba_bind_group_layout],
-                    push_constant_ranges: &[],
-                });
-
-        let pipeline = context
-            .device
-            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some(&format!("{:?}", shader)),
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: "vs_main",
-                    buffers: &[],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: "fs_main",
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: SURFACE_COLOR_FORMAT,
-                        blend: None,
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                }),
-                primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleList,
-                    strip_index_format: None,
-                    front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: Some(wgpu::Face::Back),
-                    polygon_mode: wgpu::PolygonMode::Fill,
-                    unclipped_depth: false,
-                    conservative: false,
-                },
-                depth_stencil: None,
-                multisample: wgpu::MultisampleState::default(),
-                multiview: None,
-            });
-
-        Self { pipeline }
-    }
-
-    pub fn process<'e, 'p>(
-        &'e self,
-        hdr_to_u8_pass: &'p mut RenderPass<'e>,
-        hdr_resolve_target_bind_group: &'e wgpu::BindGroup,
-    ) {
-        hdr_to_u8_pass.set_pipeline(&self.pipeline);
-        hdr_to_u8_pass.set_bind_group(0, hdr_resolve_target_bind_group, &[]);
-        hdr_to_u8_pass.draw(0..3, 0..1);
     }
 }

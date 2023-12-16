@@ -29,6 +29,10 @@ pub struct BloomPipeline {
 
 impl BloomPipeline {
     pub fn new(context: &GraphicsContext) -> Self {
+        // let fragment_shader =
+
+        //         todo!()
+
         todo!()
     }
 
