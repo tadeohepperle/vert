@@ -82,7 +82,7 @@ fn vs_main(
 
     let vertex = rect_vertex(idx, instance.pos, instance.uv);
     // offset as if it was on a screen that is the xy plane, with 100 pixels per unit.
-    let xy_plane_offset = vec3<f32>(vertex.pos.x / 100.0, vertex.pos.y / 100.0, 0.0);
+    let xy_plane_offset = vec2<f32>(vertex.pos.x / 100.0, -vertex.pos.y / 100.0);
     
 
     let model_matrix = mat4x4<f32>(
@@ -91,7 +91,7 @@ fn vs_main(
         instance.col3,
         instance.translation,
     );
-    let world_position = vec4<f32>(vertex.pos, 0.0, 1.0);
+    let world_position = vec4<f32>(xy_plane_offset, 0.0, 1.0);
 
     var out: VertexOutput;
     out.clip_position = camera.view_proj * model_matrix * world_position;

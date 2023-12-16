@@ -6,8 +6,12 @@ use vert_core::{
 use crate::{
     batteries::Battery,
     modules::{
-        assets::AssetServer, graphics::elements::camera::CamTransform, input::Input, time::Time,
-        ui::ImmediateUi, Modules,
+        assets::AssetServer,
+        graphics::elements::{camera::CamTransform, gizmos::GizmosRenderer},
+        input::Input,
+        time::Time,
+        ui::ImmediateUi,
+        Modules,
     },
 };
 
@@ -62,6 +66,10 @@ impl Modules {
 
     pub fn arenas_mut(&mut self) -> &mut Arenas {
         &mut self.arenas
+    }
+
+    pub fn gizmos(&mut self) -> &mut GizmosRenderer {
+        &mut self.renderer.gizmos_renderer
     }
 
     pub fn add_battery<T: Battery>(&mut self, battery: T) {

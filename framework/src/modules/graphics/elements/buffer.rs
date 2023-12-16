@@ -1,6 +1,9 @@
 use std::{borrow::Cow, marker::PhantomData, mem::size_of};
 
-use wgpu::util::{BufferInitDescriptor, DeviceExt};
+use wgpu::{
+    util::{BufferInitDescriptor, DeviceExt},
+    BufferDescriptor,
+};
 
 use crate::modules::graphics::VertexT;
 
@@ -158,6 +161,79 @@ impl IndexBuffer {
 
     pub fn len(&self) -> u32 {
         self.data.len() as u32
+    }
+}
+
+#[derive(Debug)]
+pub struct GrowableBuffer<T: bytemuck::Pod + bytemuck::Zeroable> {
+    min_cap: usize,
+    data: Vec<T>,
+    /// This is tracked in addition to having the len in the data, to have the possibility of clearing data at the end of frame without losing len information.
+    /// See Gizmos and other immediate geometry.
+    buffer_len: usize,
+    buffer_cap: usize,
+    buffer: wgpu::Buffer,
+}
+
+impl<T: bytemuck::Pod + bytemuck::Zeroable> GrowableBuffer<T> {
+    pub fn new(device: &wgpu::Device, min_cap: usize, usage: wgpu::BufferUsages) -> Self {
+        let n_bytes = std::mem::size_of::<T>() * min_cap;
+        let zeros = vec![0u8; n_bytes];
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            contents: bytemuck::cast_slice(&zeros),
+            usage: usage | wgpu::BufferUsages::COPY_DST,
+            label: None,
+        });
+
+        GrowableBuffer {
+            min_cap,
+            buffer_len: 0,
+            buffer_cap: min_cap,
+            data: vec![],
+            buffer,
+        }
+    }
+
+    pub fn buffer_len(&self) -> usize {
+        self.buffer_len
+    }
+
+    pub fn data(&mut self) -> &mut Vec<T> {
+        &mut self.data
+    }
+
+    /// updates the gpu buffer, growing it, when not having enough space for data.
+    pub fn prepare(&mut self, queue: &wgpu::Queue, device: &wgpu::Device) {
+        let len = self.data.len();
+        self.buffer_len = len;
+        if self.buffer_cap <= len {
+            // the space in the buffer is enough, just write all rects to the buffer.
+            queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&self.data))
+        } else {
+            // space is not enough, we need to create a new buffer:
+            let mut new_cap = self.min_cap;
+            while len > new_cap {
+                new_cap *= 2;
+            }
+
+            // not ideal here, but we can optimize later, should not happen too often that a buffer doubles hopefully.
+            let mut cloned_data_with_zeros = self.data.clone();
+            for _ in 0..(new_cap - len) {
+                cloned_data_with_zeros.push(T::zeroed());
+            }
+
+            // create a new buffer with new doubled capacity
+            self.buffer_cap = new_cap;
+            self.buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                contents: bytemuck::cast_slice(&cloned_data_with_zeros),
+                usage: self.buffer.usage(),
+                label: None,
+            });
+        }
+    }
+
+    pub fn buffer(&self) -> &wgpu::Buffer {
+        &self.buffer
     }
 }
 

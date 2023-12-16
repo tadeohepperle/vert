@@ -141,6 +141,9 @@ impl Modules {
         for e in self.arenas.iter_component_traits_mut::<dyn Prepare>() {
             e.prepare(context, encoder);
         }
+
+        // prepare renderer: (gizmos) todo!() probably not the right position here
+        self.renderer.gizmos_renderer.prepare();
     }
 
     pub(crate) fn prepare_and_render(&mut self, state: &mut impl StateT) {

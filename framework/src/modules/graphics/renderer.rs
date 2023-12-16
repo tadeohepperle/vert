@@ -9,6 +9,7 @@ use super::{
     elements::{
         camera::{Camera, CameraBindGroup},
         color_mesh::ColorMeshRenderPipeline,
+        gizmos::GizmosRenderer,
         rect_3d::Rect3DRenderPipeline,
         screen_space::ScreenSpaceBindGroup,
         texture::Texture,
@@ -24,6 +25,7 @@ pub struct Renderer {
     color_mesh_render_pipeline: ColorMeshRenderPipeline,
     ui_rect_render_pipeline: UiRectRenderPipeline,
     rect_3d_render_pipeline: Rect3DRenderPipeline,
+    pub(crate) gizmos_renderer: GizmosRenderer,
     msaa_texture: MSAATexture,
 }
 
@@ -39,7 +41,9 @@ impl Renderer {
         let color_mesh_render_pipeline =
             ColorMeshRenderPipeline::new(&context, camera_bind_group.clone());
         let ui_rect_render_pipeline = UiRectRenderPipeline::new(&context, screen_space_bind_group);
-        let rect_3d_render_pipeline = Rect3DRenderPipeline::new(&context, camera_bind_group);
+        let rect_3d_render_pipeline =
+            Rect3DRenderPipeline::new(&context, camera_bind_group.clone());
+        let gizmos_renderer = GizmosRenderer::new(&context, camera_bind_group);
 
         Ok(Self {
             context,
@@ -48,6 +52,7 @@ impl Renderer {
             color_mesh_render_pipeline,
             ui_rect_render_pipeline,
             rect_3d_render_pipeline,
+            gizmos_renderer,
         })
     }
 
@@ -92,6 +97,8 @@ impl Renderer {
             ui.prepared_ui_rects(),
             ui.text_atlas_texture(),
         );
+
+        self.gizmos_renderer.render(&mut render_pass);
 
         // render 3d triangles:
 

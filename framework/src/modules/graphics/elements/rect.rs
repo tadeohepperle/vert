@@ -4,7 +4,7 @@ use wgpu::util::DeviceExt;
 
 use crate::modules::graphics::graphics_context::GraphicsContext;
 
-use super::texture::BindableTexture;
+use super::{buffer::GrowableBuffer, texture::BindableTexture};
 
 const RECT_BUFFER_MIN_SIZE: usize = 256;
 
@@ -79,27 +79,13 @@ impl Ord for RectTexture {
     }
 }
 
-#[derive(Debug)]
-pub struct RectInstanceBuffer<T: RectT> {
-    len: usize,
-    cap: usize,
-    buffer: wgpu::Buffer,
-    _phantom: PhantomData<T>,
-}
-
-impl<T: RectT> RectInstanceBuffer<T> {
-    pub fn buffer(&self) -> &wgpu::Buffer {
-        &self.buffer
-    }
-}
-
 pub trait RectT: bytemuck::Zeroable + bytemuck::Pod {}
 
 #[derive(Debug)]
 /// We can sort all rects into the texture groups they have. This way we have only N-TextureGroups draw calls.
 pub struct PeparedRects<T: RectT> {
     /// Buffer with instances (sorted)
-    pub instance_buffer: RectInstanceBuffer<T>,
+    pub instance_buffer: GrowableBuffer<T>,
     /// texture_regions, refer to regions of the sorted buffer.
     pub texture_groups: Vec<(Range<u32>, RectTexture)>,
 }
@@ -107,60 +93,26 @@ pub struct PeparedRects<T: RectT> {
 impl<T: RectT> PeparedRects<T> {
     /// create an new DrawRects backed by a gpu buffer with RECT_BUFFER_MIN_SIZE elements in it.
     pub fn new(device: &wgpu::Device) -> Self {
-        let n_bytes = std::mem::size_of::<T>() * RECT_BUFFER_MIN_SIZE;
-        let zeros = vec![0u8; n_bytes];
-        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            contents: bytemuck::cast_slice(&zeros),
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            label: None,
-        });
-        let rect_instance_buffer = RectInstanceBuffer {
-            len: 0,
-            cap: RECT_BUFFER_MIN_SIZE,
-            buffer,
-            _phantom: PhantomData::<T>,
-        };
-        let instances = rect_instance_buffer;
-
         PeparedRects {
-            instance_buffer: instances,
+            instance_buffer: GrowableBuffer::new(
+                device,
+                RECT_BUFFER_MIN_SIZE,
+                wgpu::BufferUsages::VERTEX,
+            ),
             texture_groups: vec![],
         }
     }
 
     /// sorts the rects after their textures and updates the GPU buffer. If GPU buffer too small, create a new one with 2x the last capacity.
+    /// todo: maybe we can replace this by a general growable buffer:
     pub fn prepare(&mut self, rects: Vec<RectWithTexture<T>>, context: &GraphicsContext) {
-        let (mut instances, texture_groups) = create_sorted_rect_instances(rects);
+        // Note: even if the instance buffer contains some crap entries or some trailing zeros, we do not care, because we
+        // only render instances in the ranges that are returned in the texture_groups.
+        let (instances, texture_groups) = create_sorted_rect_instances(rects);
         self.texture_groups = texture_groups;
-        self.instance_buffer.len = instances.len();
-        if self.instance_buffer.cap <= instances.len() {
-            // the space in the buffer is enough, just write all rects to the buffer.
-            context.queue.write_buffer(
-                &self.instance_buffer.buffer,
-                0,
-                bytemuck::cast_slice(&instances),
-            )
-        } else {
-            // space is not enough, we need to create a new buffer:
-            let mut new_cap = RECT_BUFFER_MIN_SIZE;
-            while instances.len() > new_cap {
-                new_cap *= 2;
-            }
-            // fill up with zeroed elements:
-            for _ in 0..(new_cap - instances.len()) {
-                instances.push(T::zeroed());
-            }
-            // create a new buffer, now with probably 2x the size:
-            self.instance_buffer.cap = new_cap;
-            self.instance_buffer.buffer =
-                context
-                    .device
-                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        contents: bytemuck::cast_slice(&instances),
-                        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                        label: None,
-                    });
-        }
+        *self.instance_buffer.data() = instances;
+        self.instance_buffer
+            .prepare(&context.queue, &context.device);
     }
 }
 
