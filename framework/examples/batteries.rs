@@ -44,6 +44,20 @@ impl StateT for MyState {
             Texture::from_image(&context.device, &context.queue, &image.rgba),
         );
 
+        let color_mesh = SingleColorMesh::cube(
+            vec3(5.0, 0.0, 2.0).into(),
+            modules.device(),
+            Some(Color::new(1.0, 1.0, 1.0)),
+        );
+        modules.spawn(color_mesh);
+
+        let color_mesh = SingleColorMesh::cube(
+            vec3(7.0, 0.0, 2.0).into(),
+            modules.device(),
+            Some(Color::new(50.0, 50.0, 50.0)),
+        );
+        modules.spawn(color_mesh);
+
         Ok(MyState {
             test_texture: Arc::new(test_texture),
         })
@@ -56,22 +70,28 @@ impl StateT for MyState {
 
         modules.gizmos().draw_xyz();
 
-        // modules.ui().draw_text(&DrawText {
-        //     text: "Hello".into(),
-        //     font_layout_size: 64.0,
-        //     font_texture_size: 64.0,
-        //     ..Default::default()
-        // });
-
         modules.ui().draw_3d_text(
             &DrawText {
                 text: "Hello, I would like some sandwiches please".into(),
                 font_layout_size: 64.0,
                 font_texture_size: 200.0,
                 max_width: Some(400.0),
+                color: Color::new(400.0, 10.0, 10.0),
                 ..Default::default()
             },
             &Transform::default(),
+        );
+
+        modules.ui().draw_3d_text(
+            &DrawText {
+                text: "Hello I am less bright".into(),
+                font_layout_size: 64.0,
+                font_texture_size: 200.0,
+                max_width: Some(400.0),
+                color: Color::new(1.0, 1.0, 1.0),
+                ..Default::default()
+            },
+            &Transform::from(vec3(5.0, 0.0, 0.0)),
         );
 
         let total_time = modules.time().total_secs();
@@ -84,7 +104,7 @@ impl StateT for MyState {
                     },
                     uv: Rect::default(),
                     color: Color::YELLOW,
-                    border_radius: [0.0, 0.0, 0.0, 0.0],
+                    border_radius: [30.0, 10.0, 0.0, 0.0],
                 },
                 transform: Transform::from(vec3(2.0, 0.0, 0.0))
                     // .with_scale(total_time.sin() + 2.0)

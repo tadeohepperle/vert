@@ -10,7 +10,7 @@ use wgpu::{BindGroupLayout, Device, SurfaceConfiguration, SurfaceTexture};
 use winit::{dpi::PhysicalSize, window::Window};
 
 use crate::{
-    constants::COLOR_FORMAT,
+    constants::SURFACE_COLOR_FORMAT,
     utils::{Reader, Writer},
 };
 
@@ -79,7 +79,7 @@ impl GraphicsOwner {
             .formats
             .iter()
             .copied()
-            .find(|f| *f == COLOR_FORMAT)
+            .find(|f| *f == SURFACE_COLOR_FORMAT)
             .expect("SURFACE_FORMAT not found in surface caps ");
 
         let size = window.inner_size();
@@ -94,7 +94,7 @@ impl GraphicsOwner {
         };
         surface.configure(&device, &surface_config);
 
-        let rgba_bind_group_layout = create_rgba_bind_group_layout(&device);
+        let rgba_bind_group_layout = rgba_bind_group_layout(&device);
 
         // let (surface_config_tx, surface_config_rx) = watch::channel(surface_config);
         // let (size_tx, size_rx) = watch::channel(size);
@@ -158,7 +158,7 @@ impl GraphicsOwner {
     }
 }
 
-pub fn create_rgba_bind_group_layout(device: &wgpu::Device) -> &'static BindGroupLayout {
+pub fn rgba_bind_group_layout(device: &wgpu::Device) -> &'static BindGroupLayout {
     static RGBA_BIND_GROUP_LAYOUT: OnceLock<BindGroupLayout> = OnceLock::new();
     RGBA_BIND_GROUP_LAYOUT.get_or_init(|| {
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {

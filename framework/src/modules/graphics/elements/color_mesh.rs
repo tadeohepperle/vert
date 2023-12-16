@@ -10,7 +10,7 @@ use wgpu::{
 use vert_core::prelude::*;
 
 use crate::{
-    constants::{COLOR_FORMAT, DEPTH_FORMAT},
+    constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT, SURFACE_COLOR_FORMAT},
     modules::graphics::{graphics_context::GraphicsContext, Prepare, VertexT},
 };
 
@@ -62,7 +62,7 @@ impl ColorMeshRenderPipeline {
                 module: &shader,
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: COLOR_FORMAT,
+                    format: HDR_COLOR_FORMAT,
                     blend: Some(wgpu::BlendState {
                         alpha: wgpu::BlendComponent::REPLACE,
                         color: wgpu::BlendComponent::REPLACE,
@@ -87,7 +87,7 @@ impl ColorMeshRenderPipeline {
                 bias: wgpu::DepthBiasState::default(),
             }),
             multisample: wgpu::MultisampleState {
-                count: 4,
+                count: MSAA_SAMPLE_COUNT,
                 ..Default::default()
             },
             multiview: None,
@@ -161,7 +161,7 @@ impl ColorMesh {
         }
     }
 
-    pub fn cube(name: &str, device: &wgpu::Device) -> Self {
+    pub fn cube(name: &str, device: &wgpu::Device, color: Option<Color>) -> Self {
         const P: f32 = 0.5;
         const M: f32 = -0.5;
         let positions = vec![
@@ -183,7 +183,7 @@ impl ColorMesh {
                 let z = p[2];
                 Vertex {
                     pos: [x, y, z],
-                    color: Color::new(x, y, z),
+                    color: color.unwrap_or_else(|| Color::new(x, y, z)),
                 }
             })
             .collect();
@@ -261,9 +261,10 @@ impl SingleColorMesh {
         SingleColorMesh { inner }
     }
 
-    pub fn cube(transform: Transform, device: &wgpu::Device) -> Self {
+    /// if no color is given, color the cube with the axes coordinates
+    pub fn cube(transform: Transform, device: &wgpu::Device, color: Option<Color>) -> Self {
         let name = "New Mesh Obj";
-        let mesh = ColorMesh::cube(name, device);
+        let mesh = ColorMesh::cube(name, device, color);
         let transform = InstanceBuffer::new(vec![transform], device);
         Self {
             inner: ColorMeshObj { mesh, transform },
@@ -292,9 +293,9 @@ impl Prepare for MultiColorMesh {
 }
 
 impl MultiColorMesh {
-    pub fn cubes(transforms: Vec<Transform>, device: &wgpu::Device) -> Self {
+    pub fn cubes(transforms: Vec<Transform>, device: &wgpu::Device, color: Option<Color>) -> Self {
         let name = "New Mesh Obj";
-        let mesh = ColorMesh::cube(name, device);
+        let mesh = ColorMesh::cube(name, device, color);
         let transform = InstanceBuffer::new(transforms, device);
         Self {
             inner: ColorMeshObj { mesh, transform },

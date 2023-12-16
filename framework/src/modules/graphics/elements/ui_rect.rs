@@ -6,7 +6,7 @@ use vert_core::{arenas::Arenas, prelude::*};
 use wgpu::{PrimitiveState, RenderPass, ShaderModuleDescriptor};
 
 use crate::{
-    constants::{COLOR_FORMAT, DEPTH_FORMAT},
+    constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT, SURFACE_COLOR_FORMAT},
     modules::graphics::{elements::rect::RectTexture, graphics_context::GraphicsContext, VertexT},
 };
 
@@ -115,7 +115,7 @@ impl UiRectRenderPipeline {
                 module: &shader,
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: COLOR_FORMAT,
+                    format: HDR_COLOR_FORMAT,
                     blend: Some(wgpu::BlendState {
                         alpha: wgpu::BlendComponent::OVER,
                         color: wgpu::BlendComponent::OVER,
@@ -140,7 +140,7 @@ impl UiRectRenderPipeline {
                 bias: wgpu::DepthBiasState::default(),
             }),
             multisample: wgpu::MultisampleState {
-                count: 4,
+                count: MSAA_SAMPLE_COUNT,
                 alpha_to_coverage_enabled: true,
                 ..Default::default()
             },

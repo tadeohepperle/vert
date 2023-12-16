@@ -13,6 +13,7 @@ impl Battery for SpawnSomeCubes {
                 let color_mesh = SingleColorMesh::cube(
                     vec3(i as f32 * 2.0, j as f32 * 2.0, j as f32 * 2.0).into(),
                     modules.device(),
+                    None,
                 );
                 modules.spawn(color_mesh);
             }
