@@ -44,7 +44,7 @@ impl BindableTexture {
 
 #[derive(Debug)]
 pub struct Texture {
-    pub name: Option<Cow<'static, str>>,
+    pub label: Option<Cow<'static, str>>,
     pub id: u128,
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
@@ -59,8 +59,8 @@ impl PartialEq for Texture {
 }
 
 impl Texture {
-    pub fn name(&self) -> Option<&str> {
-        self.name.as_ref().map(|e| e.as_ref())
+    pub fn label(&self) -> Option<&str> {
+        self.label.as_ref().map(|e| e.as_ref())
     }
 
     pub fn create_white_px_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
@@ -124,7 +124,6 @@ impl Texture {
         };
         Self::create_texture(
             device,
-            label,
             size,
             format,
             usage,
@@ -135,7 +134,6 @@ impl Texture {
 
     fn create_texture(
         device: &wgpu::Device,
-        label: Option<&str>,
         size: wgpu::Extent3d,
         format: wgpu::TextureFormat,
         usage: wgpu::TextureUsages,
@@ -143,7 +141,7 @@ impl Texture {
         mag_filter: wgpu::FilterMode,
     ) -> Self {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label,
+            label: None,
             size,
             mip_level_count: 1,
             sample_count: 1,
@@ -169,7 +167,7 @@ impl Texture {
             view,
             sampler,
             size,
-            name: None,
+            label: None,
             id: thread_rng().gen(),
         }
     }

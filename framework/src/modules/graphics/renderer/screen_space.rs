@@ -1,25 +1,40 @@
-use wgpu::{RenderPass, SurfaceConfiguration};
+use rand::{thread_rng, Rng};
+use wgpu::RenderPass;
 
 use crate::{
     constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT, SURFACE_COLOR_FORMAT},
-    modules::graphics::graphics_context::{rgba_bind_group_layout, GraphicsContext},
+    modules::graphics::{
+        elements::texture::{BindableTexture, Texture},
+        graphics_context::GraphicsContext,
+    },
 };
+
+use super::bloom::BloomPipeline;
 
 pub struct ScreenSpaceRenderer {
     msaa_depth_texture: DepthTexture,
-    msaa_hdr_texture: MSAATexture,
+    /// 4x msaa samples for this texture
+    hdr_msaa_texture: HdrTexture,
+    /// only 1 sample, the hdr_msaa_texture resolves into the hdr_resolve_texture.
+    hdr_resolve_texture: HdrTexture,
     hdr_to_u8_pipeline: HdrToU8Pipeline,
+    // bloom_pipeline: BloomPipeline,
 }
 
 impl ScreenSpaceRenderer {
     pub fn create(context: &GraphicsContext) -> Self {
         let msaa_depth_texture = DepthTexture::create(&context);
-        let msaa_hdr_texture = MSAATexture::create(&context);
+        let msaa_hdr_texture = HdrTexture::create_screen_sized(context, MSAA_SAMPLE_COUNT);
+        let hdr_resolve_target_texture = HdrTexture::create_screen_sized(context, 1);
         let hdr_to_u8_pipeline = HdrToU8Pipeline::new(&context);
+
+        // let bloom_pipeline = BloomPipeline::new(&context);
         ScreenSpaceRenderer {
             msaa_depth_texture,
-            msaa_hdr_texture,
+            hdr_msaa_texture: msaa_hdr_texture,
+            hdr_resolve_texture: hdr_resolve_target_texture,
             hdr_to_u8_pipeline,
+            // bloom_pipeline,
         }
     }
 
@@ -28,8 +43,8 @@ impl ScreenSpaceRenderer {
         encoder: &'e mut wgpu::CommandEncoder,
     ) -> RenderPass<'e> {
         let color_attachment = wgpu::RenderPassColorAttachment {
-            view: &self.msaa_hdr_texture.msaa_texture_view,
-            resolve_target: Some(&self.msaa_hdr_texture.resolve_target_view),
+            view: &self.hdr_msaa_texture.texture.texture.view,
+            resolve_target: Some(&self.hdr_resolve_texture.texture.texture.view),
             ops: wgpu::Operations {
                 load: wgpu::LoadOp::Clear(wgpu::Color {
                     r: 0.1,
@@ -44,7 +59,7 @@ impl ScreenSpaceRenderer {
             label: Some("Renderpass"),
             color_attachments: &[Some(color_attachment)],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.msaa_depth_texture.view,
+                view: &self.msaa_depth_texture.0.view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
                     store: wgpu::StoreOp::Store,
@@ -58,7 +73,8 @@ impl ScreenSpaceRenderer {
 
     pub fn resize(&mut self, context: &GraphicsContext) {
         self.msaa_depth_texture.recreate(context);
-        self.msaa_hdr_texture.recreate(context);
+        self.hdr_msaa_texture = HdrTexture::create_screen_sized(context, MSAA_SAMPLE_COUNT);
+        self.hdr_resolve_texture = HdrTexture::create_screen_sized(context, 1);
     }
 
     /// applies post processing to the HDR image and maps from the HDR image to an SRGB image (the surface_view = screen that is presented to user)
@@ -84,17 +100,12 @@ impl ScreenSpaceRenderer {
 
         self.hdr_to_u8_pipeline.process(
             &mut hdr_to_u8_pass,
-            &self.msaa_hdr_texture.resolve_target_bind_group,
+            &self.hdr_resolve_texture.texture.bind_group,
         );
     }
 }
 
-pub struct DepthTexture {
-    texture: wgpu::Texture,
-    view: wgpu::TextureView,
-    sampler: wgpu::Sampler,
-    size: wgpu::Extent3d,
-}
+pub struct DepthTexture(Texture);
 
 impl DepthTexture {
     pub fn create(context: &GraphicsContext) -> Self {
@@ -130,12 +141,14 @@ impl DepthTexture {
             ..Default::default()
         });
 
-        Self {
+        Self(Texture {
+            label: Some("Depth Texture".into()),
+            id: 333,
             texture,
             view,
             sampler,
             size,
-        }
+        })
     }
 
     pub fn recreate(&mut self, context: &GraphicsContext) {
@@ -143,52 +156,53 @@ impl DepthTexture {
     }
 }
 
-pub struct MSAATexture {
-    msaa_texture: wgpu::Texture,
-    msaa_texture_view: wgpu::TextureView,
-    resolve_target: wgpu::Texture,
-    resolve_target_view: wgpu::TextureView,
-    resolve_target_sampler: wgpu::Sampler,
-    resolve_target_bind_group: wgpu::BindGroup,
+#[derive(Debug)]
+pub struct HdrTexture {
+    texture: BindableTexture,
+    /// for MSAA
+    sample_count: u32,
 }
 
-impl MSAATexture {
-    pub fn create(context: &GraphicsContext) -> Self {
+impl HdrTexture {
+    pub fn create_screen_sized(context: &GraphicsContext, sample_count: u32) -> Self {
         let config = context.surface_config.get();
-        let extent = wgpu::Extent3d {
-            width: config.width,
-            height: config.height,
+        Self::create(
+            context,
+            config.width,
+            config.height,
+            sample_count,
+            format!("Screen sized HDR with sample_count: {sample_count}"),
+        )
+    }
+
+    pub fn create(
+        context: &GraphicsContext,
+        width: u32,
+        height: u32,
+        sample_count: u32,
+        label: impl Into<String>,
+    ) -> Self {
+        let size = wgpu::Extent3d {
+            width,
+            height,
             depth_or_array_layers: 1,
         };
-        let msaa_texture_descriptor = &wgpu::TextureDescriptor {
-            size: extent,
-            mip_level_count: 1,
-            sample_count: MSAA_SAMPLE_COUNT,
-            dimension: wgpu::TextureDimension::D2,
-            format: HDR_COLOR_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            label: None,
-            view_formats: &[],
-        };
-        let msaa_texture = context.device.create_texture(msaa_texture_descriptor);
-        let msaa_texture_view = msaa_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        let resolve_target_descriptor = &wgpu::TextureDescriptor {
-            size: extent,
+        let descriptor = &wgpu::TextureDescriptor {
+            size,
             mip_level_count: 1,
-            sample_count: 1,
+            sample_count,
             dimension: wgpu::TextureDimension::D2,
             format: HDR_COLOR_FORMAT,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             label: None,
             view_formats: &[],
         };
 
-        let resolve_target = context.device.create_texture(resolve_target_descriptor);
-        let resolve_target_view =
-            resolve_target.create_view(&wgpu::TextureViewDescriptor::default());
+        let texture = context.device.create_texture(descriptor);
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        let resolve_target_sampler = context.device.create_sampler(&wgpu::SamplerDescriptor {
+        let sampler = context.device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
@@ -198,36 +212,45 @@ impl MSAATexture {
             ..Default::default()
         });
 
-        let resolve_target_bind_group =
-            context
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("Hdr::bind_group"),
-                    layout: rgba_bind_group_layout(&context.device),
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::TextureView(&resolve_target_view),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: wgpu::BindingResource::Sampler(&resolve_target_sampler),
-                        },
-                    ],
-                });
+        let label: String = label.into();
+        let layout = if sample_count == 1 {
+            context.rgba_bind_group_layout
+        } else {
+            context.rgba_bind_group_layout_multisampled
+        };
+        let bind_group = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some(&label),
+                layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&sampler),
+                    },
+                ],
+            });
 
-        MSAATexture {
-            msaa_texture,
-            msaa_texture_view,
-            resolve_target,
-            resolve_target_view,
-            resolve_target_sampler,
-            resolve_target_bind_group,
+        let texture = Texture {
+            label: Some(label.into()),
+            id: thread_rng().gen(),
+            texture,
+            view,
+            sampler,
+            size,
+        };
+
+        HdrTexture {
+            texture: BindableTexture {
+                texture,
+                bind_group,
+            },
+            sample_count,
         }
-    }
-
-    pub fn recreate(&mut self, context: &GraphicsContext) {
-        *self = Self::create(context);
     }
 }
 
@@ -248,7 +271,7 @@ impl HdrToU8Pipeline {
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: None,
-                    bind_group_layouts: &[rgba_bind_group_layout(&context.device)],
+                    bind_group_layouts: &[context.rgba_bind_group_layout],
                     push_constant_ranges: &[],
                 });
 
