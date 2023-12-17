@@ -10,7 +10,7 @@ use vert_framework::{
         graphics::elements::{
             buffer::ToRaw,
             color::Color,
-            color_mesh::SingleColorMesh,
+            color_mesh::{MultiColorMesh, SingleColorMesh},
             rect::{Rect, RectTexture, RectWithTexture},
             rect_3d::Rect3D,
             texture::{BindableTexture, Texture},
@@ -43,36 +43,36 @@ impl StateT for MyState {
             Texture::from_image(&context.device, &context.queue, &image.rgba),
         );
 
+        let mut blue_cubes: Vec<Transform> = vec![];
+        let mut black_cubes: Vec<Transform> = vec![];
+
         for x in 0..30 {
             for y in 0..30 {
                 for z in 0..30 {
-                    let color = if (x + y) % 2 == 0 {
-                        Some(Color::new(0.0, 0.0, x as f32 / 30.0))
-                    } else {
-                        Some(Color::new(0.0, 0.0, 0.001))
-                    };
-
-                    let color_mesh = SingleColorMesh::cube(
-                        vec3(
-                            x as f32 * 2.0 + 20.0 + (z as f32 * 0.1).sin() * 2.0,
-                            y as f32 * 2.0 - 30.0 + (z as f32).sin() * 2.0,
-                            z as f32 * 2.0 - 30.0 + ((x + y) % 2) as f32,
-                        )
-                        .into(),
-                        modules.device(),
-                        color,
+                    let pos = vec3(
+                        x as f32 * 2.0 + 20.0 + (z as f32 * 0.1).sin() * 2.0,
+                        y as f32 * 2.0 - 30.0 + (z as f32).sin() * 2.0,
+                        z as f32 * 2.0 - 30.0 + ((x + y) % 2) as f32,
                     );
-                    modules.spawn(color_mesh);
+                    if (x + y) % 2 == 0 {
+                        blue_cubes.push(pos.into());
+                    } else {
+                        black_cubes.push(pos.into());
+                    };
                 }
             }
         }
 
-        // let color_mesh = SingleColorMesh::cube(
-        //     vec3(7.0, 0.0, 2.0).into(),
-        //     modules.device(),
-        //     Some(Color::new(50.0, 50.0, 50.0)),
-        // );
-        // modules.spawn(color_mesh);
+        modules.spawn(MultiColorMesh::cubes(
+            blue_cubes,
+            modules.device(),
+            Some(Color::new(0.0, 0.01, 0.01)),
+        ));
+        modules.spawn(MultiColorMesh::cubes(
+            black_cubes,
+            modules.device(),
+            Some(Color::new(0.0, 0.0, 0.0)),
+        ));
 
         Ok(MyState {
             test_texture: Arc::new(test_texture),
