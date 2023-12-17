@@ -6,6 +6,7 @@ use vert_core::prelude::*;
 pub mod elements;
 pub mod graphics_context;
 pub mod renderer;
+pub mod settings;
 
 pub trait VertexT: Copy + bytemuck::Pod + bytemuck::Zeroable {
     fn desc() -> wgpu::VertexBufferLayout<'static>;

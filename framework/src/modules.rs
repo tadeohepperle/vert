@@ -20,6 +20,7 @@ use self::{
         },
         graphics_context::{GraphicsContext, GraphicsOwner},
         renderer::Renderer,
+        settings::GraphicsSettings,
         Prepare,
     },
     input::Input,
@@ -56,10 +57,13 @@ impl Modules {
 
         let camera = Camera::new_default(&graphics_context.context);
         let screen_space = ScreenSpace::new(&graphics_context.context);
+
+        let graphics_settings = GraphicsSettings::default();
         let renderer = Renderer::initialize(
             graphics_context.context.clone(),
             camera.bind_group(),
             screen_space.bind_group(),
+            graphics_settings,
         )?;
 
         let batteries = Batteries::new();

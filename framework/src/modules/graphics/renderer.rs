@@ -21,6 +21,7 @@ use super::{
         ui_rect::UiRectRenderPipeline,
     },
     graphics_context::GraphicsContext,
+    settings::GraphicsSettings,
     Render,
 };
 
@@ -35,6 +36,7 @@ pub struct Renderer {
     pub(crate) gizmos_renderer: GizmosRenderer,
 
     screen_space_renderer: ScreenSpaceRenderer,
+    graphics_settings: GraphicsSettings,
 }
 
 impl Renderer {
@@ -42,6 +44,7 @@ impl Renderer {
         context: GraphicsContext,
         camera_bind_group: CameraBindGroup,
         screen_space_bind_group: ScreenSpaceBindGroup,
+        graphics_settings: GraphicsSettings,
     ) -> anyhow::Result<Self> {
         let screen_space_renderer =
             ScreenSpaceRenderer::create(&context, screen_space_bind_group.clone());
@@ -60,6 +63,7 @@ impl Renderer {
             ui_rect_render_pipeline,
             rect_3d_render_pipeline,
             gizmos_renderer,
+            graphics_settings,
         })
     }
 
@@ -113,7 +117,18 @@ impl Renderer {
         // Post processing, HDR -> SRGB u8 tonemapping
         // /////////////////////////////////////////////////////////////////////////////
 
-        self.screen_space_renderer
-            .render_to_surface_view(encoder, surface_view);
+        self.screen_space_renderer.render_to_surface_view(
+            encoder,
+            surface_view,
+            &self.graphics_settings,
+        );
+    }
+
+    pub fn settings(&self) -> &GraphicsSettings {
+        &self.graphics_settings
+    }
+
+    pub fn settings_mut(&mut self) -> &mut GraphicsSettings {
+        &mut self.graphics_settings
     }
 }

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{f32::consts::PI, sync::Arc};
 
 use glam::{vec2, vec3};
 use vert_framework::{
@@ -64,6 +64,9 @@ impl StateT for MyState {
     }
 
     fn update(&mut self, modules: &mut Modules) -> Flow {
+        // /////////////////////////////////////////////////////////////////////////////
+        // Draw some stuff (some things that are very bright)
+        // /////////////////////////////////////////////////////////////////////////////
         modules
             .gizmos()
             .draw_cube(vec3(0.0, 0.0, 0.0), 1.0, Color::WHITE);
@@ -79,7 +82,12 @@ impl StateT for MyState {
                 color: Color::new(10.0, 1.0, 1.0),
                 ..Default::default()
             },
-            &Transform::default(),
+            &{
+                // let the text face the camera
+                let mut t = Transform::default();
+                t.rotate_y(-PI / 2.0);
+                t
+            },
         );
 
         modules.ui().draw_3d_text(
@@ -111,6 +119,26 @@ impl StateT for MyState {
                     .to_raw(),
             },
             texture: RectTexture::Custom(self.test_texture.clone()),
+        });
+
+        // /////////////////////////////////////////////////////////////////////////////
+        // Make bloom settings controllable by egui
+        // /////////////////////////////////////////////////////////////////////////////
+
+        let mut egui_context = modules.egui();
+        let graphics_settings = modules.graphics_settings_mut();
+        egui::Window::new("Graphics Settings").show(&mut egui_context, |ui| {
+            ui.label("Bloom");
+            ui.add(egui::Checkbox::new(
+                &mut graphics_settings.bloom.activated,
+                "Bloom Activated",
+            ));
+            if graphics_settings.bloom.activated {
+                ui.add(egui::Slider::new(
+                    &mut graphics_settings.bloom.blend_factor,
+                    0.0..=1.0,
+                ));
+            }
         });
 
         Flow::Continue

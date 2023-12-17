@@ -9,6 +9,7 @@ use crate::{
             texture::{BindableTexture, Texture},
         },
         graphics_context::GraphicsContext,
+        settings::GraphicsSettings,
     },
 };
 
@@ -109,12 +110,16 @@ impl ScreenSpaceRenderer {
         &'a self,
         encoder: &'e mut wgpu::CommandEncoder,
         surface_view: &wgpu::TextureView,
+        graphics_settings: &GraphicsSettings,
     ) {
-        self.bloom_pipeline.apply_bloom(
-            encoder,
-            self.hdr_resolve_texture.bind_group(),
-            self.hdr_resolve_texture.view(),
-        );
+        if graphics_settings.bloom.activated {
+            self.bloom_pipeline.apply_bloom(
+                encoder,
+                self.hdr_resolve_texture.bind_group(),
+                self.hdr_resolve_texture.view(),
+                graphics_settings,
+            );
+        }
 
         self.tone_mapping_pipeline.apply_tone_mapping(
             encoder,

@@ -1,3 +1,5 @@
+//! public extension functions on the modules, that represent common operations that should be exposed to the user.
+
 use vert_core::{
     arenas::{arena::ArenaIndex, Arenas},
     component::Component,
@@ -7,7 +9,10 @@ use crate::{
     batteries::Battery,
     modules::{
         assets::AssetServer,
-        graphics::elements::{camera::CamTransform, gizmos::GizmosRenderer},
+        graphics::{
+            elements::{camera::CamTransform, gizmos::GizmosRenderer},
+            settings::GraphicsSettings,
+        },
         input::Input,
         time::Time,
         ui::ImmediateUi,
@@ -79,5 +84,13 @@ impl Modules {
         let mut batteries = self.batteries.take().unwrap();
         batteries.add(battery, self);
         self.batteries = Some(batteries);
+    }
+
+    pub fn graphics_settings(&self) -> &GraphicsSettings {
+        &self.renderer.settings()
+    }
+
+    pub fn graphics_settings_mut(&mut self) -> &mut GraphicsSettings {
+        self.renderer.settings_mut()
     }
 }

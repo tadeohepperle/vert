@@ -13,6 +13,7 @@ use crate::{
             texture::{BindableTexture, Texture},
         },
         graphics_context::GraphicsContext,
+        settings::GraphicsSettings,
     },
 };
 
@@ -170,6 +171,7 @@ impl BloomPipeline {
         encoder: &'e mut CommandEncoder,
         texture_bind_group: &wgpu::BindGroup,
         texture_view: &TextureView,
+        graphics_settings: &GraphicsSettings,
     ) {
         fn run_screen_render_pass<'e>(
             label: &str,
@@ -361,11 +363,12 @@ impl BloomPipeline {
         // Final pass, now with blend factor to add to original image
         // /////////////////////////////////////////////////////////////////////////////
 
+        let blend_factor = graphics_settings.bloom.blend_factor as f64;
         let blend_factor = Color {
-            r: 0.1,
-            g: 0.1,
-            b: 0.1,
-            a: 0.1,
+            r: blend_factor,
+            g: blend_factor,
+            b: blend_factor,
+            a: blend_factor,
         };
 
         let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
