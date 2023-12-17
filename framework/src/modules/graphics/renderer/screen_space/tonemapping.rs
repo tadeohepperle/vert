@@ -13,7 +13,7 @@ impl ToneMappingPipeline {
         let shader = context
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("Rect 3d Shader"),
+                label: Some("Tonemapping Shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("tonemapping.frag.wgsl").into()),
             });
         let pipeline_layout =
@@ -57,13 +57,30 @@ impl ToneMappingPipeline {
         Self { pipeline }
     }
 
-    pub fn process<'e, 'p>(
+    /// The input_hdr_texture should be 16 bit float per channel, while the output_surface_texture should be 8 bit 2RGB.
+    pub fn apply_tone_mapping<'e, 'p>(
         &'e self,
-        hdr_to_u8_pass: &'p mut RenderPass<'e>,
-        hdr_resolve_target_bind_group: &'e wgpu::BindGroup,
+        encoder: &'e mut wgpu::CommandEncoder,
+        input_hdr_texture: &'e wgpu::BindGroup,
+        output_surface_texture: &'e wgpu::TextureView,
     ) {
-        hdr_to_u8_pass.set_pipeline(&self.pipeline);
-        hdr_to_u8_pass.set_bind_group(0, hdr_resolve_target_bind_group, &[]);
-        hdr_to_u8_pass.draw(0..3, 0..1);
+        let mut tone_mapping_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Hdr::process"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: output_surface_texture,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            occlusion_query_set: None,
+            timestamp_writes: None,
+        });
+
+        tone_mapping_pass.set_pipeline(&self.pipeline);
+        tone_mapping_pass.set_bind_group(0, input_hdr_texture, &[]);
+        tone_mapping_pass.draw(0..3, 0..1);
     }
 }

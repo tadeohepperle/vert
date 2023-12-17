@@ -4,12 +4,15 @@ use wgpu::{RenderPass, ShaderModule, ShaderModuleDescriptor};
 use crate::{
     constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT, SURFACE_COLOR_FORMAT},
     modules::graphics::{
-        elements::texture::{BindableTexture, Texture},
+        elements::{
+            screen_space::ScreenSpaceBindGroup,
+            texture::{BindableTexture, Texture},
+        },
         graphics_context::GraphicsContext,
     },
 };
 
-use self::tonemapping::ToneMappingPipeline;
+use self::{bloom::BloomPipeline, tonemapping::ToneMappingPipeline};
 
 pub mod bloom;
 pub mod tonemapping;
@@ -21,12 +24,15 @@ pub struct ScreenSpaceRenderer {
     /// only 1 sample, the hdr_msaa_texture resolves into the hdr_resolve_texture.
     hdr_resolve_texture: HdrTexture,
     tone_mapping_pipeline: ToneMappingPipeline,
-    // bloom_pipeline: BloomPipeline,
+    bloom_pipeline: BloomPipeline,
     screen_vertex_shader: ShaderModule,
 }
 
 impl ScreenSpaceRenderer {
-    pub fn create(context: &GraphicsContext) -> Self {
+    pub fn create(
+        context: &GraphicsContext,
+        screen_space_bind_group: ScreenSpaceBindGroup,
+    ) -> Self {
         // setup textures
         let msaa_depth_texture = DepthTexture::create(&context);
         let msaa_hdr_texture = HdrTexture::create_screen_sized(context, MSAA_SAMPLE_COUNT);
@@ -34,7 +40,7 @@ impl ScreenSpaceRenderer {
 
         // setup shader where a single triangle covers the entire screen
         let screen_vertex_shader = context.device.create_shader_module(ShaderModuleDescriptor {
-            label: Some("Ui Rect Shader"),
+            label: Some("Screen Vertex Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("screen.vert.wgsl").into()),
         });
         let screen_vertex_state = wgpu::VertexState {
@@ -44,16 +50,16 @@ impl ScreenSpaceRenderer {
         };
 
         // setup pipelines for postprocessing and tonemapping
-        let tone_mapping_pipeline = ToneMappingPipeline::new(&context, screen_vertex_state);
-
-        // let bloom_pipeline = BloomPipeline::new(&context);
+        let tone_mapping_pipeline = ToneMappingPipeline::new(&context, screen_vertex_state.clone());
+        let bloom_pipeline =
+            BloomPipeline::new(&context, screen_vertex_state, screen_space_bind_group);
         ScreenSpaceRenderer {
             msaa_depth_texture,
             hdr_msaa_texture: msaa_hdr_texture,
             hdr_resolve_texture: hdr_resolve_target_texture,
             screen_vertex_shader,
             tone_mapping_pipeline,
-            // bloom_pipeline,
+            bloom_pipeline,
         }
     }
 
@@ -62,8 +68,8 @@ impl ScreenSpaceRenderer {
         encoder: &'e mut wgpu::CommandEncoder,
     ) -> RenderPass<'e> {
         let color_attachment = wgpu::RenderPassColorAttachment {
-            view: &self.hdr_msaa_texture.texture.texture.view,
-            resolve_target: Some(&self.hdr_resolve_texture.texture.texture.view),
+            view: self.hdr_msaa_texture.view(),
+            resolve_target: Some(self.hdr_resolve_texture.view()),
             ops: wgpu::Operations {
                 load: wgpu::LoadOp::Clear(wgpu::Color {
                     r: 0.1,
@@ -78,7 +84,7 @@ impl ScreenSpaceRenderer {
             label: Some("Renderpass"),
             color_attachments: &[Some(color_attachment)],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.msaa_depth_texture.0.view,
+                view: self.msaa_depth_texture.view(),
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
                     store: wgpu::StoreOp::Store,
@@ -94,6 +100,8 @@ impl ScreenSpaceRenderer {
         self.msaa_depth_texture.recreate(context);
         self.hdr_msaa_texture = HdrTexture::create_screen_sized(context, MSAA_SAMPLE_COUNT);
         self.hdr_resolve_texture = HdrTexture::create_screen_sized(context, 1);
+        // recreate bloom textures too
+        self.bloom_pipeline.resize(context);
     }
 
     /// applies post processing to the HDR image and maps from the HDR image to an SRGB image (the surface_view = screen that is presented to user)
@@ -102,24 +110,16 @@ impl ScreenSpaceRenderer {
         encoder: &'e mut wgpu::CommandEncoder,
         surface_view: &wgpu::TextureView,
     ) {
-        let mut hdr_to_u8_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Hdr::process"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: surface_view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            occlusion_query_set: None,
-            timestamp_writes: None,
-        });
+        self.bloom_pipeline.apply_bloom(
+            encoder,
+            self.hdr_resolve_texture.bind_group(),
+            self.hdr_resolve_texture.view(),
+        );
 
-        self.tone_mapping_pipeline.process(
-            &mut hdr_to_u8_pass,
-            &self.hdr_resolve_texture.texture.bind_group,
+        self.tone_mapping_pipeline.apply_tone_mapping(
+            encoder,
+            self.hdr_resolve_texture.bind_group(),
+            surface_view,
         );
     }
 }
@@ -127,6 +127,10 @@ impl ScreenSpaceRenderer {
 pub struct DepthTexture(Texture);
 
 impl DepthTexture {
+    pub fn view(&self) -> &wgpu::TextureView {
+        &self.0.view
+    }
+
     pub fn create(context: &GraphicsContext) -> Self {
         let config = context.surface_config.get();
         let format = DEPTH_FORMAT;
@@ -183,6 +187,14 @@ pub struct HdrTexture {
 }
 
 impl HdrTexture {
+    pub fn view(&self) -> &wgpu::TextureView {
+        &self.texture.texture.view
+    }
+
+    pub fn bind_group(&self) -> &wgpu::BindGroup {
+        &self.texture.bind_group
+    }
+
     pub fn create_screen_sized(context: &GraphicsContext, sample_count: u32) -> Self {
         let config = context.surface_config.get();
         Self::create(
@@ -225,8 +237,8 @@ impl HdrTexture {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Nearest,
-            min_filter: wgpu::FilterMode::Nearest,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
             mipmap_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
         });

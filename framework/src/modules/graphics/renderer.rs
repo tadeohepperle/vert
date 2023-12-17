@@ -43,7 +43,8 @@ impl Renderer {
         camera_bind_group: CameraBindGroup,
         screen_space_bind_group: ScreenSpaceBindGroup,
     ) -> anyhow::Result<Self> {
-        let screen_space_renderer = ScreenSpaceRenderer::create(&context);
+        let screen_space_renderer =
+            ScreenSpaceRenderer::create(&context, screen_space_bind_group.clone());
 
         let color_mesh_render_pipeline =
             ColorMeshRenderPipeline::new(&context, camera_bind_group.clone());
