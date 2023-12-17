@@ -76,7 +76,7 @@ impl StateT for MyState {
                 font_layout_size: 64.0,
                 font_texture_size: 200.0,
                 max_width: Some(400.0),
-                color: Color::new(10.0, 10.0, 10.0),
+                color: Color::new(10.0, 1.0, 1.0),
                 ..Default::default()
             },
             &Transform::default(),

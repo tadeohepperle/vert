@@ -1,8 +1,8 @@
 use std::hint;
 
 use wgpu::{
-    BlendComponent, BlendState, Color, CommandEncoder, RenderPassDescriptor, RenderPipeline,
-    TextureView,
+    BlendComponent, BlendFactor, BlendOperation, BlendState, Color, CommandEncoder,
+    RenderPassDescriptor, RenderPipeline, TextureView,
 };
 
 use crate::{
@@ -41,9 +41,10 @@ use super::HdrTexture;
 ///
 /// This should result in a bloom.
 pub struct BloomPipeline {
+    downsample_threshold_pipeline: wgpu::RenderPipeline,
     downsample_pipeline: wgpu::RenderPipeline,
     upsample_pipeline: wgpu::RenderPipeline,
-    downsample_threshold_pipeline: wgpu::RenderPipeline,
+    final_upsample_pipeline: wgpu::RenderPipeline,
     bloom_textures: BloomTextures,
     screen_space_bind_group: ScreenSpaceBindGroup,
 }
@@ -108,28 +109,32 @@ impl BloomPipeline {
                     })
             };
 
-        let down_blend_state: Option<BlendState> = None;
+        let downsample_threshold_pipeline =
+            create_pipeline("Downsample Threshold", "threshold_downsample", None);
+        let downsample_pipeline = create_pipeline("Downsample", "downsample", None);
 
         let up_blend_state = Some(BlendState {
             color: BlendComponent {
-                src_factor: wgpu::BlendFactor::One,
-                dst_factor: wgpu::BlendFactor::One,
-                operation: wgpu::BlendOperation::Add,
+                src_factor: BlendFactor::One,
+                dst_factor: BlendFactor::One,
+                operation: BlendOperation::Add,
             },
-            alpha: BlendComponent {
-                src_factor: wgpu::BlendFactor::One,
-                dst_factor: wgpu::BlendFactor::One,
-                operation: wgpu::BlendOperation::Add,
-            },
+            alpha: BlendComponent::OVER,
         });
 
-        let downsample_threshold_pipeline = create_pipeline(
-            "Downsample Threshold",
-            "threshold_downsample",
-            down_blend_state,
-        );
-        let downsample_pipeline = create_pipeline("Downsample", "downsample", down_blend_state);
+        let final_up_blend_state = Some(BlendState {
+            color: BlendComponent {
+                src_factor: BlendFactor::Constant,
+                dst_factor: BlendFactor::One,
+                operation: BlendOperation::Add,
+            },
+            alpha: BlendComponent::OVER,
+        });
+
         let upsample_pipeline = create_pipeline("Bloom shader", "upsample", up_blend_state);
+        // only differs from upsample pipeline in the use of a constant for blending it back into the orginial image (the render target of this pipeline)
+        let final_upsample_pipeline =
+            create_pipeline("Bloom shader", "upsample", final_up_blend_state);
 
         let config = context.surface_config.get();
         let width = config.width;
@@ -142,6 +147,7 @@ impl BloomPipeline {
             downsample_threshold_pipeline,
             bloom_textures,
             screen_space_bind_group,
+            final_upsample_pipeline,
         }
     }
 
@@ -156,6 +162,9 @@ impl BloomPipeline {
     /// the `texture_view` should be the texture view of the screen. We draw to it.
     /// the `texture_view_bind_group` is the same texture, given as an input. We use it to
     /// draw some bloom to intermediate textures and write that bloom back to it at the end.
+    ///
+    /// Note: Of course having so many render passes is kinda inefficient, but the result looks pretty nice right now.
+    /// Later we can see how hazel does bloom and have a similar thing.
     pub fn apply_bloom<'e>(
         &'e self,
         encoder: &'e mut CommandEncoder,
@@ -168,7 +177,7 @@ impl BloomPipeline {
             input_texture: &'e wgpu::BindGroup,
             output_texture: &'e TextureView,
             pipeline: &'e wgpu::RenderPipeline,
-            screen_space_bindgroup: &ScreenSpaceBindGroup,
+            screen_space_bind_group: &ScreenSpaceBindGroup,
         ) {
             let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some(label),
@@ -185,16 +194,14 @@ impl BloomPipeline {
                 occlusion_query_set: None,
             });
             pass.set_pipeline(pipeline);
-            pass.set_bind_group(0, screen_space_bindgroup.bind_group(), &[]);
+            pass.set_bind_group(0, screen_space_bind_group.bind_group(), &[]);
             pass.set_bind_group(1, input_texture, &[]);
-            pass.set_blend_constant(Color {
-                r: 0.45,
-                g: 0.45,
-                b: 0.45,
-                a: 0.45,
-            });
             pass.draw(0..3, 0..1);
         }
+
+        // /////////////////////////////////////////////////////////////////////////////
+        // downsample
+        // /////////////////////////////////////////////////////////////////////////////
 
         run_screen_render_pass(
             "1 -> 1/2 downsample and threshold",
@@ -230,6 +237,100 @@ impl BloomPipeline {
         );
 
         run_screen_render_pass(
+            "1/16 -> 1/32 downsample",
+            encoder,
+            self.bloom_textures.b16.bind_group(),
+            self.bloom_textures.b32.view(),
+            &self.downsample_pipeline,
+            &self.screen_space_bind_group,
+        );
+
+        run_screen_render_pass(
+            "1/32 -> 1/64 downsample",
+            encoder,
+            self.bloom_textures.b32.bind_group(),
+            self.bloom_textures.b64.view(),
+            &self.downsample_pipeline,
+            &self.screen_space_bind_group,
+        );
+
+        run_screen_render_pass(
+            "1/64 -> 1/128 downsample",
+            encoder,
+            self.bloom_textures.b64.bind_group(),
+            self.bloom_textures.b128.view(),
+            &self.downsample_pipeline,
+            &self.screen_space_bind_group,
+        );
+
+        run_screen_render_pass(
+            "1/128 -> 1/256 downsample",
+            encoder,
+            self.bloom_textures.b128.bind_group(),
+            self.bloom_textures.b256.view(),
+            &self.downsample_pipeline,
+            &self.screen_space_bind_group,
+        );
+
+        run_screen_render_pass(
+            "1/256 -> 1/512 downsample",
+            encoder,
+            self.bloom_textures.b256.bind_group(),
+            self.bloom_textures.b512.view(),
+            &self.downsample_pipeline,
+            &self.screen_space_bind_group,
+        );
+
+        // /////////////////////////////////////////////////////////////////////////////
+        // upsample
+        // /////////////////////////////////////////////////////////////////////////////
+
+        run_screen_render_pass(
+            "1/512 -> 1/256 upsample and add",
+            encoder,
+            self.bloom_textures.b512.bind_group(),
+            self.bloom_textures.b256.view(),
+            &self.upsample_pipeline,
+            &self.screen_space_bind_group,
+        );
+
+        run_screen_render_pass(
+            "1/256 -> 1/128 upsample and add",
+            encoder,
+            self.bloom_textures.b256.bind_group(),
+            self.bloom_textures.b128.view(),
+            &self.upsample_pipeline,
+            &self.screen_space_bind_group,
+        );
+
+        run_screen_render_pass(
+            "1/128 -> 1/64 upsample and add",
+            encoder,
+            self.bloom_textures.b128.bind_group(),
+            self.bloom_textures.b64.view(),
+            &self.upsample_pipeline,
+            &self.screen_space_bind_group,
+        );
+
+        run_screen_render_pass(
+            "1/64 -> 1/32 upsample and add",
+            encoder,
+            self.bloom_textures.b64.bind_group(),
+            self.bloom_textures.b32.view(),
+            &self.upsample_pipeline,
+            &self.screen_space_bind_group,
+        );
+
+        run_screen_render_pass(
+            "1/32 -> 1/16 upsample and add",
+            encoder,
+            self.bloom_textures.b32.bind_group(),
+            self.bloom_textures.b16.view(),
+            &self.upsample_pipeline,
+            &self.screen_space_bind_group,
+        );
+
+        run_screen_render_pass(
             "1/16 -> 1/8 upsample and add",
             encoder,
             self.bloom_textures.b16.bind_group(),
@@ -256,14 +357,36 @@ impl BloomPipeline {
             &self.screen_space_bind_group,
         );
 
-        run_screen_render_pass(
-            "1/2 -> 1 upsample and add",
-            encoder,
-            self.bloom_textures.b2.bind_group(),
-            texture_view,
-            &self.upsample_pipeline,
-            &self.screen_space_bind_group,
-        );
+        // /////////////////////////////////////////////////////////////////////////////
+        // Final pass, now with blend factor to add to original image
+        // /////////////////////////////////////////////////////////////////////////////
+
+        let blend_factor = Color {
+            r: 0.1,
+            g: 0.1,
+            b: 0.1,
+            a: 0.1,
+        };
+
+        let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
+            label: Some("1/2 -> 1 upsample and add"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: texture_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+        pass.set_pipeline(&self.final_upsample_pipeline);
+        pass.set_blend_constant(blend_factor);
+        pass.set_bind_group(0, self.screen_space_bind_group.bind_group(), &[]);
+        pass.set_bind_group(1, self.bloom_textures.b2.bind_group(), &[]);
+        pass.draw(0..3, 0..1);
     }
 }
 
@@ -272,14 +395,35 @@ pub struct BloomTextures {
     b4: HdrTexture,
     b8: HdrTexture,
     b16: HdrTexture,
+    b32: HdrTexture,
+    b64: HdrTexture,
+    b128: HdrTexture,
+    b256: HdrTexture,
+    b512: HdrTexture,
 }
 
 impl BloomTextures {
     pub fn create(context: &GraphicsContext, width: u32, height: u32) -> Self {
         let b2 = HdrTexture::create(context, width / 2, height / 2, 1, "b2");
         let b4 = HdrTexture::create(context, width / 4, height / 4, 1, "b4");
-        let b8 = HdrTexture::create(context, width / 16, height / 16, 1, "b8");
-        let b16 = HdrTexture::create(context, width / 32, height / 32, 1, "b16");
-        Self { b2, b4, b8, b16 }
+        let b8 = HdrTexture::create(context, width / 8, height / 8, 1, "b8");
+        let b16 = HdrTexture::create(context, width / 16, height / 16, 1, "b16");
+        let b32 = HdrTexture::create(context, width / 32, height / 32, 1, "b32");
+        let b64 = HdrTexture::create(context, width / 64, height / 64, 1, "b64");
+        let b128 = HdrTexture::create(context, width / 128, height / 128, 1, "b128");
+        let b256 = HdrTexture::create(context, width / 256, height / 256, 1, "b256");
+        let b512 = HdrTexture::create(context, width / 512, height / 512, 1, "b512");
+
+        Self {
+            b2,
+            b4,
+            b8,
+            b16,
+            b32,
+            b64,
+            b128,
+            b256,
+            b512,
+        }
     }
 }
