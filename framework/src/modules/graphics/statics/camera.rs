@@ -1,29 +1,17 @@
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use glam::{vec3, Mat4, Vec2, Vec3};
 use wgpu::{util::DeviceExt, BindGroup, BindGroupLayout};
 use winit::dpi::PhysicalSize;
 
-use crate::modules::graphics::graphics_context::GraphicsContext;
-
-use super::buffer::{ToRaw, UniformBuffer};
+use crate::modules::graphics::{
+    elements::buffer::{ToRaw, UniformBuffer},
+    graphics_context::GraphicsContext,
+    shader::bind_group::StaticBindGroup,
+};
 
 pub struct Camera {
-    pub uniform: UniformBuffer<CameraValues>,
-    camera_bind_group: CameraBindGroup,
-}
-
-#[derive(Debug, Clone)]
-pub struct CameraBindGroup(Arc<(BindGroup, BindGroupLayout)>);
-
-impl CameraBindGroup {
-    pub fn layout(&self) -> &BindGroupLayout {
-        &self.0 .1
-    }
-
-    pub fn bind_group(&self) -> &BindGroup {
-        &self.0 .0
-    }
+    uniform: UniformBuffer<CameraValues>,
 }
 
 impl Camera {
@@ -47,42 +35,10 @@ impl Camera {
             },
             device,
         );
-
-        let camera_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("camera bindgroup layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-            });
-
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("camera_bind_group"),
-            layout: &camera_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform.buffer().as_entire_binding(),
-            }],
-        });
-
-        Camera {
-            uniform,
-            camera_bind_group: CameraBindGroup(Arc::new((
-                camera_bind_group,
-                camera_bind_group_layout,
-            ))),
-        }
-    }
-
-    pub fn bind_group(&self) -> CameraBindGroup {
-        self.camera_bind_group.clone()
+        let camera = Camera { uniform };
+        // this is important:
+        StaticBindGroup::initialize(&camera, device);
+        camera
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -214,5 +170,51 @@ impl CameraRaw {
         // homogenous position:
         self.view_position = camera.position().extend(1.0).into();
         self.view_proj = (projection.calc_matrix() * camera.calc_matrix()).to_cols_array_2d();
+    }
+}
+
+static _CAMERA_BIND_GROUP: OnceLock<(BindGroup, BindGroupLayout)> = OnceLock::new();
+impl StaticBindGroup for Camera {
+    fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
+        &_CAMERA_BIND_GROUP
+            .get()
+            .expect("_CAMERA_BIND_GROUP not set")
+            .1
+    }
+
+    fn bind_group() -> &'static wgpu::BindGroup {
+        &_CAMERA_BIND_GROUP
+            .get()
+            .expect("_CAMERA_BIND_GROUP not set")
+            .0
+    }
+
+    fn initialize(&self, device: &wgpu::Device) {
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("CameraBindGroupLayout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("CameraBindGroup"),
+            layout: &layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: self.uniform.buffer().as_entire_binding(),
+            }],
+        });
+
+        _CAMERA_BIND_GROUP
+            .set((bind_group, layout))
+            .expect("_CAMERA_BIND_GROUP cannot be set");
     }
 }

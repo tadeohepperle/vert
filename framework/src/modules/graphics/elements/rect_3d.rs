@@ -3,12 +3,16 @@ use wgpu::{PrimitiveState, RenderPass, ShaderModuleDescriptor};
 
 use crate::{
     constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT, SURFACE_COLOR_FORMAT},
-    modules::graphics::{graphics_context::GraphicsContext, VertexT},
+    modules::graphics::{
+        graphics_context::GraphicsContext,
+        shader::bind_group::{IntoBindGroupLayouts, StaticBindGroup},
+        statics::camera::Camera,
+        VertexT,
+    },
 };
 
 use super::{
     buffer::IndexBuffer,
-    camera::CameraBindGroup,
     color::Color,
     rect::{PeparedRects, Rect, RectT, RectTexture},
     texture::{BindableTexture, Texture},
@@ -104,14 +108,13 @@ impl VertexT for Rect3D {
 
 pub struct Rect3DRenderPipeline {
     pipeline: wgpu::RenderPipeline,
-    camera_bind_group: CameraBindGroup,
     index_buffer: IndexBuffer,
     /// used for setting the texture bindgroups for rects where no texture is defined.
     white_px: BindableTexture,
 }
 
 impl Rect3DRenderPipeline {
-    pub fn new(context: &GraphicsContext, camera_bind_group: CameraBindGroup) -> Self {
+    pub fn new(context: &GraphicsContext) -> Self {
         let device = &context.device;
 
         let white_px = BindableTexture::new(
@@ -131,7 +134,7 @@ impl Rect3DRenderPipeline {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Rect 3d Pipelinelayout"),
-                bind_group_layouts: &[camera_bind_group.layout(), context.rgba_bind_group_layout],
+                bind_group_layouts: &[Camera::bind_group_layout(), context.rgba_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -184,7 +187,6 @@ impl Rect3DRenderPipeline {
 
         Rect3DRenderPipeline {
             pipeline,
-            camera_bind_group,
             index_buffer,
             white_px,
         }
@@ -204,7 +206,7 @@ impl Rect3DRenderPipeline {
         render_pass.set_pipeline(&self.pipeline);
 
         // screen space info and index buffer are fixed, because all rects have just 4 verts / 2 triangles.
-        render_pass.set_bind_group(0, &self.camera_bind_group.bind_group(), &[]);
+        render_pass.set_bind_group(0, Camera::bind_group(), &[]);
         render_pass.set_index_buffer(
             self.index_buffer.buffer().slice(..),
             wgpu::IndexFormat::Uint32,

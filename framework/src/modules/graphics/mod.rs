@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use self::graphics_context::GraphicsContext;
 use vert_core::prelude::*;
 
@@ -8,6 +6,7 @@ pub mod graphics_context;
 pub mod renderer;
 pub mod settings;
 pub mod shader;
+pub mod statics;
 
 pub trait VertexT: Copy + bytemuck::Pod + bytemuck::Zeroable {
     fn desc() -> wgpu::VertexBufferLayout<'static>;

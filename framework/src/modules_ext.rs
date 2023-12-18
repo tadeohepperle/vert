@@ -10,8 +10,8 @@ use crate::{
     modules::{
         assets::AssetServer,
         graphics::{
-            elements::{camera::CamTransform, gizmos::GizmosRenderer},
-            settings::GraphicsSettings,
+            elements::gizmos::GizmosRenderer, settings::GraphicsSettings,
+            statics::camera::CamTransform,
         },
         input::Input,
         time::Time,

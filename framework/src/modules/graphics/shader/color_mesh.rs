@@ -1,9 +1,7 @@
-use crate::modules::graphics::elements::{
-    camera::CameraBindGroup, color::Color, transform::TransformRaw,
-};
+use crate::modules::graphics::elements::{color::Color, transform::TransformRaw};
 
 use super::{
-    bind_group::Camera,
+    super::statics::camera::Camera,
     vertex::{IntoVertexAttributes, VertexAttribute},
     ShaderT,
 };

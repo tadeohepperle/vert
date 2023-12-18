@@ -12,13 +12,8 @@ use self::screen_space::ScreenSpaceRenderer;
 
 use super::{
     elements::{
-        camera::{Camera, CameraBindGroup},
-        color_mesh::ColorMeshRenderPipeline,
-        gizmos::GizmosRenderer,
-        rect_3d::Rect3DRenderPipeline,
-        screen_space::ScreenSpaceBindGroup,
-        texture::Texture,
-        ui_rect::UiRectRenderPipeline,
+        color_mesh::ColorMeshRenderPipeline, gizmos::GizmosRenderer, rect_3d::Rect3DRenderPipeline,
+        texture::Texture, ui_rect::UiRectRenderPipeline,
     },
     graphics_context::GraphicsContext,
     settings::GraphicsSettings,
@@ -42,19 +37,14 @@ pub struct Renderer {
 impl Renderer {
     pub fn initialize(
         context: GraphicsContext,
-        camera_bind_group: CameraBindGroup,
-        screen_space_bind_group: ScreenSpaceBindGroup,
         graphics_settings: GraphicsSettings,
     ) -> anyhow::Result<Self> {
-        let screen_space_renderer =
-            ScreenSpaceRenderer::create(&context, screen_space_bind_group.clone());
+        let screen_space_renderer = ScreenSpaceRenderer::create(&context);
 
-        let color_mesh_render_pipeline =
-            ColorMeshRenderPipeline::new(&context, camera_bind_group.clone());
-        let ui_rect_render_pipeline = UiRectRenderPipeline::new(&context, screen_space_bind_group);
-        let rect_3d_render_pipeline =
-            Rect3DRenderPipeline::new(&context, camera_bind_group.clone());
-        let gizmos_renderer = GizmosRenderer::new(&context, camera_bind_group);
+        let color_mesh_render_pipeline = ColorMeshRenderPipeline::new(&context);
+        let ui_rect_render_pipeline = UiRectRenderPipeline::new(&context);
+        let rect_3d_render_pipeline = Rect3DRenderPipeline::new(&context);
+        let gizmos_renderer = GizmosRenderer::new(&context);
 
         Ok(Self {
             context,

@@ -4,10 +4,7 @@ use wgpu::{RenderPass, ShaderModule, ShaderModuleDescriptor};
 use crate::{
     constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT, SURFACE_COLOR_FORMAT},
     modules::graphics::{
-        elements::{
-            screen_space::ScreenSpaceBindGroup,
-            texture::{BindableTexture, Texture},
-        },
+        elements::texture::{BindableTexture, Texture},
         graphics_context::GraphicsContext,
         settings::GraphicsSettings,
     },
@@ -30,10 +27,7 @@ pub struct ScreenSpaceRenderer {
 }
 
 impl ScreenSpaceRenderer {
-    pub fn create(
-        context: &GraphicsContext,
-        screen_space_bind_group: ScreenSpaceBindGroup,
-    ) -> Self {
+    pub fn create(context: &GraphicsContext) -> Self {
         // setup textures
         let msaa_depth_texture = DepthTexture::create(&context);
         let msaa_hdr_texture = HdrTexture::create_screen_sized(context, MSAA_SAMPLE_COUNT);
@@ -52,8 +46,7 @@ impl ScreenSpaceRenderer {
 
         // setup pipelines for postprocessing and tonemapping
         let tone_mapping_pipeline = ToneMappingPipeline::new(&context, screen_vertex_state.clone());
-        let bloom_pipeline =
-            BloomPipeline::new(&context, screen_vertex_state, screen_space_bind_group);
+        let bloom_pipeline = BloomPipeline::new(&context, screen_vertex_state);
         ScreenSpaceRenderer {
             msaa_depth_texture,
             hdr_msaa_texture: msaa_hdr_texture,

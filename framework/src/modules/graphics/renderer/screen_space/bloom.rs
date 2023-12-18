@@ -8,12 +8,11 @@ use wgpu::{
 use crate::{
     constants::HDR_COLOR_FORMAT,
     modules::graphics::{
-        elements::{
-            screen_space::ScreenSpaceBindGroup,
-            texture::{BindableTexture, Texture},
-        },
+        elements::texture::{BindableTexture, Texture},
         graphics_context::GraphicsContext,
         settings::GraphicsSettings,
+        shader::bind_group::StaticBindGroup,
+        statics::screen_size::ScreenSize,
     },
 };
 
@@ -47,15 +46,10 @@ pub struct BloomPipeline {
     upsample_pipeline: wgpu::RenderPipeline,
     final_upsample_pipeline: wgpu::RenderPipeline,
     bloom_textures: BloomTextures,
-    screen_space_bind_group: ScreenSpaceBindGroup,
 }
 
 impl BloomPipeline {
-    pub fn new(
-        context: &GraphicsContext,
-        screen_vertex_state: wgpu::VertexState,
-        screen_space_bind_group: ScreenSpaceBindGroup,
-    ) -> Self {
+    pub fn new(context: &GraphicsContext, screen_vertex_state: wgpu::VertexState) -> Self {
         // let fragment_shader =
 
         //         todo!()
@@ -65,7 +59,7 @@ impl BloomPipeline {
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: None,
                     bind_group_layouts: &[
-                        screen_space_bind_group.layout(),
+                        ScreenSize::bind_group_layout(),
                         context.rgba_bind_group_layout,
                     ],
                     push_constant_ranges: &[],
@@ -147,7 +141,6 @@ impl BloomPipeline {
             upsample_pipeline,
             downsample_threshold_pipeline,
             bloom_textures,
-            screen_space_bind_group,
             final_upsample_pipeline,
         }
     }
@@ -179,7 +172,6 @@ impl BloomPipeline {
             input_texture: &'e wgpu::BindGroup,
             output_texture: &'e TextureView,
             pipeline: &'e wgpu::RenderPipeline,
-            screen_space_bind_group: &ScreenSpaceBindGroup,
         ) {
             let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some(label),
@@ -196,7 +188,7 @@ impl BloomPipeline {
                 occlusion_query_set: None,
             });
             pass.set_pipeline(pipeline);
-            pass.set_bind_group(0, screen_space_bind_group.bind_group(), &[]);
+            pass.set_bind_group(0, ScreenSize::bind_group(), &[]);
             pass.set_bind_group(1, input_texture, &[]);
             pass.draw(0..3, 0..1);
         }
@@ -211,7 +203,6 @@ impl BloomPipeline {
             texture_bind_group,
             self.bloom_textures.b2.view(),
             &self.downsample_threshold_pipeline,
-            &self.screen_space_bind_group,
         );
         run_screen_render_pass(
             "1/2 -> 1/4 downsample",
@@ -219,7 +210,6 @@ impl BloomPipeline {
             self.bloom_textures.b2.bind_group(),
             self.bloom_textures.b4.view(),
             &self.downsample_pipeline,
-            &self.screen_space_bind_group,
         );
         run_screen_render_pass(
             "1/4 -> 1/8 downsample",
@@ -227,7 +217,6 @@ impl BloomPipeline {
             self.bloom_textures.b4.bind_group(),
             self.bloom_textures.b8.view(),
             &self.downsample_pipeline,
-            &self.screen_space_bind_group,
         );
         run_screen_render_pass(
             "1/8 -> 1/16 downsample",
@@ -235,7 +224,6 @@ impl BloomPipeline {
             self.bloom_textures.b8.bind_group(),
             self.bloom_textures.b16.view(),
             &self.downsample_pipeline,
-            &self.screen_space_bind_group,
         );
 
         run_screen_render_pass(
@@ -244,7 +232,6 @@ impl BloomPipeline {
             self.bloom_textures.b16.bind_group(),
             self.bloom_textures.b32.view(),
             &self.downsample_pipeline,
-            &self.screen_space_bind_group,
         );
 
         run_screen_render_pass(
@@ -253,7 +240,6 @@ impl BloomPipeline {
             self.bloom_textures.b32.bind_group(),
             self.bloom_textures.b64.view(),
             &self.downsample_pipeline,
-            &self.screen_space_bind_group,
         );
 
         run_screen_render_pass(
@@ -262,7 +248,6 @@ impl BloomPipeline {
             self.bloom_textures.b64.bind_group(),
             self.bloom_textures.b128.view(),
             &self.downsample_pipeline,
-            &self.screen_space_bind_group,
         );
 
         run_screen_render_pass(
@@ -271,7 +256,6 @@ impl BloomPipeline {
             self.bloom_textures.b128.bind_group(),
             self.bloom_textures.b256.view(),
             &self.downsample_pipeline,
-            &self.screen_space_bind_group,
         );
 
         run_screen_render_pass(
@@ -280,7 +264,6 @@ impl BloomPipeline {
             self.bloom_textures.b256.bind_group(),
             self.bloom_textures.b512.view(),
             &self.downsample_pipeline,
-            &self.screen_space_bind_group,
         );
 
         // /////////////////////////////////////////////////////////////////////////////
@@ -293,7 +276,6 @@ impl BloomPipeline {
             self.bloom_textures.b512.bind_group(),
             self.bloom_textures.b256.view(),
             &self.upsample_pipeline,
-            &self.screen_space_bind_group,
         );
 
         run_screen_render_pass(
@@ -302,7 +284,6 @@ impl BloomPipeline {
             self.bloom_textures.b256.bind_group(),
             self.bloom_textures.b128.view(),
             &self.upsample_pipeline,
-            &self.screen_space_bind_group,
         );
 
         run_screen_render_pass(
@@ -311,7 +292,6 @@ impl BloomPipeline {
             self.bloom_textures.b128.bind_group(),
             self.bloom_textures.b64.view(),
             &self.upsample_pipeline,
-            &self.screen_space_bind_group,
         );
 
         run_screen_render_pass(
@@ -320,7 +300,6 @@ impl BloomPipeline {
             self.bloom_textures.b64.bind_group(),
             self.bloom_textures.b32.view(),
             &self.upsample_pipeline,
-            &self.screen_space_bind_group,
         );
 
         run_screen_render_pass(
@@ -329,7 +308,6 @@ impl BloomPipeline {
             self.bloom_textures.b32.bind_group(),
             self.bloom_textures.b16.view(),
             &self.upsample_pipeline,
-            &self.screen_space_bind_group,
         );
 
         run_screen_render_pass(
@@ -338,7 +316,6 @@ impl BloomPipeline {
             self.bloom_textures.b16.bind_group(),
             self.bloom_textures.b8.view(),
             &self.upsample_pipeline,
-            &self.screen_space_bind_group,
         );
 
         run_screen_render_pass(
@@ -347,7 +324,6 @@ impl BloomPipeline {
             self.bloom_textures.b8.bind_group(),
             self.bloom_textures.b4.view(),
             &self.upsample_pipeline,
-            &self.screen_space_bind_group,
         );
 
         run_screen_render_pass(
@@ -356,7 +332,6 @@ impl BloomPipeline {
             self.bloom_textures.b4.bind_group(),
             self.bloom_textures.b2.view(),
             &self.upsample_pipeline,
-            &self.screen_space_bind_group,
         );
 
         // /////////////////////////////////////////////////////////////////////////////
@@ -387,7 +362,7 @@ impl BloomPipeline {
         });
         pass.set_pipeline(&self.final_upsample_pipeline);
         pass.set_blend_constant(blend_factor);
-        pass.set_bind_group(0, self.screen_space_bind_group.bind_group(), &[]);
+        pass.set_bind_group(0, ScreenSize::bind_group(), &[]);
         pass.set_bind_group(1, self.bloom_textures.b2.bind_group(), &[]);
         pass.draw(0..3, 0..1);
     }

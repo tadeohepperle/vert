@@ -11,12 +11,16 @@ use vert_core::prelude::*;
 
 use crate::{
     constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT, SURFACE_COLOR_FORMAT},
-    modules::graphics::{graphics_context::GraphicsContext, Prepare, VertexT},
+    modules::graphics::{
+        graphics_context::GraphicsContext,
+        shader::bind_group::{IntoBindGroupLayouts, StaticBindGroup},
+        statics::camera::Camera,
+        Prepare, VertexT,
+    },
 };
 
 use super::{
     buffer::InstanceBuffer,
-    camera::CameraBindGroup,
     color::Color,
     transform::{Transform, TransformRaw},
 };
@@ -29,11 +33,10 @@ pub struct ColorMeshObj {
 
 pub struct ColorMeshRenderPipeline {
     pipeline: wgpu::RenderPipeline,
-    camera_bind_group: CameraBindGroup,
 }
 
 impl ColorMeshRenderPipeline {
-    pub fn new(context: &GraphicsContext, camera_bind_group: CameraBindGroup) -> Self {
+    pub fn new(context: &GraphicsContext) -> Self {
         let device = &context.device;
         let shader = device.create_shader_module(ShaderModuleDescriptor {
             label: Some("ColoredMesh Shader"),
@@ -46,7 +49,7 @@ impl ColorMeshRenderPipeline {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("ColoredMesh Pipelinelayout"),
-                bind_group_layouts: &[camera_bind_group.layout()],
+                bind_group_layouts: &[Camera::bind_group_layout()],
                 push_constant_ranges: &[],
             });
 
@@ -93,10 +96,7 @@ impl ColorMeshRenderPipeline {
             multiview: None,
         });
 
-        ColorMeshRenderPipeline {
-            pipeline,
-            camera_bind_group,
-        }
+        ColorMeshRenderPipeline { pipeline }
     }
 
     /// Renders all `SingleColorMesh`es and `MultiColorMesh`es found in the arenas.
@@ -106,7 +106,7 @@ impl ColorMeshRenderPipeline {
         arenas: &'e Arenas,
     ) {
         render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, &self.camera_bind_group.bind_group(), &[]);
+        render_pass.set_bind_group(0, Camera::bind_group(), &[]);
 
         let single_color_meshes = arenas.iter::<SingleColorMesh>().map(|e| &e.1.inner);
         let multi_color_meshes = arenas.iter::<MultiColorMesh>().map(|e| &e.1.inner);

@@ -14,13 +14,10 @@ use self::{
     assets::AssetServer,
     egui::EguiState,
     graphics::{
-        elements::{
-            camera::{CamTransform, Camera},
-            screen_space::{self, ScreenSpace},
-        },
-        graphics_context::{GraphicsContext, GraphicsOwner},
+        graphics_context::{GraphicsContext, GraphicsContextOwner},
         renderer::Renderer,
         settings::GraphicsSettings,
+        statics::{camera::Camera, screen_size::ScreenSize},
         Prepare,
     },
     input::Input,
@@ -37,10 +34,10 @@ pub mod ui;
 
 pub struct Modules {
     pub(crate) arenas: Arenas,
-    pub(crate) graphics: GraphicsOwner,
+    pub(crate) graphics: GraphicsContextOwner,
     pub(crate) renderer: Renderer,
     pub(crate) camera: Camera,
-    pub(crate) screen_space: ScreenSpace,
+    pub(crate) screen_size: ScreenSize,
     pub(crate) input: Input,
     pub(crate) time: Time,
     pub(crate) egui: EguiState,
@@ -53,18 +50,13 @@ pub struct Modules {
 impl Modules {
     pub async fn initialize(window: &winit::window::Window) -> anyhow::Result<Self> {
         let arenas = Arenas::new();
-        let graphics_context = GraphicsOwner::intialize(window).await?;
+        let graphics_context = GraphicsContextOwner::intialize(window).await?;
 
         let camera = Camera::new_default(&graphics_context.context);
-        let screen_space = ScreenSpace::new(&graphics_context.context);
+        let screen_size = ScreenSize::new(&graphics_context.context);
 
         let graphics_settings = GraphicsSettings::default();
-        let renderer = Renderer::initialize(
-            graphics_context.context.clone(),
-            camera.bind_group(),
-            screen_space.bind_group(),
-            graphics_settings,
-        )?;
+        let renderer = Renderer::initialize(graphics_context.context.clone(), graphics_settings)?;
 
         let batteries = Batteries::new();
 
@@ -79,7 +71,7 @@ impl Modules {
             graphics: graphics_context,
             renderer,
             camera,
-            screen_space,
+            screen_size,
             input,
             time,
             egui,
@@ -101,7 +93,7 @@ impl Modules {
         self.graphics.resize(new_size); // needs to be before renderer resize
         self.renderer.resize();
         self.camera.resize(new_size.width, new_size.height);
-        self.screen_space.resize(new_size.width, new_size.height);
+        self.screen_size.resize(new_size.width, new_size.height);
     }
 
     pub(crate) fn begin_frame(&mut self) -> Flow {
@@ -132,7 +124,7 @@ impl Modules {
         let context = &self.graphics.context;
         let queue: &wgpu::Queue = &context.queue;
         self.camera.prepare(queue);
-        self.screen_space.prepare(queue);
+        self.screen_size.prepare(queue);
         self.egui.prepare(&self.graphics.context, encoder);
         self.ui.prepare(context, encoder);
 

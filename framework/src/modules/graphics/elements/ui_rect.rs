@@ -7,14 +7,16 @@ use wgpu::{PrimitiveState, RenderPass, ShaderModuleDescriptor};
 
 use crate::{
     constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT, SURFACE_COLOR_FORMAT},
-    modules::graphics::{elements::rect::RectTexture, graphics_context::GraphicsContext, VertexT},
+    modules::graphics::{
+        elements::rect::RectTexture, graphics_context::GraphicsContext,
+        shader::bind_group::StaticBindGroup, statics::screen_size::ScreenSize, VertexT,
+    },
 };
 
 use super::{
     buffer::IndexBuffer,
     color::Color,
     rect::{PeparedRects, Rect, RectT},
-    screen_space::ScreenSpaceBindGroup,
     texture::{BindableTexture, Texture},
 };
 
@@ -69,14 +71,13 @@ impl VertexT for UiRect {
 
 pub struct UiRectRenderPipeline {
     pipeline: wgpu::RenderPipeline,
-    screen_space_bind_group: ScreenSpaceBindGroup,
     index_buffer: IndexBuffer,
     /// used for setting the texture bindgroups for rects where no texture is defined.
     white_px: BindableTexture,
 }
 
 impl UiRectRenderPipeline {
-    pub fn new(context: &GraphicsContext, screen_space_bind_group: ScreenSpaceBindGroup) -> Self {
+    pub fn new(context: &GraphicsContext) -> Self {
         let device = &context.device;
 
         let white_px = BindableTexture::new(
@@ -97,7 +98,7 @@ impl UiRectRenderPipeline {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Ui Rect Pipelinelayout"),
                 bind_group_layouts: &[
-                    screen_space_bind_group.layout(),
+                    ScreenSize::bind_group_layout(),
                     context.rgba_bind_group_layout,
                 ],
                 push_constant_ranges: &[],
@@ -152,7 +153,6 @@ impl UiRectRenderPipeline {
 
         UiRectRenderPipeline {
             pipeline,
-            screen_space_bind_group,
             index_buffer,
             white_px,
         }
@@ -179,7 +179,7 @@ impl UiRectRenderPipeline {
         render_pass.set_pipeline(&self.pipeline);
 
         // screen space info and index buffer are fixed, because all rects have just 4 verts / 2 triangles.
-        render_pass.set_bind_group(0, &self.screen_space_bind_group.bind_group(), &[]);
+        render_pass.set_bind_group(0, ScreenSize::bind_group(), &[]);
         render_pass.set_index_buffer(
             self.index_buffer.buffer().slice(..),
             wgpu::IndexFormat::Uint32,

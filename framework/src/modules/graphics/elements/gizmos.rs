@@ -5,20 +5,22 @@ use wgpu::{BufferUsages, PrimitiveState, RenderPass, ShaderModuleDescriptor};
 
 use crate::{
     constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT, SURFACE_COLOR_FORMAT},
-    modules::graphics::{graphics_context::GraphicsContext, VertexT},
+    modules::graphics::{
+        graphics_context::GraphicsContext, shader::bind_group::StaticBindGroup,
+        statics::camera::Camera, VertexT,
+    },
 };
 
-use super::{buffer::GrowableBuffer, camera::CameraBindGroup, color::Color};
+use super::{buffer::GrowableBuffer, color::Color};
 
 pub struct GizmosRenderer {
     context: GraphicsContext,
     pipeline: wgpu::RenderPipeline,
-    camera_bind_group: CameraBindGroup,
     vertex_buffer: GrowableBuffer<Vertex>,
 }
 
 impl GizmosRenderer {
-    pub fn new(context: &GraphicsContext, camera_bind_group: CameraBindGroup) -> Self {
+    pub fn new(context: &GraphicsContext) -> Self {
         let device = &context.device;
 
         let shader = device.create_shader_module(ShaderModuleDescriptor {
@@ -32,7 +34,7 @@ impl GizmosRenderer {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Gizmos Pipelinelayout"),
-                bind_group_layouts: &[camera_bind_group.layout()],
+                bind_group_layouts: &[Camera::bind_group_layout()],
                 push_constant_ranges: &[],
             });
 
@@ -85,7 +87,6 @@ impl GizmosRenderer {
         Self {
             context: context.clone(),
             pipeline,
-            camera_bind_group,
             vertex_buffer,
         }
     }
@@ -182,7 +183,7 @@ impl GizmosRenderer {
             return;
         }
         render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, &self.camera_bind_group.bind_group(), &[]);
+        render_pass.set_bind_group(0, Camera::bind_group(), &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.buffer().slice(..));
         render_pass.draw(0..(self.vertex_buffer.buffer_len() as u32), 0..1);
     }

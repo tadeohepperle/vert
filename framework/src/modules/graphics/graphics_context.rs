@@ -14,6 +14,8 @@ use crate::{
     utils::{Reader, Writer},
 };
 
+use super::shader::bind_group::StaticBindGroup;
+
 /// not too expensive to clone
 #[derive(Debug, Clone)]
 pub struct GraphicsContext {
@@ -40,14 +42,14 @@ impl GraphicsContext {
     }
 }
 
-pub struct GraphicsOwner {
+pub struct GraphicsContextOwner {
     pub context: GraphicsContext,
     pub surface_config: Writer<wgpu::SurfaceConfiguration>,
     pub size: Writer<PhysicalSize<u32>>,
     pub scale_factor: Writer<f64>,
 }
 
-impl GraphicsOwner {
+impl GraphicsContextOwner {
     pub async fn intialize(window: &Window) -> anyhow::Result<Self> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
@@ -119,7 +121,7 @@ impl GraphicsOwner {
             rgba_bind_group_layout_multisampled,
         };
 
-        let context_updater = GraphicsOwner {
+        let context_updater = GraphicsContextOwner {
             surface_config,
             size,
             context,
@@ -150,7 +152,7 @@ impl GraphicsOwner {
     }
 }
 
-impl GraphicsOwner {
+impl GraphicsContextOwner {
     pub fn resize(&self, new_size: PhysicalSize<u32>) {
         let mut surface_config = self.surface_config.get_mut();
         surface_config.width = new_size.width;
