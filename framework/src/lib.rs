@@ -10,3 +10,7 @@ pub mod modules_ext;
 pub mod state;
 pub mod systems;
 pub mod utils;
+
+pub mod ext {
+    pub use egui;
+}

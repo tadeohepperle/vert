@@ -87,31 +87,31 @@ impl Renderer {
         // /////////////////////////////////////////////////////////////////////////////
 
         // create a new HDR MSSAx4 renderpass:
-        let mut render_pass = self
+        let mut main_render_pass = self
             .screen_space_renderer
-            .new_hdr_4xmsaa_render_pass(encoder);
+            .new_hdr_4xmsaa_render_pass(encoder, &self.graphics_settings);
 
-        self.gizmos_renderer.render(&mut render_pass);
+        self.gizmos_renderer.render(&mut main_render_pass);
 
         // render color meshes:
         self.color_mesh_render_pipeline
-            .render_color_meshes(&mut render_pass, arenas);
+            .render_color_meshes(&mut main_render_pass, arenas);
 
         // render ui rectangles:
         self.ui_rect_render_pipeline.render_ui_rects(
-            &mut render_pass,
+            &mut main_render_pass,
             ui.prepared_ui_rects(),
             ui.text_atlas_texture(),
         );
 
         // render 3d triangles:
         self.rect_3d_render_pipeline.render_3d_rects(
-            &mut render_pass,
+            &mut main_render_pass,
             ui.prepared_3d_rects(),
             ui.text_atlas_texture(),
         );
 
-        drop(render_pass);
+        drop(main_render_pass);
 
         // /////////////////////////////////////////////////////////////////////////////
         // Post processing, HDR -> SRGB u8 tonemapping

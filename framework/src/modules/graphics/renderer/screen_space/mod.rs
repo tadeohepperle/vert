@@ -67,17 +67,13 @@ impl ScreenSpaceRenderer {
     pub fn new_hdr_4xmsaa_render_pass<'a: 'e, 'e>(
         &'a self,
         encoder: &'e mut wgpu::CommandEncoder,
+        graphics_settings: &GraphicsSettings,
     ) -> RenderPass<'e> {
         let color_attachment = wgpu::RenderPassColorAttachment {
             view: self.hdr_msaa_texture.view(),
             resolve_target: Some(self.hdr_resolve_texture.view()),
             ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color {
-                    r: 4.0,
-                    g: 10.0,
-                    b: 4.0,
-                    a: 1.0,
-                }),
+                load: wgpu::LoadOp::Clear(graphics_settings.clear_color.into()),
                 store: wgpu::StoreOp::Store,
             },
         };

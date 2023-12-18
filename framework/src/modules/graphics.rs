@@ -7,6 +7,7 @@ pub mod elements;
 pub mod graphics_context;
 pub mod renderer;
 pub mod settings;
+pub mod shader;
 
 pub trait VertexT: Copy + bytemuck::Pod + bytemuck::Zeroable {
     fn desc() -> wgpu::VertexBufferLayout<'static>;

@@ -49,6 +49,17 @@ impl Color {
     }
 }
 
+impl From<Color> for wgpu::Color {
+    fn from(value: Color) -> Self {
+        wgpu::Color {
+            r: value.r as f64,
+            g: value.g as f64,
+            b: value.b as f64,
+            a: value.a as f64,
+        }
+    }
+}
+
 impl From<Vec3> for Color {
     fn from(value: Vec3) -> Self {
         Color {

@@ -23,25 +23,11 @@ use vert_framework::{
     state::StateT,
 };
 
-pub struct MyState {
-    test_texture: Arc<BindableTexture>,
-}
+pub struct MyState;
 
 impl StateT for MyState {
     async fn initialize(modules: &mut Modules) -> anyhow::Result<Self> {
         modules.add_battery(SimpleCamController);
-
-        let image = AssetSource::from("./assets/test.png")
-            .fetch::<ImageAsset>()
-            .await
-            .unwrap();
-
-        let context = modules.graphics_context();
-        let test_texture = BindableTexture::new(
-            context,
-            context.rgba_bind_group_layout,
-            Texture::from_image(&context.device, &context.queue, &image.rgba),
-        );
 
         let mut blue_cubes: Vec<Transform> = vec![];
         let mut black_cubes: Vec<Transform> = vec![];
@@ -74,9 +60,10 @@ impl StateT for MyState {
             Some(Color::new(0.0, 0.0, 0.0)),
         ));
 
-        Ok(MyState {
-            test_texture: Arc::new(test_texture),
-        })
+        // use a very high energy green to get a nice background bloom
+        modules.graphics_settings_mut().clear_color = Color::new(2.0, 8.0, 2.0);
+
+        Ok(MyState)
     }
 
     fn update(&mut self, modules: &mut Modules) -> Flow {
