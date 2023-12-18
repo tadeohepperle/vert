@@ -6,7 +6,12 @@ use image::RgbaImage;
 use rand::{thread_rng, Rng};
 use wgpu::BindGroupDescriptor;
 
-use crate::{constants::DEPTH_FORMAT, modules::graphics::graphics_context::GraphicsContext};
+use crate::{
+    constants::DEPTH_FORMAT,
+    modules::graphics::{
+        graphics_context::GraphicsContext, statics::static_texture::RgbaBindGroupLayout,
+    },
+};
 
 #[derive(Debug)]
 pub struct BindableTexture {
@@ -15,14 +20,11 @@ pub struct BindableTexture {
 }
 
 impl BindableTexture {
-    pub fn new(
-        context: &GraphicsContext,
-        layout: &wgpu::BindGroupLayout,
-        texture: Texture,
-    ) -> Self {
+    /// always uses RgbaBindGroupLayout.get() to get the default bind group layout without multisampling
+    pub fn new(context: &GraphicsContext, texture: Texture) -> Self {
         let bind_group = context.device.create_bind_group(&BindGroupDescriptor {
             label: None,
-            layout,
+            layout: RgbaBindGroupLayout.get(),
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,

@@ -6,7 +6,7 @@ use crate::{
     modules::graphics::{
         graphics_context::GraphicsContext,
         shader::bind_group::{IntoBindGroupLayouts, StaticBindGroup},
-        statics::camera::Camera,
+        statics::{camera::Camera, static_texture::RgbaBindGroupLayout},
         VertexT,
     },
 };
@@ -119,7 +119,6 @@ impl Rect3DRenderPipeline {
 
         let white_px = BindableTexture::new(
             context,
-            context.rgba_bind_group_layout,
             Texture::create_white_px_texture(device, &context.queue),
         );
 
@@ -134,7 +133,7 @@ impl Rect3DRenderPipeline {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Rect 3d Pipelinelayout"),
-                bind_group_layouts: &[Camera::bind_group_layout(), context.rgba_bind_group_layout],
+                bind_group_layouts: &[Camera::bind_group_layout(), RgbaBindGroupLayout.get()],
                 push_constant_ranges: &[],
             });
 

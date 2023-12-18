@@ -1,7 +1,10 @@
 use wgpu::{RenderPass, ShaderModule};
 
 use crate::{
-    constants::SURFACE_COLOR_FORMAT, modules::graphics::graphics_context::GraphicsContext,
+    constants::SURFACE_COLOR_FORMAT,
+    modules::graphics::{
+        graphics_context::GraphicsContext, statics::static_texture::RgbaBindGroupLayout,
+    },
 };
 
 pub struct ToneMappingPipeline {
@@ -21,7 +24,7 @@ impl ToneMappingPipeline {
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: None,
-                    bind_group_layouts: &[context.rgba_bind_group_layout],
+                    bind_group_layouts: &[RgbaBindGroupLayout.get()],
                     push_constant_ranges: &[],
                 });
 

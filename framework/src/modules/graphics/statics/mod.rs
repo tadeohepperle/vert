@@ -1,4 +1,4 @@
 pub mod camera;
 pub mod screen_size;
+pub mod static_texture;
 pub mod time;
-pub mod white_px_texture;

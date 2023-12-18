@@ -23,10 +23,39 @@ impl ScreenSize {
         };
         let uniform = UniformBuffer::new(values, &context.device);
 
-        let screen_size = ScreenSize { uniform };
-        // this initialization is important!
-        StaticBindGroup::initialize(&screen_size, &context.device);
-        screen_size
+        // Initialize the static bind group for the screen size
+        let layout = context
+            .device
+            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("screen space bindgroup layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let bind_group = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("screen space bindgroup"),
+                layout: &layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uniform.buffer().as_entire_binding(),
+                }],
+            });
+
+        _SCREEN_SIZE_BIND_GROUP
+            .set((bind_group, layout))
+            .expect("_SCREEN_SIZE_BIND_GROUP cannot be set");
+
+        ScreenSize { uniform }
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -100,34 +129,5 @@ impl StaticBindGroup for ScreenSize {
             .get()
             .expect("_SCREEN_SIZE_BIND_GROUP not set")
             .0
-    }
-
-    fn initialize(&self, device: &wgpu::Device) {
-        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("screen space bindgroup layout"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-        });
-
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("screen space bindgroup"),
-            layout: &layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: self.uniform.buffer().as_entire_binding(),
-            }],
-        });
-
-        _SCREEN_SIZE_BIND_GROUP
-            .set((bind_group, layout))
-            .expect("_SCREEN_SIZE_BIND_GROUP cannot be set");
     }
 }

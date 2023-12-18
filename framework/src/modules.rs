@@ -17,7 +17,9 @@ use self::{
         graphics_context::{GraphicsContext, GraphicsContextOwner},
         renderer::Renderer,
         settings::GraphicsSettings,
-        statics::{camera::Camera, screen_size::ScreenSize},
+        statics::{
+            camera::Camera, screen_size::ScreenSize, static_texture::initialize_static_textures,
+        },
         Prepare,
     },
     input::Input,
@@ -52,6 +54,7 @@ impl Modules {
         let arenas = Arenas::new();
         let graphics_context = GraphicsContextOwner::intialize(window).await?;
 
+        initialize_static_textures(&graphics_context.context);
         let camera = Camera::new_default(&graphics_context.context);
         let screen_size = ScreenSize::new(&graphics_context.context);
 

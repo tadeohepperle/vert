@@ -7,15 +7,18 @@ use vert_framework::{
     flow::Flow,
     modules::{
         assets::fetchable_asset::{AssetSource, ImageAsset},
-        graphics::elements::{
-            buffer::ToRaw,
-            color::Color,
-            color_mesh::SingleColorMesh,
-            rect::{Rect, RectTexture, RectWithTexture},
-            rect_3d::Rect3D,
-            texture::{BindableTexture, Texture},
-            transform::Transform,
-            ui_rect::UiRect,
+        graphics::{
+            elements::{
+                buffer::ToRaw,
+                color::Color,
+                color_mesh::SingleColorMesh,
+                rect::{Rect, RectTexture, RectWithTexture},
+                rect_3d::Rect3D,
+                texture::{BindableTexture, Texture},
+                transform::Transform,
+                ui_rect::UiRect,
+            },
+            statics::static_texture::RgbaBindGroupLayout,
         },
         ui::text_rasterizer::DrawText,
         Modules,
@@ -40,7 +43,6 @@ impl StateT for MyState {
         let context = modules.graphics_context();
         let test_texture = BindableTexture::new(
             context,
-            context.rgba_bind_group_layout,
             Texture::from_image(&context.device, &context.queue, &image.rgba),
         );
 

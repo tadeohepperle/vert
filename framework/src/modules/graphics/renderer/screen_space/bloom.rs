@@ -12,7 +12,7 @@ use crate::{
         graphics_context::GraphicsContext,
         settings::GraphicsSettings,
         shader::bind_group::StaticBindGroup,
-        statics::screen_size::ScreenSize,
+        statics::{screen_size::ScreenSize, static_texture::RgbaBindGroupLayout},
     },
 };
 
@@ -60,7 +60,7 @@ impl BloomPipeline {
                     label: None,
                     bind_group_layouts: &[
                         ScreenSize::bind_group_layout(),
-                        context.rgba_bind_group_layout,
+                        RgbaBindGroupLayout.get(),
                     ],
                     push_constant_ranges: &[],
                 });

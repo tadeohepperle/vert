@@ -7,6 +7,7 @@ use crate::{
         elements::texture::{BindableTexture, Texture},
         graphics_context::GraphicsContext,
         settings::GraphicsSettings,
+        statics::static_texture::RgbaBindGroupLayout,
     },
 };
 
@@ -239,9 +240,9 @@ impl HdrTexture {
 
         let label: String = label.into();
         let layout = if sample_count == 1 {
-            context.rgba_bind_group_layout
+            RgbaBindGroupLayout.get()
         } else {
-            context.rgba_bind_group_layout_multisampled
+            RgbaBindGroupLayout.get_multisampled()
         };
         let bind_group = context
             .device

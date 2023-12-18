@@ -16,9 +16,11 @@ impl<T: StaticBindGroup> IntoBindGroupLayouts for T {
 }
 
 pub trait StaticBindGroup {
-    fn initialize(&self, device: &wgpu::Device);
-
+    /// # Panics
+    /// Make sure the static bind group is initialized before
     fn bind_group_layout() -> &'static wgpu::BindGroupLayout;
 
+    /// # Panics
+    /// Make sure the static bind group is initialized before
     fn bind_group() -> &'static wgpu::BindGroup;
 }

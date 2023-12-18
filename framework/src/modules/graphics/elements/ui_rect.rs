@@ -8,8 +8,11 @@ use wgpu::{PrimitiveState, RenderPass, ShaderModuleDescriptor};
 use crate::{
     constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT, SURFACE_COLOR_FORMAT},
     modules::graphics::{
-        elements::rect::RectTexture, graphics_context::GraphicsContext,
-        shader::bind_group::StaticBindGroup, statics::screen_size::ScreenSize, VertexT,
+        elements::rect::RectTexture,
+        graphics_context::GraphicsContext,
+        shader::bind_group::StaticBindGroup,
+        statics::{screen_size::ScreenSize, static_texture::RgbaBindGroupLayout},
+        VertexT,
     },
 };
 
@@ -82,7 +85,6 @@ impl UiRectRenderPipeline {
 
         let white_px = BindableTexture::new(
             context,
-            context.rgba_bind_group_layout,
             Texture::create_white_px_texture(device, &context.queue),
         );
 
@@ -97,10 +99,7 @@ impl UiRectRenderPipeline {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Ui Rect Pipelinelayout"),
-                bind_group_layouts: &[
-                    ScreenSize::bind_group_layout(),
-                    context.rgba_bind_group_layout,
-                ],
+                bind_group_layouts: &[ScreenSize::bind_group_layout(), RgbaBindGroupLayout.get()],
                 push_constant_ranges: &[],
             });
 

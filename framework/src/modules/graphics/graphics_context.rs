@@ -13,9 +13,6 @@ use crate::{
     constants::SURFACE_COLOR_FORMAT,
     utils::{Reader, Writer},
 };
-
-use super::shader::bind_group::StaticBindGroup;
-
 /// not too expensive to clone
 #[derive(Debug, Clone)]
 pub struct GraphicsContext {
@@ -25,8 +22,6 @@ pub struct GraphicsContext {
     pub queue: Arc<wgpu::Queue>,
     pub surface: Arc<wgpu::Surface>,
     pub surface_format: wgpu::TextureFormat,
-    pub rgba_bind_group_layout: &'static wgpu::BindGroupLayout,
-    pub rgba_bind_group_layout_multisampled: &'static wgpu::BindGroupLayout,
     pub surface_config: Reader<wgpu::SurfaceConfiguration>,
     pub size: Reader<PhysicalSize<u32>>,
     pub scale_factor: Reader<f64>,
@@ -97,12 +92,6 @@ impl GraphicsContextOwner {
         };
         surface.configure(&device, &surface_config);
 
-        let rgba_bind_group_layout = _rgba_bind_group_layout(&device, false);
-        let rgba_bind_group_layout_multisampled = _rgba_bind_group_layout(&device, true);
-
-        // let (surface_config_tx, surface_config_rx) = watch::channel(surface_config);
-        // let (size_tx, size_rx) = watch::channel(size);
-
         let surface_config = Writer::new(surface_config);
         let size = Writer::new(size);
         let scale_factor = Writer::new(window.scale_factor());
@@ -117,8 +106,6 @@ impl GraphicsContextOwner {
             surface_config: surface_config.reader(),
             size: size.reader(),
             scale_factor: scale_factor.reader(),
-            rgba_bind_group_layout,
-            rgba_bind_group_layout_multisampled,
         };
 
         let context_updater = GraphicsContextOwner {
@@ -161,41 +148,4 @@ impl GraphicsContextOwner {
             .surface
             .configure(&self.context.device, &surface_config);
     }
-}
-
-fn _rgba_bind_group_layout(device: &wgpu::Device, multisampled: bool) -> &'static BindGroupLayout {
-    static RGBA_BIND_GROUP_LAYOUT: OnceLock<BindGroupLayout> = OnceLock::new();
-    static RGBA_BIND_GROUP_LAYOUT_MULTISAMPLED: OnceLock<BindGroupLayout> = OnceLock::new();
-
-    let layout = if multisampled {
-        &RGBA_BIND_GROUP_LAYOUT_MULTISAMPLED
-    } else {
-        &RGBA_BIND_GROUP_LAYOUT
-    };
-
-    layout.get_or_init(|| {
-        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: None,
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float {
-                            filterable: !multisampled, // filterable needs to be false for multisampled textures.
-                        },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-        })
-    })
 }

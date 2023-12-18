@@ -21,6 +21,7 @@ use crate::modules::graphics::{
         ui_rect::UiRect,
     },
     graphics_context::GraphicsContext,
+    statics::static_texture::RgbaBindGroupLayout,
 };
 
 pub const DEFAULT_FONT: &[u8] = include_bytes!("../../../assets/Oswald-Medium.ttf");
@@ -128,11 +129,7 @@ impl TextRasterizer {
         // create a fully transparent texture.
         let image = RgbaImage::new(TEXT_ATLAS_SIZE, TEXT_ATLAS_SIZE);
         let atlas_texture = Texture::from_image(&context.device, &context.queue, &image);
-        let atlas_texture = Arc::new(BindableTexture::new(
-            &context,
-            context.rgba_bind_group_layout,
-            atlas_texture,
-        ));
+        let atlas_texture = Arc::new(BindableTexture::new(&context, atlas_texture));
 
         let font = Font::from_bytes(DEFAULT_FONT, fontdue::FontSettings::default())
             .expect("font should be valid");
