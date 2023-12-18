@@ -1,4 +1,160 @@
-pub trait Shader: 'static + Sized {}
+use std::borrow::Cow;
+
+use crate::constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT};
+use smallvec::{smallvec, SmallVec};
+use wgpu::{BindGroupLayout, PrimitiveState, ShaderModuleDescriptor};
+
+use self::{bind_group::IntoBindGroupLayouts, vertex::IntoVertexAttributes};
+
+// pub struct StaticShader {
+//     bind_groups: ShaderBindGroup,
+//     vert_code: &'static str,
+//     frag_code: &'static str,
+// }
+
+// struct ShaderBindGroup {}
+
+// &'static dyn
+
+// impl Shader{
+//     create_render_pipeline
+// }
+
+pub mod bind_group;
+pub mod color_mesh;
+pub mod vertex;
+
+const VERTEX_ENTRY_POINT: &str = "vs_main";
+const FRAGMENT_ENTRY_POINT: &str = "fs_main";
+
+/// this trait does not need to be object safe.
+pub trait ShaderT: 'static + Sized {
+    type BindGroupLayouts: IntoBindGroupLayouts;
+    type Vertex: IntoVertexAttributes; // Index always u32, so not included
+    type Instance: IntoVertexAttributes;
+    type VertexOutput: IntoVertexAttributes; // no need to specify `builtin clip_position` here.
+
+    /// todo!() maybe this should not be an associated function.
+    fn build_shader() -> anyhow::Result<wgpu::naga::Module> {
+        todo!()
+    }
+
+    /// todo!() maybe this should not be an associated function.
+    fn build_pipeline(
+        device: &wgpu::Device,
+        config: ShaderPipelineConfig,
+    ) -> anyhow::Result<wgpu::RenderPipeline> {
+        let label = Self::name();
+        let naga_module = Self::build_shader()?;
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some(&format!("{label} Shader Module")),
+            source: wgpu::ShaderSource::Naga(Cow::Owned(naga_module)),
+        });
+
+        // /////////////////////////////////////////////////////////////////////////////
+        // Construct Vertex and Instance Buffer layouts
+        // /////////////////////////////////////////////////////////////////////////////
+
+        let vertex_buffer_layout =
+            <Self::Vertex as IntoVertexAttributes>::vertex_buffer_layout(false, 0);
+        let shader_location_offset = if let Some(e) = &vertex_buffer_layout {
+            e.attributes.len() as u32
+        } else {
+            0
+        };
+        let instance_buffer_layout = <Self::Instance as IntoVertexAttributes>::vertex_buffer_layout(
+            false,
+            shader_location_offset,
+        );
+        let mut buffers: SmallVec<[wgpu::VertexBufferLayout; 2]> = smallvec![];
+        if let Some(i) = vertex_buffer_layout {
+            buffers.push(i);
+        }
+        if let Some(i) = instance_buffer_layout {
+            buffers.push(i);
+        }
+
+        let render_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some(&format!("{label} RenderPipelineLayout")),
+                bind_group_layouts: &[],   // todo!()  -> Trait: explicit
+                push_constant_ranges: &[], //                            -> not used.
+            });
+
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some(&format!("{label} RenderPipeline")),
+            layout: Some(&render_pipeline_layout), //      -> Trait: derived from vertex_type and instance_type
+            vertex: wgpu::VertexState {
+                module: &module,                 //  -> Trait: explicit
+                entry_point: VERTEX_ENTRY_POINT, //  -> Trait: convention
+                buffers: &buffers,               //  -> Trait: convention
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &module,                   //  -> Trait specific / else discard
+                entry_point: FRAGMENT_ENTRY_POINT, //             -> Trait: convention
+                targets: &[Some(config.target)],
+            }),
+            primitive: Self::primitive(),
+            depth_stencil: Self::depth_stencil(),
+            multisample: config.multisample, // Outer
+            multiview: None,
+        });
+
+        Ok(pipeline)
+    }
+
+    /// defaults, can be overriden
+    fn primitive() -> wgpu::PrimitiveState {
+        PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            strip_index_format: None,
+            front_face: wgpu::FrontFace::Ccw,
+            cull_mode: Some(wgpu::Face::Back),
+            unclipped_depth: false,
+            polygon_mode: wgpu::PolygonMode::Fill,
+            conservative: false,
+        }
+    }
+
+    /// defaults, can be overriden
+    fn depth_stencil() -> Option<wgpu::DepthStencilState> {
+        Some(wgpu::DepthStencilState {
+            format: DEPTH_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Less,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        })
+    }
+
+    fn name() -> String {
+        std::any::type_name::<Self>().to_owned()
+    }
+}
+
+pub struct ShaderPipelineConfig {
+    pub multisample: wgpu::MultisampleState,
+    pub target: wgpu::ColorTargetState,
+}
+
+impl Default for ShaderPipelineConfig {
+    fn default() -> Self {
+        Self {
+            multisample: wgpu::MultisampleState {
+                count: MSAA_SAMPLE_COUNT,
+                ..Default::default()
+            },
+            target: wgpu::ColorTargetState {
+                format: HDR_COLOR_FORMAT,
+                blend: Some(wgpu::BlendState {
+                    alpha: wgpu::BlendComponent::REPLACE,
+                    color: wgpu::BlendComponent::REPLACE,
+                }),
+                write_mask: wgpu::ColorWrites::ALL,
+            },
+        }
+    }
+}
 
 // fn build_pipeline<S: Shader>() -> wgpu::Render {}
 
