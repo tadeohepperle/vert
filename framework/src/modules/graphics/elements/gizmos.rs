@@ -16,6 +16,7 @@ use super::{buffer::GrowableBuffer, color::Color};
 pub struct GizmosRenderer {
     context: GraphicsContext,
     pipeline: wgpu::RenderPipeline,
+    vertices: Vec<Vertex>,
     vertex_buffer: GrowableBuffer<Vertex>,
 }
 
@@ -88,46 +89,45 @@ impl GizmosRenderer {
             context: context.clone(),
             pipeline,
             vertex_buffer,
+            vertices: vec![],
         }
     }
 
     pub fn draw_line(&mut self, from: Vec3, to: Vec3, color: Color) {
-        let data = self.vertex_buffer.data();
-        data.push(Vertex {
+        self.vertices.push(Vertex {
             pos: [from.x, from.y, from.z],
             color,
         });
-        data.push(Vertex {
+        self.vertices.push(Vertex {
             pos: [to.x, to.y, to.z],
             color,
         });
     }
 
     pub fn draw_xyz(&mut self) {
-        let data = self.vertex_buffer.data();
-        data.push(Vertex {
+        self.vertices.push(Vertex {
             pos: [0.0, 0.0, 0.0],
             color: Color::RED,
         });
-        data.push(Vertex {
+        self.vertices.push(Vertex {
             pos: [1.0, 0.0, 0.0],
             color: Color::RED,
         });
 
-        data.push(Vertex {
+        self.vertices.push(Vertex {
             pos: [0.0, 0.0, 0.0],
             color: Color::GREEN,
         });
-        data.push(Vertex {
+        self.vertices.push(Vertex {
             pos: [0.0, 1.0, 0.0],
             color: Color::GREEN,
         });
 
-        data.push(Vertex {
+        self.vertices.push(Vertex {
             pos: [0.0, 0.0, 0.0],
             color: Color::BLUE,
         });
-        data.push(Vertex {
+        self.vertices.push(Vertex {
             pos: [0.0, 0.0, 1.0],
             color: Color::BLUE,
         });
@@ -158,13 +158,13 @@ impl GizmosRenderer {
             (v3, v7),
             (v4, v8),
         ];
-        let data = self.vertex_buffer.data();
+
         for (from, to) in lines {
-            data.push(Vertex {
+            self.vertices.push(Vertex {
                 pos: [from.x, from.y, from.z],
                 color,
             });
-            data.push(Vertex {
+            self.vertices.push(Vertex {
                 pos: [to.x, to.y, to.z],
                 color,
             });
@@ -174,8 +174,8 @@ impl GizmosRenderer {
     pub fn prepare(&mut self) {
         // Note: todo!() this is an ugly position. fix later,
         self.vertex_buffer
-            .prepare(&self.context.queue, &self.context.device);
-        self.vertex_buffer.data().clear();
+            .prepare(&self.vertices, &self.context.queue, &self.context.device);
+        self.vertices.clear();
     }
 
     pub fn render<'s: 'e, 'p, 'e>(&'s self, render_pass: &'p mut RenderPass<'e>) {

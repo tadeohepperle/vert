@@ -17,6 +17,7 @@ use super::{
     },
     graphics_context::GraphicsContext,
     settings::GraphicsSettings,
+    shader::ShaderRendererT,
     Render,
 };
 
@@ -32,19 +33,21 @@ pub struct Renderer {
 
     screen_space_renderer: ScreenSpaceRenderer,
     graphics_settings: GraphicsSettings,
+    shader_renderers: Vec<Box<dyn ShaderRendererT>>,
 }
 
 impl Renderer {
     pub fn initialize(
         context: GraphicsContext,
         graphics_settings: GraphicsSettings,
+        shader_renderers: Vec<Box<dyn ShaderRendererT>>,
     ) -> anyhow::Result<Self> {
         let screen_space_renderer = ScreenSpaceRenderer::create(&context);
 
         let color_mesh_render_pipeline = ColorMeshRenderPipeline::new(&context);
         let ui_rect_render_pipeline = UiRectRenderPipeline::new(&context);
         let rect_3d_render_pipeline = Rect3DRenderPipeline::new(&context);
-        let gizmos_renderer = GizmosRenderer::new(&context);
+        let gizmos_renderer: GizmosRenderer = GizmosRenderer::new(&context);
 
         Ok(Self {
             context,
@@ -54,7 +57,12 @@ impl Renderer {
             rect_3d_render_pipeline,
             gizmos_renderer,
             graphics_settings,
+            shader_renderers,
         })
+    }
+
+    pub fn register_shader_renderer<T: ShaderRendererT>(&mut self, renderer: T) {
+        self.shader_renderers.push(Box::new(renderer));
     }
 
     pub fn resize(&mut self) {

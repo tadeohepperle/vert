@@ -3,7 +3,8 @@ use std::{ops::DerefMut, sync::Arc};
 use glam::{vec3, vec4, Vec3};
 use vert_core::{arenas::Arenas, component::Component, reflect};
 use wgpu::{
-    util::DeviceExt, BindGroupLayout, PipelineLayout, PrimitiveState, RenderPass, RenderPipeline,
+    util::{DeviceExt, RenderEncoder},
+    BindGroupLayout, PipelineLayout, PrimitiveState, RenderPass, RenderPipeline,
     ShaderModuleDescriptor, TextureFormat,
 };
 
@@ -12,10 +13,8 @@ use vert_core::prelude::*;
 use crate::{
     constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT, SURFACE_COLOR_FORMAT},
     modules::graphics::{
-        graphics_context::GraphicsContext,
-        shader::bind_group::{IntoBindGroupLayouts, StaticBindGroup},
-        statics::camera::Camera,
-        Prepare, VertexT,
+        graphics_context::GraphicsContext, shader::bind_group::StaticBindGroup,
+        statics::camera::Camera, Prepare, VertexT,
     },
 };
 

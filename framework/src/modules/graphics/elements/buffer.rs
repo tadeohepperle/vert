@@ -167,12 +167,12 @@ impl IndexBuffer {
 #[derive(Debug)]
 pub struct GrowableBuffer<T: bytemuck::Pod + bytemuck::Zeroable> {
     min_cap: usize,
-    data: Vec<T>,
     /// This is tracked in addition to having the len in the data, to have the possibility of clearing data at the end of frame without losing len information.
     /// See Gizmos and other immediate geometry.
     buffer_len: usize,
     buffer_cap: usize,
     buffer: wgpu::Buffer,
+    phantom: PhantomData<T>,
 }
 
 impl<T: bytemuck::Pod + bytemuck::Zeroable> GrowableBuffer<T> {
@@ -189,26 +189,23 @@ impl<T: bytemuck::Pod + bytemuck::Zeroable> GrowableBuffer<T> {
             min_cap,
             buffer_len: 0,
             buffer_cap: min_cap,
-            data: vec![],
             buffer,
+            phantom: PhantomData,
         }
     }
 
+    #[inline(always)]
     pub fn buffer_len(&self) -> usize {
         self.buffer_len
     }
 
-    pub fn data(&mut self) -> &mut Vec<T> {
-        &mut self.data
-    }
-
     /// updates the gpu buffer, growing it, when not having enough space for data.
-    pub fn prepare(&mut self, queue: &wgpu::Queue, device: &wgpu::Device) {
-        let len = self.data.len();
+    pub fn prepare(&mut self, data: &[T], queue: &wgpu::Queue, device: &wgpu::Device) {
+        let len = data.len();
         self.buffer_len = len;
         if self.buffer_cap <= len {
             // the space in the buffer is enough, just write all rects to the buffer.
-            queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&self.data))
+            queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(data))
         } else {
             // space is not enough, we need to create a new buffer:
             let mut new_cap = self.min_cap;
@@ -217,7 +214,7 @@ impl<T: bytemuck::Pod + bytemuck::Zeroable> GrowableBuffer<T> {
             }
 
             // not ideal here, but we can optimize later, should not happen too often that a buffer doubles hopefully.
-            let mut cloned_data_with_zeros = self.data.clone();
+            let mut cloned_data_with_zeros = data.to_vec();
             for _ in 0..(new_cap - len) {
                 cloned_data_with_zeros.push(T::zeroed());
             }

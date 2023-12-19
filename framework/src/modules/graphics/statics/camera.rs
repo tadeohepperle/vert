@@ -1,17 +1,42 @@
 use std::sync::{Arc, OnceLock};
 
 use glam::{vec3, Mat4, Vec2, Vec3};
-use wgpu::{util::DeviceExt, BindGroup, BindGroupLayout};
+use smallvec::{smallvec, SmallVec};
+use wgpu::{util::DeviceExt, BindGroup, BindGroupEntry, BindGroupLayout};
 use winit::dpi::PhysicalSize;
 
 use crate::modules::graphics::{
     elements::buffer::{ToRaw, UniformBuffer},
     graphics_context::GraphicsContext,
-    shader::bind_group::StaticBindGroup,
+    shader::bind_group::{BindGroupT, StaticBindGroup},
 };
 
 pub struct Camera {
     uniform: UniformBuffer<CameraValues>,
+}
+
+impl BindGroupT for Camera {
+    const BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
+        wgpu::BindGroupLayoutDescriptor {
+            label: Some("CameraBindGroupLayout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        };
+
+    fn bind_group_entries<'a>(&'a self) -> SmallVec<[BindGroupEntry<'a>; 2]> {
+        smallvec![wgpu::BindGroupEntry {
+            binding: 0,
+            resource: self.uniform.buffer().as_entire_binding(),
+        }]
+    }
 }
 
 impl Camera {
@@ -35,36 +60,22 @@ impl Camera {
             },
             device,
         );
+        let camera = Camera { uniform };
 
         // initialize static bind group for the camera:
-        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("CameraBindGroupLayout"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-        });
+        let layout = device.create_bind_group_layout(&Camera::BIND_GROUP_LAYOUT_DESCRIPTOR);
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("CameraBindGroup"),
             layout: &layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform.buffer().as_entire_binding(),
-            }],
+            entries: &camera.bind_group_entries(),
         });
 
         _CAMERA_BIND_GROUP
             .set((bind_group, layout))
             .expect("_CAMERA_BIND_GROUP cannot be set");
 
-        Camera { uniform }
+        camera
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {

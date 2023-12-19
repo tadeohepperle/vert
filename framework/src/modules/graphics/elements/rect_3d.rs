@@ -5,7 +5,7 @@ use crate::{
     constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT, SURFACE_COLOR_FORMAT},
     modules::graphics::{
         graphics_context::GraphicsContext,
-        shader::bind_group::{IntoBindGroupLayouts, StaticBindGroup},
+        shader::bind_group::StaticBindGroup,
         statics::{camera::Camera, static_texture::RgbaBindGroupLayout},
         VertexT,
     },

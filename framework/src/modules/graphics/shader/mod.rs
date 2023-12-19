@@ -4,21 +4,12 @@ use crate::constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT};
 use smallvec::{smallvec, SmallVec};
 use wgpu::{BindGroupLayout, PrimitiveState, ShaderModuleDescriptor};
 
-use self::{bind_group::IntoBindGroupLayouts, vertex::IntoVertexAttributes};
+use self::{
+    bind_group::MultiBindGroupT,
+    vertex::{wgpu_vertex_buffer_layout, VertexT},
+};
 
-// pub struct StaticShader {
-//     bind_groups: ShaderBindGroup,
-//     vert_code: &'static str,
-//     frag_code: &'static str,
-// }
-
-// struct ShaderBindGroup {}
-
-// &'static dyn
-
-// impl Shader{
-//     create_render_pipeline
-// }
+use super::{graphics_context::GraphicsContext, settings::GraphicsSettings};
 
 pub mod bind_group;
 pub mod color_mesh;
@@ -27,12 +18,19 @@ pub mod vertex;
 const VERTEX_ENTRY_POINT: &str = "vs_main";
 const FRAGMENT_ENTRY_POINT: &str = "fs_main";
 
+pub enum ShaderCode {
+    Static(&'static str), // todo!() add file that can be watched
+}
+
 /// this trait does not need to be object safe.
 pub trait ShaderT: 'static + Sized {
-    type BindGroupLayouts: IntoBindGroupLayouts;
-    type Vertex: IntoVertexAttributes; // Index always u32, so not included
-    type Instance: IntoVertexAttributes;
-    type VertexOutput: IntoVertexAttributes; // no need to specify `builtin clip_position` here.
+    type BindGroups: MultiBindGroupT;
+    type Vertex: VertexT; // Index always u32, so not included
+    type Instance: VertexT;
+    type VertexOutput: VertexT; // no need to specify `builtin clip_position` here.
+
+    const VERTEX_SHADER_CODE: ShaderCode;
+    const FRAGMENT_SHADER_CODE: ShaderCode;
 
     /// todo!() maybe this should not be an associated function.
     fn build_shader() -> anyhow::Result<wgpu::naga::Module> {
@@ -44,7 +42,7 @@ pub trait ShaderT: 'static + Sized {
         device: &wgpu::Device,
         config: ShaderPipelineConfig,
     ) -> anyhow::Result<wgpu::RenderPipeline> {
-        let label = Self::name();
+        let label = std::any::type_name::<Self>();
         let naga_module = Self::build_shader()?;
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some(&format!("{label} Shader Module")),
@@ -55,17 +53,17 @@ pub trait ShaderT: 'static + Sized {
         // Construct Vertex and Instance Buffer layouts
         // /////////////////////////////////////////////////////////////////////////////
 
-        let vertex_buffer_layout =
-            <Self::Vertex as IntoVertexAttributes>::vertex_buffer_layout(false, 0);
+        let mut empty = vec![];
+        let vertex_buffer_layout = wgpu_vertex_buffer_layout::<Self::Vertex>(false, 0, &mut empty);
         let shader_location_offset = if let Some(e) = &vertex_buffer_layout {
             e.attributes.len() as u32
         } else {
             0
         };
-        let instance_buffer_layout = <Self::Instance as IntoVertexAttributes>::vertex_buffer_layout(
-            false,
-            shader_location_offset,
-        );
+
+        let mut empty = vec![];
+        let instance_buffer_layout =
+            wgpu_vertex_buffer_layout::<Self::Instance>(true, shader_location_offset, &mut empty);
         let mut buffers: SmallVec<[wgpu::VertexBufferLayout; 2]> = smallvec![];
         if let Some(i) = vertex_buffer_layout {
             buffers.push(i);
@@ -126,10 +124,6 @@ pub trait ShaderT: 'static + Sized {
             bias: wgpu::DepthBiasState::default(),
         })
     }
-
-    fn name() -> String {
-        std::any::type_name::<Self>().to_owned()
-    }
 }
 
 pub struct ShaderPipelineConfig {
@@ -154,6 +148,23 @@ impl Default for ShaderPipelineConfig {
             },
         }
     }
+}
+
+pub trait ShaderRendererT: 'static {
+    fn new(
+        graphics_context: &GraphicsContext,
+        pipeline_config: ShaderPipelineConfig,
+    ) -> Box<dyn ShaderRendererT>
+    where
+        Self: Sized;
+
+    fn prepare(&mut self, context: &GraphicsContext, encoder: &mut wgpu::CommandEncoder);
+
+    fn render<'s: 'encoder, 'pass, 'encoder>(
+        &'s self,
+        render_pass: &'pass mut wgpu::RenderPass<'encoder>,
+        graphics_settings: &GraphicsSettings,
+    );
 }
 
 // fn build_pipeline<S: Shader>() -> wgpu::Render {}

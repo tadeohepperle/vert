@@ -59,7 +59,12 @@ impl Modules {
         let screen_size = ScreenSize::new(&graphics_context.context);
 
         let graphics_settings = GraphicsSettings::default();
-        let renderer = Renderer::initialize(graphics_context.context.clone(), graphics_settings)?;
+        let shader_renderers = vec![];
+        let renderer = Renderer::initialize(
+            graphics_context.context.clone(),
+            graphics_settings,
+            shader_renderers,
+        )?;
 
         let batteries = Batteries::new();
 

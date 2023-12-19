@@ -84,7 +84,9 @@ pub trait RectT: bytemuck::Zeroable + bytemuck::Pod {}
 #[derive(Debug)]
 /// We can sort all rects into the texture groups they have. This way we have only N-TextureGroups draw calls.
 pub struct PeparedRects<T: RectT> {
-    /// Buffer with instances (sorted)
+    /// instances (sorted)
+    pub instances: Vec<T>,
+    /// Buffer for instances (sorted)
     pub instance_buffer: GrowableBuffer<T>,
     /// texture_regions, refer to regions of the sorted buffer.
     pub texture_groups: Vec<(Range<u32>, RectTexture)>,
@@ -100,6 +102,7 @@ impl<T: RectT> PeparedRects<T> {
                 wgpu::BufferUsages::VERTEX,
             ),
             texture_groups: vec![],
+            instances: vec![],
         }
     }
 
@@ -110,9 +113,9 @@ impl<T: RectT> PeparedRects<T> {
         // only render instances in the ranges that are returned in the texture_groups.
         let (instances, texture_groups) = create_sorted_rect_instances(rects);
         self.texture_groups = texture_groups;
-        *self.instance_buffer.data() = instances;
+        self.instances = instances;
         self.instance_buffer
-            .prepare(&context.queue, &context.device);
+            .prepare(&self.instances, &context.queue, &context.device);
     }
 }
 
