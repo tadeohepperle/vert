@@ -30,6 +30,8 @@ impl ShaderT for ColorMeshShader {
     type Instance = TransformRaw;
     type VertexOutput = Color;
 
+    type Renderer = ColorMeshShaderRenderer;
+
     const VERTEX_SHADER_CODE: ShaderCode = ShaderCode::Static(
         "
         let model_matrix = mat4x4<f32>(
@@ -76,6 +78,41 @@ impl ColorMeshShader {
         let mut queue = COLORMESH_QUEUE.lock().unwrap();
         queue.add_mesh(vertices, indices, transforms);
     }
+
+    pub fn draw_cubes(transforms: &[Transform], color: Option<Color>) {
+        const P: f32 = 0.5;
+        const M: f32 = -0.5;
+        let positions = vec![
+            [M, M, M],
+            [P, M, M],
+            [P, M, P],
+            [M, M, P],
+            [M, P, M],
+            [P, P, M],
+            [P, P, P],
+            [M, P, P],
+        ];
+
+        let vertices: Vec<Vertex> = positions
+            .into_iter()
+            .map(|p| {
+                let x = p[0];
+                let y = p[1];
+                let z = p[2];
+                Vertex {
+                    pos: [x, y, z],
+                    color: color.unwrap_or_else(|| Color::new(x, y, z)),
+                }
+            })
+            .collect();
+
+        let indices = vec![
+            0, 1, 2, 0, 2, 3, 4, 7, 6, 4, 6, 5, 1, 5, 6, 1, 6, 2, 0, 3, 7, 0, 7, 4, 2, 6, 3, 6, 7,
+            3, 0, 4, 1, 4, 5, 1,
+        ];
+
+        Self::draw_immediate(&vertices, &indices, transforms)
+    }
 }
 
 type ColorMeshQueue = ImmediateMeshQueue<Vertex, Transform>;
@@ -84,7 +121,7 @@ type ColorMeshQueue = ImmediateMeshQueue<Vertex, Transform>;
 #[derive(Debug)]
 struct ImmediateMeshQueue<V: Copy, I: ToRaw> {
     /// index and instance ranges into the other vecs.
-    immediate_objects: Vec<ImmediateMesh>,
+    immediate_meshes: Vec<ImmediateMesh>,
     // buffers for immediate geometry, cleared each frame:
     vertices: Vec<V>,
     indices: Vec<u32>,
@@ -94,7 +131,7 @@ struct ImmediateMeshQueue<V: Copy, I: ToRaw> {
 impl<V: Copy, I: ToRaw> Default for ImmediateMeshQueue<V, I> {
     fn default() -> Self {
         Self {
-            immediate_objects: Default::default(),
+            immediate_meshes: Default::default(),
             vertices: Default::default(),
             indices: Default::default(),
             instances: Default::default(),
@@ -110,15 +147,24 @@ impl<V: Copy, I: ToRaw> ImmediateMeshQueue<V, I> {
         self.vertices.extend(vertices.iter().copied());
         self.indices.extend(indices.iter().map(|e| *e + v_count));
         self.instances.extend(transforms.iter().map(|e| e.to_raw()));
-        self.immediate_objects.push(ImmediateMesh {
-            index_range: i_count..indices.len() as u32,
-            instance_range: t_count..transforms.len() as u32,
-        })
+        self.immediate_meshes.push(ImmediateMesh {
+            index_range: i_count..(i_count + indices.len() as u32),
+            instance_range: t_count..(t_count + transforms.len() as u32),
+        });
+    }
+
+    /// Note: does not clear immediate meshes, those should be swapped out instead.
+    fn clear_and_take_meshes(&mut self, out: &mut Vec<ImmediateMesh>) {
+        self.vertices.clear();
+        self.indices.clear();
+        self.instances.clear();
+        out.clear();
+        std::mem::swap(out, &mut self.immediate_meshes);
     }
 }
 
 #[derive(Debug)]
-struct ColorMeshShaderRenderer {
+pub struct ColorMeshShaderRenderer {
     pipeline: wgpu::RenderPipeline,
     immediate_meshes: Vec<ImmediateMesh>,
 
@@ -138,10 +184,7 @@ static COLORMESH_QUEUE: LazyLock<Mutex<ColorMeshQueue>> =
     LazyLock::new(|| Mutex::new(ColorMeshQueue::default()));
 
 impl ShaderRendererT for ColorMeshShaderRenderer {
-    fn new(
-        graphics_context: &GraphicsContext,
-        pipeline_config: ShaderPipelineConfig,
-    ) -> Box<dyn ShaderRendererT> {
+    fn new(graphics_context: &GraphicsContext, pipeline_config: ShaderPipelineConfig) -> Self {
         let pipeline =
             ColorMeshShader::build_pipeline(&graphics_context.device, pipeline_config).unwrap();
 
@@ -157,7 +200,7 @@ impl ShaderRendererT for ColorMeshShaderRenderer {
             ),
         };
 
-        Box::new(renderer)
+        renderer
     }
 
     fn prepare(
@@ -168,17 +211,13 @@ impl ShaderRendererT for ColorMeshShaderRenderer {
         let mut color_mesh_queue = COLORMESH_QUEUE.lock().unwrap();
         let queue = &context.queue;
         let device = &context.device;
-
         self.vertex_buffer
             .prepare(&color_mesh_queue.vertices, queue, device);
         self.index_buffer
             .prepare(&color_mesh_queue.indices, queue, device);
         self.instance_buffer
             .prepare(&color_mesh_queue.instances, queue, device);
-
-        color_mesh_queue.vertices.clear();
-        color_mesh_queue.indices.clear();
-        color_mesh_queue.instances.clear();
+        color_mesh_queue.clear_and_take_meshes(&mut self.immediate_meshes);
     }
 
     fn render<'s: 'encoder, 'pass, 'encoder>(

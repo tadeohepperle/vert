@@ -15,7 +15,6 @@ use crate::{
         },
         input::Input,
         time::Time,
-        ui::ImmediateUi,
         Modules,
     },
 };
@@ -45,9 +44,9 @@ impl Modules {
         self.egui.context()
     }
 
-    pub fn ui(&mut self) -> &mut ImmediateUi {
-        &mut self.ui
-    }
+    // pub fn ui(&mut self) -> &mut ImmediateUi {
+    //     &mut self.ui
+    // }
 
     pub fn time(&mut self) -> &Time {
         &self.time

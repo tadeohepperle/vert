@@ -200,22 +200,35 @@ impl<T: bytemuck::Pod + bytemuck::Zeroable> GrowableBuffer<T> {
     }
 
     /// updates the gpu buffer, growing it, when not having enough space for data.
+    ///
+    /// Todo! do not write, if empty!!
     pub fn prepare(&mut self, data: &[T], queue: &wgpu::Queue, device: &wgpu::Device) {
-        let len = data.len();
-        self.buffer_len = len;
-        if self.buffer_cap <= len {
+        self.buffer_len = data.len();
+        if self.buffer_len <= self.buffer_cap {
+            // println!(
+            //     "Write buffer: {} {}   {} ",
+            //     self.buffer_cap,
+            //     self.buffer_len,
+            //     std::any::type_name::<T>()
+            // );
             // the space in the buffer is enough, just write all rects to the buffer.
             queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(data))
         } else {
+            println!(
+                "Create new Growable Buffer in Grow: {} {}   {} ",
+                self.buffer_cap,
+                self.buffer_len,
+                std::any::type_name::<T>()
+            );
             // space is not enough, we need to create a new buffer:
             let mut new_cap = self.min_cap;
-            while len > new_cap {
+            while self.buffer_len > new_cap {
                 new_cap *= 2;
             }
 
             // not ideal here, but we can optimize later, should not happen too often that a buffer doubles hopefully.
             let mut cloned_data_with_zeros = data.to_vec();
-            for _ in 0..(new_cap - len) {
+            for _ in 0..(new_cap - self.buffer_len) {
                 cloned_data_with_zeros.push(T::zeroed());
             }
 

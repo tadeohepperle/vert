@@ -29,12 +29,72 @@ pub trait ShaderT: 'static + Sized {
     type Instance: VertexT;
     type VertexOutput: VertexT; // no need to specify `builtin clip_position` here.
 
+    type Renderer: ShaderRendererT;
+
     const VERTEX_SHADER_CODE: ShaderCode;
     const FRAGMENT_SHADER_CODE: ShaderCode;
 
     /// todo!() maybe this should not be an associated function.
     fn build_shader() -> anyhow::Result<wgpu::naga::Module> {
-        todo!()
+        let s = "
+        
+        struct Camera {
+            view_pos: vec4<f32>,
+            view_proj: mat4x4<f32>,
+        }
+        
+        @group(0) @binding(0)
+        var<uniform> camera: Camera;
+        
+        struct VertexInput {
+            @location(0) position: vec3<f32>,
+            @location(1) color: vec4<f32>,
+        }
+        
+        struct Transform {
+            @location(2) col1: vec4<f32>,
+            @location(3) col2: vec4<f32>,
+            @location(4) col3: vec4<f32>,
+            @location(5) translation: vec4<f32>,
+        }
+        
+        struct VertexOutput {
+            @builtin(position) clip_position: vec4<f32>,
+            @location(0) color: vec4<f32>,
+        };
+        
+        
+        @vertex
+        fn vs_main(
+            vertex: VertexInput,
+            transform: Transform,
+        ) -> VertexOutput {
+        
+            let model_matrix = mat4x4<f32>(
+                transform.col1,
+                transform.col2,
+                transform.col3,
+                transform.translation,
+            );
+        
+            let world_position = vec4<f32>(vertex.position, 1.0);
+        
+            var out: VertexOutput;
+            out.clip_position = camera.view_proj * model_matrix * world_position;
+            out.color = vertex.color;
+            return out;
+        }
+         
+        @fragment
+        fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+            return in.color;
+        }
+        
+        
+        ";
+
+        let module = wgpu::naga::front::wgsl::parse_str(s)?;
+        Ok(module)
     }
 
     /// todo!() maybe this should not be an associated function.
@@ -72,11 +132,20 @@ pub trait ShaderT: 'static + Sized {
             buffers.push(i);
         }
 
+        // todo!() we should make the bindgroup layouts static across the entire app. They should be created once and then shared by all renderers... This is an optimization for later though...
+        let bind_group_layouts: Vec<BindGroupLayout> =
+            Self::BindGroups::BIND_GROUP_LAYOUT_DESCRIPTORS
+                .into_iter()
+                .map(|desc| device.create_bind_group_layout(desc))
+                .collect();
+        let bind_group_layout_references: Vec<&BindGroupLayout> =
+            bind_group_layouts.iter().collect();
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some(&format!("{label} RenderPipelineLayout")),
-                bind_group_layouts: &[],   // todo!()  -> Trait: explicit
-                push_constant_ranges: &[], //                            -> not used.
+                bind_group_layouts: &bind_group_layout_references,
+                push_constant_ranges: &[], //           todo! needle, currently not used                 -> not used.
             });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -151,10 +220,7 @@ impl Default for ShaderPipelineConfig {
 }
 
 pub trait ShaderRendererT: 'static {
-    fn new(
-        graphics_context: &GraphicsContext,
-        pipeline_config: ShaderPipelineConfig,
-    ) -> Box<dyn ShaderRendererT>
+    fn new(graphics_context: &GraphicsContext, pipeline_config: ShaderPipelineConfig) -> Self
     where
         Self: Sized;
 

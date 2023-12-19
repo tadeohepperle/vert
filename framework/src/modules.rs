@@ -17,6 +17,7 @@ use self::{
         graphics_context::{GraphicsContext, GraphicsContextOwner},
         renderer::Renderer,
         settings::GraphicsSettings,
+        shader::color_mesh::ColorMeshShader,
         statics::{
             camera::Camera, screen_size::ScreenSize, static_texture::initialize_static_textures,
         },
@@ -24,7 +25,7 @@ use self::{
     },
     input::Input,
     time::Time,
-    ui::ImmediateUi,
+    // ui::ImmediateUi, // needle
 };
 
 pub mod assets;
@@ -32,7 +33,7 @@ pub mod egui;
 pub mod graphics;
 pub mod input;
 pub mod time;
-pub mod ui;
+// pub mod ui;
 
 pub struct Modules {
     pub(crate) arenas: Arenas,
@@ -43,7 +44,7 @@ pub struct Modules {
     pub(crate) input: Input,
     pub(crate) time: Time,
     pub(crate) egui: EguiState,
-    pub(crate) ui: ImmediateUi,
+    // pub(crate) ui: ImmediateUi, // needle
     pub(crate) assets: AssetServer,
     pub(crate) batteries: Option<Batteries>,
     // todo: egui
@@ -59,12 +60,9 @@ impl Modules {
         let screen_size = ScreenSize::new(&graphics_context.context);
 
         let graphics_settings = GraphicsSettings::default();
-        let shader_renderers = vec![];
-        let renderer = Renderer::initialize(
-            graphics_context.context.clone(),
-            graphics_settings,
-            shader_renderers,
-        )?;
+        let mut renderer =
+            Renderer::initialize(graphics_context.context.clone(), graphics_settings)?;
+        renderer.register_shader::<ColorMeshShader>();
 
         let batteries = Batteries::new();
 
@@ -72,7 +70,7 @@ impl Modules {
         let time = Time::default();
         let assets = AssetServer::new();
         let egui = EguiState::new(&graphics_context.context);
-        let ui = ImmediateUi::new(graphics_context.context.clone());
+        // let ui = ImmediateUi::new(graphics_context.context.clone()); // needle
 
         Ok(Self {
             arenas,
@@ -84,7 +82,6 @@ impl Modules {
             time,
             egui,
             assets,
-            ui,
             batteries: Some(batteries),
         })
     }
@@ -134,7 +131,7 @@ impl Modules {
         self.camera.prepare(queue);
         self.screen_size.prepare(queue);
         self.egui.prepare(&self.graphics.context, encoder);
-        self.ui.prepare(context, encoder);
+        // self.ui.prepare(context, encoder); // needle
 
         self.batteries.as_mut().unwrap().prepare(queue, encoder);
 
@@ -147,7 +144,7 @@ impl Modules {
         }
 
         // prepare renderer: (gizmos) todo!() probably not the right position here
-        self.renderer.gizmos_renderer.prepare();
+        self.renderer.prepare(encoder);
     }
 
     pub(crate) fn prepare_and_render(&mut self, state: &mut impl StateT) {
@@ -157,8 +154,7 @@ impl Modules {
 
         // queue up all the render commands:
         let (surface_texture, view) = self.graphics.new_surface_texture_and_view();
-        self.renderer
-            .render(&view, &mut encoder, &self.arenas, &self.ui);
+        self.renderer.render(&view, &mut encoder, &self.arenas);
 
         // render egui: (egui does its own render pass, does not need msaa and other stuff)
         self.egui.render(&mut encoder, &view);
