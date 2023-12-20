@@ -30,7 +30,7 @@ pub struct Renderer {
 }
 
 pub struct DynShaderRenderer {
-    watch_wgsl_stump: Option<PathBuf>,
+    watch_path: Option<PathBuf>,
     renderer: Box<dyn ShaderRendererT>,
 }
 
@@ -55,7 +55,7 @@ impl Renderer {
         // check if any shader source file has been changed. If so, rebuild the renderer for that shader (inlcudes the wgpu::Pipeline)
 
         for r in self.shader_renderers.iter_mut() {
-            if let Some(path) = &r.watch_wgsl_stump {
+            if let Some(path) = &r.watch_path {
                 if file_watcher.file_modified(path) {
                     r.renderer.rebuild(&self.context, pipeline_config());
                 }
@@ -66,21 +66,14 @@ impl Renderer {
     /// Creates a new renderer for this shader
     pub fn register_shader<T: ShaderT>(&mut self, watcher: &FileWatcher) {
         let source = &<T as ShaderT>::CODE_SOURCE;
-        let watch_wgsl_stump = match source {
-            ShaderCodeSource::Static(_) => None,
-            ShaderCodeSource::File { path } => {
-                let path_buf: PathBuf = path
-                    .parse()
-                    .expect("could not parse ShaderCodeSource::File into PathBuf");
-                // start the watching process:
-                watcher.watch(&path_buf);
-                Some(path_buf)
-            }
-        };
+        let watch_path = source.as_path_to_watch();
+        if let Some(path) = &watch_path {
+            watcher.watch(path);
+        }
 
         let renderer = <T as ShaderT>::Renderer::new(&self.context, pipeline_config());
         let dyn_renderer = DynShaderRenderer {
-            watch_wgsl_stump,
+            watch_path,
             renderer: Box::new(renderer),
         };
         self.shader_renderers.push(dyn_renderer);

@@ -35,28 +35,29 @@ impl ShaderT for ColorMeshShader {
 
     const CODE_SOURCE: ShaderCodeSource = ShaderCodeSource::File {
         path: "./assets/color_mesh.stump.wgsl",
+        fallback: Some(COLOR_MESH_SHADER_STUMP),
     };
-
-    // const CODE_SOURCE: ShaderCodeSource = ShaderCodeSource::Static(ShaderStump {
-    //     vertex: Cow::Borrowed(
-    //         "
-    //         let model_matrix = mat4x4<f32>(
-    //             instance.col1,
-    //             instance.col2,
-    //             instance.col3,
-    //             instance.translation,
-    //         );
-    //         let world_position = vec4<f32>(vertex.pos, 1.0);
-    //         var out: VertexOutput;
-    //         out.clip_position = camera.view_proj * model_matrix * world_position;
-    //         // out.color = vertex.color * vec4(1.0,0.3,0.3,1.0);
-    //         return out;
-    //     ",
-    //     ),
-    //     fragment: Cow::Borrowed("return in.color;"),
-    //     other_code: Cow::Borrowed(""),
-    // });
 }
+
+const COLOR_MESH_SHADER_STUMP: ShaderStump = ShaderStump {
+    vertex: Cow::Borrowed(
+        "
+            let model_matrix = mat4x4<f32>(
+                instance.col1,
+                instance.col2,
+                instance.col3,
+                instance.translation,
+            );
+            let world_position = vec4<f32>(vertex.pos, 1.0);
+            var out: VertexOutput;
+            out.clip_position = camera.view_proj * model_matrix * world_position;
+            out.color = vertex.color * vec4(1.0,0.3,0.3,1.0);
+            return out;
+        ",
+    ),
+    fragment: Cow::Borrowed("return in.color;"),
+    other_code: Cow::Borrowed(""),
+};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -250,16 +251,3 @@ impl ShaderRendererT for ColorMeshShaderRenderer {
         *self = Self::new(graphics_context, pipeline_config)
     }
 }
-
-// unsafe fn extend_lifetime<'long, T>(reference: &T) -> &'long T {
-//     std::mem::transmute(reference)
-// }
-
-/*
-
-Now we need an api on the renderer to register new shaders.
-It needs to be able to setup new render pipelines, that we can send render commands to.
-For color_mesh_shader, one such command could be:
-send indices, vertex,
-
-*/

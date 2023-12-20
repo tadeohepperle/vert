@@ -47,10 +47,17 @@ impl FileWatcher {
             if let Ok(notify::Event {
                 kind: EventKind::Modify(ModifyKind::Data(_)),
                 paths,
-                attrs,
+                attrs: _,
             }) = e
             {
-                paths.iter().any(|e| e.as_path() == path)
+                paths.iter().any(|e| {
+                    let is_same = e
+                        .as_path()
+                        .to_str()
+                        .expect("Path should be utf8")
+                        .ends_with(path.to_str().expect("Path should be utf8"));
+                    is_same
+                })
             } else {
                 false
             }
@@ -60,7 +67,6 @@ impl FileWatcher {
     pub fn update(&mut self) {
         self.current_events.clear();
         while let Ok(event) = self.events_rx.try_recv() {
-            dbg!(&event);
             self.current_events.push(event);
         }
     }

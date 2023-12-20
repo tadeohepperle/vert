@@ -1,6 +1,7 @@
 #![feature(try_trait_v2)]
 #![feature(const_fn_floating_point_arithmetic)]
 #![feature(lazy_cell)]
+#![feature(try_blocks)]
 
 pub mod app;
 pub mod batteries;

@@ -9,9 +9,12 @@ fn vertex() {
     
     var out: VertexOutput;
     out.clip_position = camera.view_proj * model_matrix * world_position;
+    out.color = vec4(9.0,0.0,1.0,1.0);
     return out;
 }
 
 fn fragment() {
-    return vec4(4.0,1.0,0.0,1.0);
+    // return in.color;
+    let d = in.position;
+    return vec4(d,1.0,1.0,1.0);
 }

@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, path::PathBuf};
 
 use crate::constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT};
 use smallvec::{smallvec, SmallVec};
@@ -23,35 +23,47 @@ const FRAGMENT_ENTRY_POINT: &str = "fs_main";
 
 pub enum ShaderCodeSource {
     Static(ShaderStump),
-    File { path: &'static str }, // todo! add option for static fallback
+    File {
+        path: &'static str,
+        fallback: Option<ShaderStump>,
+    }, // todo! add option for static fallback
 }
 
 impl ShaderCodeSource {
-    /// Reads the wgsl shader stump from the file system or returns the static string.
-    pub fn load_stump_sync<'a>(&'a self) -> anyhow::Result<Cow<'a, ShaderStump>> {
-        match self {
-            ShaderCodeSource::Static(e) => Ok(Cow::Borrowed(e)),
-            ShaderCodeSource::File { path } => {
-                let content = std::fs::read_to_string(path)?;
-                let stump = read_from_wgsl_stump(&content)?;
-                Ok(Cow::Owned(stump))
-            }
-        }
-    }
-
-    pub fn unwrap_static(&self) -> &ShaderStump {
-        match self {
-            ShaderCodeSource::Static(e) => e,
-            ShaderCodeSource::File { path } => {
-                panic!("unwrap_static() was called on ShaderCodeSource::File")
-            }
-        }
-    }
-
-    pub fn file(&self) -> Option<&str> {
+    pub fn as_path_to_watch(&self) -> Option<PathBuf> {
         match self {
             ShaderCodeSource::Static(_) => None,
-            ShaderCodeSource::File { path } => Some(path),
+            ShaderCodeSource::File { path, .. } => {
+                let path_buf: PathBuf = path
+                    .parse()
+                    .expect("could not parse ShaderCodeSource::File into PathBuf");
+                Some(path_buf)
+            }
+        }
+    }
+
+    /// # Warning
+    ///
+    /// This function does sync io with the file system. Might block the main thread.
+    pub fn load_stump(&self) -> anyhow::Result<Cow<'_, ShaderStump>> {
+        match self {
+            ShaderCodeSource::Static(stump) => Ok(Cow::Borrowed(stump)),
+            ShaderCodeSource::File { path, fallback } => {
+                let mut shader_stump_or_err: anyhow::Result<Cow<'_, ShaderStump>> = try {
+                    let content = std::fs::read_to_string(path)?;
+                    let stump = read_from_wgsl_stump(&content)?;
+                    Cow::Owned(stump)
+                };
+                shader_stump_or_err
+            }
+        }
+    }
+
+    /// In case load_stump fails, this can be tried.
+    pub fn fallback_stump(&self) -> Option<(&ShaderStump, &str)> {
+        match self {
+            ShaderCodeSource::Static(_) => None,
+            ShaderCodeSource::File { path, fallback } => fallback.as_ref().map(|e| (e, *path)),
         }
     }
 }
@@ -191,11 +203,35 @@ fn build_pipeline<S: ShaderT>(
     let label = std::any::type_name::<S>();
 
     let source = &<S as ShaderT>::CODE_SOURCE;
-    let stump = source.load_stump_sync()?;
-    let shader_wgsl = generate_wgsl::<S>(&stump);
-    // std::fs::write("color_mesh.wgsl", &shader_wgsl);
+    let mut stump = source.load_stump();
 
-    let naga_module = wgpu::naga::front::wgsl::parse_str(&shader_wgsl)?;
+    // fallback in case the file could not be loaded from the file system
+
+    if stump.is_err() {
+        if let Some((fallback, path)) = source.fallback_stump() {
+            eprintln!("WGSL File {path} not found! (Using Fallback)");
+            stump = Ok(Cow::Borrowed(fallback))
+        }
+    }
+
+    let stump = stump?;
+
+    let shader_wgsl = generate_wgsl::<S>(&stump);
+    let mut naga_module = wgpu::naga::front::wgsl::parse_str(&shader_wgsl);
+
+    // the the file contained invalid wgsl, use fallback instead, if a fallback is specified
+    if naga_module.is_err() {
+        if let Some((fallback, path)) = source.fallback_stump() {
+            eprintln!("Invalid WGSL in {path} (Using Fallback)");
+            eprintln!(
+                "Source File for Shader {label} Contained invalid WGSL, using Fallback.\nError: {}",
+                naga_module.unwrap_err()
+            );
+            let fallback_wgsl = generate_wgsl::<S>(fallback);
+            naga_module = wgpu::naga::front::wgsl::parse_str(&fallback_wgsl);
+        }
+    }
+    let naga_module = naga_module?;
 
     let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some(&format!("{label} Shader Module")),

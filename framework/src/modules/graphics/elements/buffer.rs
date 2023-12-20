@@ -214,12 +214,12 @@ impl<T: bytemuck::Pod + bytemuck::Zeroable> GrowableBuffer<T> {
             // the space in the buffer is enough, just write all rects to the buffer.
             queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(data))
         } else {
-            println!(
-                "Create new Growable Buffer in Grow: {} {}   {} ",
-                self.buffer_cap,
-                self.buffer_len,
-                std::any::type_name::<T>()
-            );
+            // println!(
+            //     "Create new Growable Buffer in Grow: {} {}   {} ",
+            //     self.buffer_cap,
+            //     self.buffer_len,
+            //     std::any::type_name::<T>()
+            // );
             // space is not enough, we need to create a new buffer:
             let mut new_cap = self.min_cap;
             while self.buffer_len > new_cap {
