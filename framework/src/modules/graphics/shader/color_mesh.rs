@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     ops::Range,
     sync::{LazyLock, Mutex, OnceLock},
 };
@@ -19,7 +20,7 @@ use crate::modules::graphics::{
 
 use super::{
     vertex::{VertexAttribute, VertexT},
-    ShaderCode, ShaderPipelineConfig, ShaderRendererT, ShaderT,
+    ShaderCodeSource, ShaderPipelineConfig, ShaderRendererT, ShaderStump, ShaderT,
 };
 
 pub struct ColorMeshShader;
@@ -32,27 +33,29 @@ impl ShaderT for ColorMeshShader {
 
     type Renderer = ColorMeshShaderRenderer;
 
-    const VERTEX_SHADER_CODE: ShaderCode = ShaderCode::Static(
-        "
-        let model_matrix = mat4x4<f32>(
-            instance.col1,
-            instance.col2,
-            instance.col3,
-            instance.translation,
-        );
-        let world_position = vec4<f32>(vertex.position, 1.0);
-        var out: VertexOutput;
-        out.clip_position = camera.view_proj * model_matrix * world_position;
-        out.color = vertex.color;
-        return out;
-        ",
-    );
+    const CODE_SOURCE: ShaderCodeSource = ShaderCodeSource::File {
+        path: "./assets/color_mesh.stump.wgsl",
+    };
 
-    const FRAGMENT_SHADER_CODE: ShaderCode = ShaderCode::Static(
-        "
-            return vertex.color;
-        ",
-    );
+    // const CODE_SOURCE: ShaderCodeSource = ShaderCodeSource::Static(ShaderStump {
+    //     vertex: Cow::Borrowed(
+    //         "
+    //         let model_matrix = mat4x4<f32>(
+    //             instance.col1,
+    //             instance.col2,
+    //             instance.col3,
+    //             instance.translation,
+    //         );
+    //         let world_position = vec4<f32>(vertex.pos, 1.0);
+    //         var out: VertexOutput;
+    //         out.clip_position = camera.view_proj * model_matrix * world_position;
+    //         // out.color = vertex.color * vec4(1.0,0.3,0.3,1.0);
+    //         return out;
+    //     ",
+    //     ),
+    //     fragment: Cow::Borrowed("return in.color;"),
+    //     other_code: Cow::Borrowed(""),
+    // });
 }
 
 #[repr(C)]
@@ -237,6 +240,14 @@ impl ShaderRendererT for ColorMeshShaderRenderer {
         for mesh in self.immediate_meshes.iter() {
             render_pass.draw_indexed(mesh.index_range.clone(), 0, mesh.instance_range.clone())
         }
+    }
+
+    fn rebuild(
+        &mut self,
+        graphics_context: &GraphicsContext,
+        pipeline_config: ShaderPipelineConfig,
+    ) {
+        *self = Self::new(graphics_context, pipeline_config)
     }
 }
 

@@ -5,13 +5,17 @@ use wgpu::{BindGroup, BindGroupLayout};
 use crate::modules::graphics::{
     elements::buffer::{ToRaw, UniformBuffer},
     graphics_context::GraphicsContext,
-    shader::bind_group::StaticBindGroup,
+    shader::bind_group::{BindGroupDef, BindGroupT, StaticBindGroup},
 };
 
 /// similar to a camera but only projects in screen space.
 pub struct ScreenSize {
     uniform: UniformBuffer<ScreenSizeValues>,
 }
+
+// impl BindGroupT for ScreenSize {
+//     const BIND_GROUP_DEF: BindGroupDef = BindGroupDef{ name: todo!(), entries: todo!() }
+// }
 
 impl ScreenSize {
     pub fn new(context: &GraphicsContext) -> ScreenSize {

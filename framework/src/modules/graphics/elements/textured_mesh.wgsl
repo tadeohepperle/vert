@@ -1,3 +1,54 @@
+
+// ////////////////////////////////////////////////////////////////
+// # Bind Groups
+
+
+
+
+// ////////////////////////////////////////////////////////////////
+// # Vertex Format
+// ```
+// struct VertexOutput {
+//     @builtin(position) clip_position: vec4<f32>,
+//     @location(0) color: vec4<f32>,
+// }
+// struct Vertex {
+//     @location(0) pos: vec3<f32>,
+//     @location(1) color: vec4<f32>,
+// }
+// struct Instance {
+//     @location(2) col1: vec4<f32>,
+//     @location(3) col2: vec4<f32>,
+//     @location(4) col3: vec4<f32>,
+//     @location(5) translation: vec4<f32>,
+// }
+// ``` 
+// 
+// has access to `vertex: Vertex`, `instance: Instance`, `vertex_index: u32`, `instance_index: u32`
+// ////////////////////////////////////////////////////////////////
+// # Vertex Shader
+//
+// input: `vertex: Vertex`, `instance: Instance`, `vertex_index: u32`, `instance_index: u32`
+// output: VertexOutput
+// ////////////////////////////////////////////////////////////////
+
+
+// ////////////////////////////////////////////////////////////////
+// # Fragment Shader
+//
+// has access to `vertex_index: u32`, `instance_index: u32`
+// - input: `vertex: Vertex`, `instance: Instance`, `vertex_index: u32`, `instance_index: u32`
+// - output: vec4<f32>
+// ////////////////////////////////////////////////////////////////
+
+
+
+
+
+
+
+
+
 struct Camera {
     view_pos: vec4<f32>,
     view_proj: mat4x4<f32>,
@@ -42,7 +93,7 @@ fn vs_main(
     vertex: VertexInput,
     transform: Transform,
 ) -> VertexOutput {
-
+    
     let model_matrix = mat4x4<f32>(
         transform.col1,
         transform.col2,

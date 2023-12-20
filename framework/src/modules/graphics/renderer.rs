@@ -1,11 +1,11 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use wgpu::RenderPassColorAttachment;
 use winit::dpi::PhysicalSize;
 
 use crate::{
     constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT},
-    modules::egui::EguiState,
+    modules::{egui::EguiState, watcher::FileWatcher},
 };
 
 use self::screen_space::ScreenSpaceRenderer;
@@ -14,7 +14,7 @@ use super::{
     elements::{gizmos::GizmosRenderer, texture::Texture},
     graphics_context::GraphicsContext,
     settings::GraphicsSettings,
-    shader::{ShaderPipelineConfig, ShaderRendererT, ShaderT},
+    shader::{ShaderCodeSource, ShaderPipelineConfig, ShaderRendererT, ShaderT},
     Render,
 };
 
@@ -26,7 +26,12 @@ pub struct Renderer {
 
     screen_space_renderer: ScreenSpaceRenderer,
     graphics_settings: GraphicsSettings,
-    shader_renderers: Vec<Box<dyn ShaderRendererT>>,
+    shader_renderers: Vec<DynShaderRenderer>,
+}
+
+pub struct DynShaderRenderer {
+    watch_wgsl_stump: Option<PathBuf>,
+    renderer: Box<dyn ShaderRendererT>,
 }
 
 impl Renderer {
@@ -46,27 +51,39 @@ impl Renderer {
         })
     }
 
-    fn pipeline_config(&self) -> ShaderPipelineConfig {
-        ShaderPipelineConfig {
-            multisample: wgpu::MultisampleState {
-                count: MSAA_SAMPLE_COUNT,
-                ..Default::default()
-            },
-            target: wgpu::ColorTargetState {
-                format: HDR_COLOR_FORMAT,
-                blend: Some(wgpu::BlendState {
-                    alpha: wgpu::BlendComponent::REPLACE,
-                    color: wgpu::BlendComponent::REPLACE,
-                }),
-                write_mask: wgpu::ColorWrites::ALL,
-            },
+    pub fn update(&mut self, file_watcher: &FileWatcher) {
+        // check if any shader source file has been changed. If so, rebuild the renderer for that shader (inlcudes the wgpu::Pipeline)
+
+        for r in self.shader_renderers.iter_mut() {
+            if let Some(path) = &r.watch_wgsl_stump {
+                if file_watcher.file_modified(path) {
+                    r.renderer.rebuild(&self.context, pipeline_config());
+                }
+            }
         }
     }
 
     /// Creates a new renderer for this shader
-    pub fn register_shader<T: ShaderT>(&mut self) {
-        let renderer = <T as ShaderT>::Renderer::new(&self.context, self.pipeline_config());
-        self.shader_renderers.push(Box::new(renderer));
+    pub fn register_shader<T: ShaderT>(&mut self, watcher: &FileWatcher) {
+        let source = &<T as ShaderT>::CODE_SOURCE;
+        let watch_wgsl_stump = match source {
+            ShaderCodeSource::Static(_) => None,
+            ShaderCodeSource::File { path } => {
+                let path_buf: PathBuf = path
+                    .parse()
+                    .expect("could not parse ShaderCodeSource::File into PathBuf");
+                // start the watching process:
+                watcher.watch(&path_buf);
+                Some(path_buf)
+            }
+        };
+
+        let renderer = <T as ShaderT>::Renderer::new(&self.context, pipeline_config());
+        let dyn_renderer = DynShaderRenderer {
+            watch_wgsl_stump,
+            renderer: Box::new(renderer),
+        };
+        self.shader_renderers.push(dyn_renderer);
     }
 
     pub fn resize(&mut self) {
@@ -78,7 +95,7 @@ impl Renderer {
         self.gizmos_renderer.prepare();
 
         for r in self.shader_renderers.iter_mut() {
-            r.prepare(&self.context, encoder);
+            r.renderer.prepare(&self.context, encoder);
         }
     }
 
@@ -102,7 +119,8 @@ impl Renderer {
 
         self.gizmos_renderer.render(&mut main_render_pass);
         for r in self.shader_renderers.iter() {
-            r.render(&mut main_render_pass, &self.graphics_settings);
+            r.renderer
+                .render(&mut main_render_pass, &self.graphics_settings);
         }
 
         // // render color meshes:
@@ -142,5 +160,23 @@ impl Renderer {
 
     pub fn settings_mut(&mut self) -> &mut GraphicsSettings {
         &mut self.graphics_settings
+    }
+}
+
+/// todo! integrate and update this with graphics settings.
+fn pipeline_config() -> ShaderPipelineConfig {
+    ShaderPipelineConfig {
+        multisample: wgpu::MultisampleState {
+            count: MSAA_SAMPLE_COUNT,
+            ..Default::default()
+        },
+        target: wgpu::ColorTargetState {
+            format: HDR_COLOR_FORMAT,
+            blend: Some(wgpu::BlendState {
+                alpha: wgpu::BlendComponent::REPLACE,
+                color: wgpu::BlendComponent::REPLACE,
+            }),
+            write_mask: wgpu::ColorWrites::ALL,
+        },
     }
 }

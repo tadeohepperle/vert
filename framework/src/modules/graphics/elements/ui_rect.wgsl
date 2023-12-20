@@ -51,21 +51,21 @@ fn rect_vertex(idx: u32, pos: vec4<f32>, uv: vec4<f32>) -> Vertex {
     var out: Vertex;
     switch idx {
       case 0u: {
-        out.pos = vec2<f32>(pos.x, pos.y); // min x, min y 
-        out.uv = vec2<f32>(uv.x, uv.y);
-      }
+            out.pos = vec2<f32>(pos.x, pos.y); // min x, min y 
+            out.uv = vec2<f32>(uv.x, uv.y);
+        }
       case 1u: {
-        out.pos = vec2<f32>(pos.x, pos.y + pos.w); // min x, max y 
-        out.uv = vec2<f32>(uv.x, uv.y + uv.w);
-      }
+            out.pos = vec2<f32>(pos.x, pos.y + pos.w); // min x, max y 
+            out.uv = vec2<f32>(uv.x, uv.y + uv.w);
+        }
       case 2u: {
-        out.pos = vec2<f32>(pos.x + pos.z, pos.y + pos.w); // max x, max y
-        out.uv = vec2<f32>(uv.x + uv.z, uv.y + uv.w);
-      }
+            out.pos = vec2<f32>(pos.x + pos.z, pos.y + pos.w); // max x, max y
+            out.uv = vec2<f32>(uv.x + uv.z, uv.y + uv.w);
+        }
       case 3u, default: {
-        out.pos = vec2<f32>(pos.x + pos.z, pos.y); // max x, min y 
-        out.uv = vec2<f32>(uv.x + uv.z, uv.y);
-      }
+            out.pos = vec2<f32>(pos.x + pos.z, pos.y); // max x, min y 
+            out.uv = vec2<f32>(uv.x + uv.z, uv.y);
+        }
     }
     return out;
 }
@@ -79,7 +79,7 @@ fn vs_main(
     var out: VertexOutput;
 
     let vertex = rect_vertex(idx, instance.pos, instance.uv);
-    let device_pos = vec2<f32>((vertex.pos.x / screen.width) * 2.0  - 1.0, 1.0 - (vertex.pos.y / screen.height) * 2.0) ; // + (screen.width * 0.1) + (screen.height* 0.1)
+    let device_pos = vec2<f32>((vertex.pos.x / screen.width) * 2.0 - 1.0, 1.0 - (vertex.pos.y / screen.height) * 2.0) ; // + (screen.width * 0.1) + (screen.height* 0.1)
 
     out.border_radius = instance.border_radius;
     out.size = instance.pos.zw;
@@ -104,19 +104,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // return mix(image_color, vec4<f32>(1.0,0.0,0.0,1.0), 0.5);
 
     /// the borders are counterclockwise: topleft, topright, bottomright, bottomleft
-    let sdf = rounded_box_sdf(in.offset, in.size, in.border_radius); 
-    let opacity = min(image_color.a, smoothstep( 1.0, 0.0, sdf + 0.5)); // the + 0.5 makes the edge a bit smoother
+    let sdf = rounded_box_sdf(in.offset, in.size, in.border_radius);
+    let opacity = min(image_color.a, smoothstep(1.0, 0.0, sdf + 0.5)); // the + 0.5 makes the edge a bit smoother
     return vec4(color, opacity);
 }
 
 
-fn rounded_box_sdf(offset: vec2<f32>, size: vec2<f32>, radius: vec4<f32>) -> f32{
-    let r = select(radius.xw,radius.yz,  offset.x > 0.0);
+fn rounded_box_sdf(offset: vec2<f32>, size: vec2<f32>, radius: vec4<f32>) -> f32 {
+    let r = select(radius.xw, radius.yz, offset.x > 0.0);
     let r2 = select(r.x, r.y, offset.y > 0.0);
 
 
-    let q: vec2<f32> = abs(offset) - size/2.0 + vec2<f32>(r2);
-    let q2: f32 = min(max(q.x,q.y),0.0);
+    let q: vec2<f32> = abs(offset) - size / 2.0 + vec2<f32>(r2);
+    let q2: f32 = min(max(q.x, q.y), 0.0);
 
     let l = length(max(q, vec2(0.0)));
     return q2 + l - r2;

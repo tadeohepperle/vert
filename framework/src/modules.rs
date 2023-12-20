@@ -25,6 +25,7 @@ use self::{
     },
     input::Input,
     time::Time,
+    watcher::FileWatcher,
     // ui::ImmediateUi, // needle
 };
 
@@ -33,6 +34,7 @@ pub mod egui;
 pub mod graphics;
 pub mod input;
 pub mod time;
+pub mod watcher;
 // pub mod ui;
 
 pub struct Modules {
@@ -47,6 +49,7 @@ pub struct Modules {
     // pub(crate) ui: ImmediateUi, // needle
     pub(crate) assets: AssetServer,
     pub(crate) batteries: Option<Batteries>,
+    pub(crate) file_watcher: FileWatcher,
     // todo: egui
 }
 
@@ -54,6 +57,7 @@ impl Modules {
     pub async fn initialize(window: &winit::window::Window) -> anyhow::Result<Self> {
         let arenas = Arenas::new();
         let graphics_context = GraphicsContextOwner::intialize(window).await?;
+        let file_watcher = FileWatcher::new();
 
         initialize_static_textures(&graphics_context.context);
         let camera = Camera::new_default(&graphics_context.context);
@@ -62,7 +66,7 @@ impl Modules {
         let graphics_settings = GraphicsSettings::default();
         let mut renderer =
             Renderer::initialize(graphics_context.context.clone(), graphics_settings)?;
-        renderer.register_shader::<ColorMeshShader>();
+        renderer.register_shader::<ColorMeshShader>(&file_watcher);
 
         let batteries = Batteries::new();
 
@@ -70,6 +74,7 @@ impl Modules {
         let time = Time::default();
         let assets = AssetServer::new();
         let egui = EguiState::new(&graphics_context.context);
+
         // let ui = ImmediateUi::new(graphics_context.context.clone()); // needle
 
         Ok(Self {
@@ -83,6 +88,7 @@ impl Modules {
             egui,
             assets,
             batteries: Some(batteries),
+            file_watcher,
         })
     }
 
@@ -103,6 +109,8 @@ impl Modules {
 
     pub(crate) fn begin_frame(&mut self) -> Flow {
         self.time.update();
+        self.file_watcher.update();
+        self.renderer.update(&self.file_watcher);
         self.egui.begin_frame(self.time.total_secs_f64());
         self.time.egui_time_stats(self.egui.context());
 

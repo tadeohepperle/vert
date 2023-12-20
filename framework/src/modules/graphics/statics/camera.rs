@@ -2,13 +2,17 @@ use std::sync::{Arc, OnceLock};
 
 use glam::{vec3, Mat4, Vec2, Vec3};
 use smallvec::{smallvec, SmallVec};
-use wgpu::{util::DeviceExt, BindGroup, BindGroupEntry, BindGroupLayout};
+use wgpu::{
+    naga::{ScalarKind, TypeInner, VectorSize},
+    util::DeviceExt,
+    BindGroup, BindGroupEntry, BindGroupLayout,
+};
 use winit::dpi::PhysicalSize;
 
 use crate::modules::graphics::{
     elements::buffer::{ToRaw, UniformBuffer},
     graphics_context::GraphicsContext,
-    shader::bind_group::{BindGroupT, StaticBindGroup},
+    shader::bind_group::{BindGroupDef, BindGroupEntryDef, BindGroupT, StaticBindGroup},
 };
 
 pub struct Camera {
@@ -16,20 +20,50 @@ pub struct Camera {
 }
 
 impl BindGroupT for Camera {
-    const BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
-        wgpu::BindGroupLayoutDescriptor {
-            label: Some("CameraBindGroupLayout"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-        };
+    const BIND_GROUP_DEF: BindGroupDef = BindGroupDef {
+        name: "Camera",
+        entries: &[BindGroupEntryDef {
+            name: "camera",
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            struct_fields: Some(&[
+                (
+                    "view_pos",
+                    TypeInner::Vector {
+                        size: VectorSize::Quad,
+                        kind: ScalarKind::Float,
+                        width: 4,
+                    },
+                ),
+                (
+                    "view_proj",
+                    TypeInner::Matrix {
+                        columns: VectorSize::Quad,
+                        rows: VectorSize::Quad,
+                        width: 4,
+                    },
+                ),
+            ]),
+        }],
+    };
+    // const BIND_GROUP_DEF: wgpu::BindGroupLayoutDescriptor<'static> =
+    //     wgpu::BindGroupLayoutDescriptor {
+    //         label: Some("CameraBindGroupLayout"),
+    //         entries: &[wgpu::BindGroupLayoutEntry {
+    //             binding: 0,
+    //             visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+    //             ty: wgpu::BindingType::Buffer {
+    //                 ty: wgpu::BufferBindingType::Uniform,
+    //                 has_dynamic_offset: false,
+    //                 min_binding_size: None,
+    //             },
+    //             count: None,
+    //         }],
+    //     };
 
     fn bind_group_entries<'a>(&'a self) -> SmallVec<[BindGroupEntry<'a>; 2]> {
         smallvec![wgpu::BindGroupEntry {
@@ -63,8 +97,7 @@ impl Camera {
         let camera = Camera { uniform };
 
         // initialize static bind group for the camera:
-        let layout = device.create_bind_group_layout(&Camera::BIND_GROUP_LAYOUT_DESCRIPTOR);
-
+        let layout = Camera::create_bind_group_layout(device);
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("CameraBindGroup"),
             layout: &layout,

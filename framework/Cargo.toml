@@ -23,6 +23,9 @@ atomic_refcell = "0.1.13"
 reqwest = "0.11.22"
 fontdue = "0.8.0"
 etagere = "0.2.10"
+heck = "0.4.1"
+indoc = "2.0.4"
+notify = "6.1.1"
 
 
 [profile.dev.package."*"]
