@@ -6,8 +6,9 @@ use wgpu::{BufferUsages, PrimitiveState, RenderPass, ShaderModuleDescriptor};
 use crate::{
     constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT, SURFACE_COLOR_FORMAT},
     modules::graphics::{
-        graphics_context::GraphicsContext, shader::bind_group::StaticBindGroup,
-        statics::camera::Camera, VertexT,
+        graphics_context::GraphicsContext,
+        statics::{camera::Camera, StaticBindGroup},
+        VertexT,
     },
 };
 

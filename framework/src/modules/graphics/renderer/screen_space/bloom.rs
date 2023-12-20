@@ -11,8 +11,7 @@ use crate::{
         elements::texture::{BindableTexture, Texture},
         graphics_context::GraphicsContext,
         settings::GraphicsSettings,
-        shader::bind_group::StaticBindGroup,
-        statics::{screen_size::ScreenSize, static_texture::RgbaBindGroupLayout},
+        statics::{screen_size::ScreenSize, static_texture::RgbaBindGroupLayout, StaticBindGroup},
     },
 };
 

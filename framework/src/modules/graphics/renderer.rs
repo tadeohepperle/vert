@@ -14,7 +14,7 @@ use super::{
     elements::{gizmos::GizmosRenderer, texture::Texture},
     graphics_context::GraphicsContext,
     settings::GraphicsSettings,
-    shader::{ShaderPipelineConfig, ShaderRendererT, ShaderT},
+    shader::renderer::RendererT,
     Render,
 };
 
@@ -26,12 +26,7 @@ pub struct Renderer {
 
     screen_space_renderer: ScreenSpaceRenderer,
     graphics_settings: GraphicsSettings,
-    shader_renderers: Vec<DynShaderRenderer>,
-}
-
-pub struct DynShaderRenderer {
-    watch_paths: Vec<PathBuf>,
-    renderer: Box<dyn ShaderRendererT>,
+    shader_renderers: Vec<Box<dyn RendererT>>,
 }
 
 impl Renderer {
@@ -51,32 +46,10 @@ impl Renderer {
         })
     }
 
-    pub fn update(&mut self, file_watcher: &FileWatcher) {
-        // check if any shader source file has been changed. If so, rebuild the renderer for that shader (inlcudes the wgpu::Pipeline)
-
-        for r in self.shader_renderers.iter_mut() {
-            for path in r.watch_paths.iter() {
-                if file_watcher.file_modified(path) {
-                    r.renderer.rebuild(&self.context, pipeline_config());
-                }
-            }
-        }
-    }
-
     /// Creates a new renderer for this shader
-    pub fn register_shader<T: ShaderT>(&mut self, watcher: &FileWatcher) {
-        let mut watch_paths: Vec<PathBuf> = vec![];
-        for path in T::watch_paths() {
-            let path: PathBuf = path.parse().expect("Could not parse path");
-            watch_paths.push(path);
-        }
-
-        let renderer = <T as ShaderT>::Renderer::new(&self.context, pipeline_config());
-        let dyn_renderer = DynShaderRenderer {
-            watch_paths,
-            renderer: Box::new(renderer),
-        };
-        self.shader_renderers.push(dyn_renderer);
+    pub fn register_renderer<T: RendererT>(&mut self) {
+        let renderer = <T as RendererT>::new(&self.context, pipeline_config());
+        self.shader_renderers.push(Box::new(renderer));
     }
 
     pub fn resize(&mut self) {
@@ -88,7 +61,7 @@ impl Renderer {
         self.gizmos_renderer.prepare();
 
         for r in self.shader_renderers.iter_mut() {
-            r.renderer.prepare(&self.context, encoder);
+            r.prepare(&self.context, encoder);
         }
     }
 
@@ -112,8 +85,7 @@ impl Renderer {
 
         self.gizmos_renderer.render(&mut main_render_pass);
         for r in self.shader_renderers.iter() {
-            r.renderer
-                .render(&mut main_render_pass, &self.graphics_settings);
+            r.render(&mut main_render_pass, &self.graphics_settings);
         }
 
         // // render color meshes:
@@ -157,8 +129,8 @@ impl Renderer {
 }
 
 /// todo! integrate and update this with graphics settings.
-fn pipeline_config() -> ShaderPipelineConfig {
-    ShaderPipelineConfig {
+fn pipeline_config() -> PipelineSettings {
+    PipelineSettings {
         multisample: wgpu::MultisampleState {
             count: MSAA_SAMPLE_COUNT,
             ..Default::default()
@@ -172,4 +144,9 @@ fn pipeline_config() -> ShaderPipelineConfig {
             write_mask: wgpu::ColorWrites::ALL,
         },
     }
+}
+
+pub struct PipelineSettings {
+    pub multisample: wgpu::MultisampleState,
+    pub target: wgpu::ColorTargetState,
 }

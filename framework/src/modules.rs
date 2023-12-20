@@ -17,7 +17,6 @@ use self::{
         graphics_context::{GraphicsContext, GraphicsContextOwner},
         renderer::Renderer,
         settings::GraphicsSettings,
-        shader::color_mesh::ColorMeshShader,
         statics::{
             camera::Camera, screen_size::ScreenSize, static_texture::initialize_static_textures,
         },
@@ -66,7 +65,7 @@ impl Modules {
         let graphics_settings = GraphicsSettings::default();
         let mut renderer =
             Renderer::initialize(graphics_context.context.clone(), graphics_settings)?;
-        renderer.register_shader::<ColorMeshShader>(&file_watcher);
+        // renderer.register_shader::<ColorMeshRenderer>(&file_watcher);
 
         let batteries = Batteries::new();
 
@@ -110,7 +109,6 @@ impl Modules {
     pub(crate) fn begin_frame(&mut self) -> Flow {
         self.time.update();
         self.file_watcher.update();
-        self.renderer.update(&self.file_watcher);
         self.egui.begin_frame(self.time.total_secs_f64());
         self.time.egui_time_stats(self.egui.context());
 

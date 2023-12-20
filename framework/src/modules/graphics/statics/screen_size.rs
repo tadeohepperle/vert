@@ -3,66 +3,75 @@ use std::sync::{Arc, OnceLock};
 use smallvec::{smallvec, SmallVec};
 use wgpu::{
     naga::{ScalarKind, TypeInner, VectorSize},
-    BindGroup, BindGroupEntry, BindGroupLayout,
+    BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, ShaderStages,
 };
 
 use crate::modules::graphics::{
     elements::buffer::{ToRaw, UniformBuffer},
     graphics_context::GraphicsContext,
-    shader::bind_group::{BindGroupDef, BindGroupEntryDef, BindGroupT, StaticBindGroup},
 };
+
+use super::{StaticBindGroup, ToBindGroup};
 
 /// similar to a camera but only projects in screen space.
 pub struct ScreenSize {
     uniform: UniformBuffer<ScreenSizeValues>,
 }
 
-impl BindGroupT for ScreenSize {
-    const BIND_GROUP_DEF: BindGroupDef = BindGroupDef {
-        name: "ScreenSize",
-        entries: &[BindGroupEntryDef {
-            name: "screen",
-            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            struct_fields: Some(&[
-                (
-                    "width",
-                    TypeInner::Scalar {
-                        kind: ScalarKind::Float,
-                        width: 4,
-                    },
-                ),
-                (
-                    "height",
-                    TypeInner::Scalar {
-                        kind: ScalarKind::Float,
-                        width: 4,
-                    },
-                ),
-                (
-                    "aspect",
-                    TypeInner::Scalar {
-                        kind: ScalarKind::Float,
-                        width: 4,
-                    },
-                ),
-            ]),
-        }],
-    };
+impl ToBindGroup for ScreenSize {
+    fn layout_descriptor() -> wgpu::BindGroupLayoutDescriptor<'static> {
+        wgpu::BindGroupLayoutDescriptor {
+            label: Some("ScreenSize BindGroup Layout"),
+            entries: &[BindGroupLayoutEntry {
+                binding: 0,
+                visibility: ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None, // ???
+                },
+                count: None,
+            }],
+        }
+    }
 
-    fn bind_group_entries<'a>(&'a self) -> SmallVec<[BindGroupEntry<'a>; 2]> {
-        smallvec![wgpu::BindGroupEntry {
-            binding: 0,
-            resource: self.uniform.buffer().as_entire_binding(),
-        }]
+    fn to_bind_group(
+        &self,
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+    ) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("ScreenSize BindGroup"),
+            layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: self.uniform.buffer().as_entire_binding(),
+            }],
+        })
+    }
+}
+
+static _SCREEN_SIZE_BIND_GROUP: OnceLock<(BindGroup, BindGroupLayout)> = OnceLock::new();
+impl StaticBindGroup for ScreenSize {
+    fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
+        &_SCREEN_SIZE_BIND_GROUP
+            .get()
+            .expect("_CAMERA_BIND_GROUP not set")
+            .1
+    }
+
+    fn bind_group() -> &'static wgpu::BindGroup {
+        &_SCREEN_SIZE_BIND_GROUP
+            .get()
+            .expect("_CAMERA_BIND_GROUP not set")
+            .0
     }
 }
 
 impl ScreenSize {
+    /// # Warning
+    ///
+    /// Should only be called once!
     pub fn new(context: &GraphicsContext) -> ScreenSize {
         let size = context.size();
         let values = ScreenSizeValues {
@@ -71,20 +80,13 @@ impl ScreenSize {
             scale_factor: context.scale_factor(),
         };
         let uniform = UniformBuffer::new(values, &context.device);
-
         let screen_size = ScreenSize { uniform };
 
         // Initialize the static bind group for the screen size
-        let layout = ScreenSize::create_bind_group_layout(&context.device);
-
-        let bind_group = context
+        let layout = context
             .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("ScreenSize BindGroup"),
-                layout: &layout,
-                entries: &screen_size.bind_group_entries(),
-            });
-
+            .create_bind_group_layout(&ScreenSize::layout_descriptor());
+        let bind_group = screen_size.to_bind_group(&context.device, &layout);
         _SCREEN_SIZE_BIND_GROUP
             .set((bind_group, layout))
             .expect("_SCREEN_SIZE_BIND_GROUP cannot be set");
@@ -146,22 +148,5 @@ impl ToRaw for ScreenSizeValues {
             height: self.height as f32,
             aspect: self.aspect(),
         }
-    }
-}
-
-static _SCREEN_SIZE_BIND_GROUP: OnceLock<(BindGroup, BindGroupLayout)> = OnceLock::new();
-impl StaticBindGroup for ScreenSize {
-    fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
-        &_SCREEN_SIZE_BIND_GROUP
-            .get()
-            .expect("_SCREEN_SIZE_BIND_GROUP not set")
-            .1
-    }
-
-    fn bind_group() -> &'static wgpu::BindGroup {
-        &_SCREEN_SIZE_BIND_GROUP
-            .get()
-            .expect("_SCREEN_SIZE_BIND_GROUP not set")
-            .0
     }
 }

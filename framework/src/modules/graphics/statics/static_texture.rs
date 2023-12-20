@@ -6,8 +6,9 @@ use wgpu::{BindGroup, BindGroupLayout};
 use crate::modules::graphics::{
     elements::texture::{BindableTexture, Texture},
     graphics_context::GraphicsContext,
-    shader::bind_group::StaticBindGroup,
 };
+
+use super::StaticBindGroup;
 
 pub struct RgbaBindGroupLayout;
 
@@ -30,6 +31,8 @@ static _RGBA_BIND_GROUP_LAYOUT: OnceLock<BindGroupLayout> = OnceLock::new();
 static _RGBA_BIND_GROUP_LAYOUT_MSAA4: OnceLock<BindGroupLayout> = OnceLock::new();
 
 /// # CALL ONLY ONCE!
+///
+/// todo!() this is all a bit crazy, fix this later.
 pub fn initialize_static_textures(context: &GraphicsContext) {
     let layout = context
         .device
