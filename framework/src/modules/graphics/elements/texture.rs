@@ -6,11 +6,8 @@ use image::RgbaImage;
 use rand::{thread_rng, Rng};
 use wgpu::BindGroupDescriptor;
 
-use crate::{
-    constants::DEPTH_FORMAT,
-    modules::graphics::{
-        graphics_context::GraphicsContext, statics::static_texture::RgbaBindGroupLayout,
-    },
+use crate::modules::graphics::{
+    graphics_context::GraphicsContext, statics::static_texture::RgbaBindGroupLayout,
 };
 
 #[derive(Debug)]
@@ -88,7 +85,6 @@ impl Texture {
             format,
             usage,
             wgpu::FilterMode::Linear,
-            None,
         );
 
         queue.write_texture(
@@ -117,7 +113,6 @@ impl Texture {
         format: wgpu::TextureFormat,
         usage: wgpu::TextureUsages,
         mag_filter: wgpu::FilterMode,
-        label: Option<&str>,
     ) -> Self {
         let size = wgpu::Extent3d {
             width,

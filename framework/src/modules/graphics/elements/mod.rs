@@ -7,3 +7,4 @@ pub mod rect;
 pub mod texture;
 pub mod transform;
 // pub mod ui_rect;
+pub mod immediate_geometry;

@@ -14,7 +14,7 @@ use super::{
     elements::{gizmos::GizmosRenderer, texture::Texture},
     graphics_context::GraphicsContext,
     settings::GraphicsSettings,
-    shader::{ShaderCodeSource, ShaderPipelineConfig, ShaderRendererT, ShaderT},
+    shader::{ShaderPipelineConfig, ShaderRendererT, ShaderT},
     Render,
 };
 
@@ -30,7 +30,7 @@ pub struct Renderer {
 }
 
 pub struct DynShaderRenderer {
-    watch_path: Option<PathBuf>,
+    watch_paths: Vec<PathBuf>,
     renderer: Box<dyn ShaderRendererT>,
 }
 
@@ -55,7 +55,7 @@ impl Renderer {
         // check if any shader source file has been changed. If so, rebuild the renderer for that shader (inlcudes the wgpu::Pipeline)
 
         for r in self.shader_renderers.iter_mut() {
-            if let Some(path) = &r.watch_path {
+            for path in r.watch_paths.iter() {
                 if file_watcher.file_modified(path) {
                     r.renderer.rebuild(&self.context, pipeline_config());
                 }
@@ -65,15 +65,15 @@ impl Renderer {
 
     /// Creates a new renderer for this shader
     pub fn register_shader<T: ShaderT>(&mut self, watcher: &FileWatcher) {
-        let source = &<T as ShaderT>::CODE_SOURCE;
-        let watch_path = source.as_path_to_watch();
-        if let Some(path) = &watch_path {
-            watcher.watch(path);
+        let mut watch_paths: Vec<PathBuf> = vec![];
+        for path in T::watch_paths() {
+            let path: PathBuf = path.parse().expect("Could not parse path");
+            watch_paths.push(path);
         }
 
         let renderer = <T as ShaderT>::Renderer::new(&self.context, pipeline_config());
         let dyn_renderer = DynShaderRenderer {
-            watch_path,
+            watch_paths,
             renderer: Box::new(renderer),
         };
         self.shader_renderers.push(dyn_renderer);

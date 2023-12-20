@@ -1,15 +1,13 @@
-use std::{
-    borrow::Cow,
-    ops::Range,
-    sync::{LazyLock, Mutex, OnceLock},
-};
+use indoc::indoc;
+use std::sync::{LazyLock, Mutex};
 
 use wgpu::BufferUsages;
 
 use crate::modules::graphics::{
     elements::{
-        buffer::{GrowableBuffer, ToRaw},
+        buffer::GrowableBuffer,
         color::Color,
+        immediate_geometry::{ImmediateMesh, ImmediateMeshQueue},
         transform::{Transform, TransformRaw},
     },
     graphics_context::GraphicsContext,
@@ -20,7 +18,7 @@ use crate::modules::graphics::{
 
 use super::{
     vertex::{VertexAttribute, VertexT},
-    ShaderCodeSource, ShaderPipelineConfig, ShaderRendererT, ShaderStump, ShaderT,
+    ShaderPipelineConfig, ShaderRendererT, ShaderT,
 };
 
 pub struct ColorMeshShader;
@@ -33,15 +31,8 @@ impl ShaderT for ColorMeshShader {
 
     type Renderer = ColorMeshShaderRenderer;
 
-    const CODE_SOURCE: ShaderCodeSource = ShaderCodeSource::File {
-        path: "./assets/color_mesh.stump.wgsl",
-        fallback: Some(COLOR_MESH_SHADER_STUMP),
-    };
-}
-
-const COLOR_MESH_SHADER_STUMP: ShaderStump = ShaderStump {
-    vertex: Cow::Borrowed(
-        "
+    fn naga_module() -> anyhow::Result<wgpu::naga::Module> {
+        let vertex = indoc! {"
             let model_matrix = mat4x4<f32>(
                 instance.col1,
                 instance.col2,
@@ -53,11 +44,17 @@ const COLOR_MESH_SHADER_STUMP: ShaderStump = ShaderStump {
             out.clip_position = camera.view_proj * model_matrix * world_position;
             out.color = vertex.color * vec4(1.0,0.3,0.3,1.0);
             return out;
-        ",
-    ),
-    fragment: Cow::Borrowed("return in.color;"),
-    other_code: Cow::Borrowed(""),
-};
+        "};
+
+        let fragment = indoc! {"
+            return in.color;
+        "};
+
+        let wgsl_string = super::to_wgsl::generate_wgsl::<Self>(vertex, fragment, "");
+        let module = wgpu::naga::front::wgsl::parse_str(&wgsl_string)?;
+        Ok(module)
+    }
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -121,52 +118,6 @@ impl ColorMeshShader {
 
 type ColorMeshQueue = ImmediateMeshQueue<Vertex, Transform>;
 
-/// todo! needs to be optimized to swap allocated vecs instead of creating new ones.
-#[derive(Debug)]
-struct ImmediateMeshQueue<V: Copy, I: ToRaw> {
-    /// index and instance ranges into the other vecs.
-    immediate_meshes: Vec<ImmediateMesh>,
-    // buffers for immediate geometry, cleared each frame:
-    vertices: Vec<V>,
-    indices: Vec<u32>,
-    instances: Vec<I::Raw>,
-}
-
-impl<V: Copy, I: ToRaw> Default for ImmediateMeshQueue<V, I> {
-    fn default() -> Self {
-        Self {
-            immediate_meshes: Default::default(),
-            vertices: Default::default(),
-            indices: Default::default(),
-            instances: Default::default(),
-        }
-    }
-}
-
-impl<V: Copy, I: ToRaw> ImmediateMeshQueue<V, I> {
-    fn add_mesh(&mut self, vertices: &[V], indices: &[u32], transforms: &[I]) {
-        let v_count = self.vertices.len() as u32;
-        let i_count = self.indices.len() as u32;
-        let t_count = self.instances.len() as u32;
-        self.vertices.extend(vertices.iter().copied());
-        self.indices.extend(indices.iter().map(|e| *e + v_count));
-        self.instances.extend(transforms.iter().map(|e| e.to_raw()));
-        self.immediate_meshes.push(ImmediateMesh {
-            index_range: i_count..(i_count + indices.len() as u32),
-            instance_range: t_count..(t_count + transforms.len() as u32),
-        });
-    }
-
-    /// Note: does not clear immediate meshes, those should be swapped out instead.
-    fn clear_and_take_meshes(&mut self, out: &mut Vec<ImmediateMesh>) {
-        self.vertices.clear();
-        self.indices.clear();
-        self.instances.clear();
-        out.clear();
-        std::mem::swap(out, &mut self.immediate_meshes);
-    }
-}
-
 #[derive(Debug)]
 pub struct ColorMeshShaderRenderer {
     pipeline: wgpu::RenderPipeline,
@@ -176,12 +127,6 @@ pub struct ColorMeshShaderRenderer {
     vertex_buffer: GrowableBuffer<Vertex>,
     index_buffer: GrowableBuffer<u32>,
     instance_buffer: GrowableBuffer<TransformRaw>,
-}
-
-#[derive(Debug)]
-struct ImmediateMesh {
-    index_range: Range<u32>,
-    instance_range: Range<u32>,
 }
 
 static COLORMESH_QUEUE: LazyLock<Mutex<ColorMeshQueue>> =
@@ -216,11 +161,11 @@ impl ShaderRendererT for ColorMeshShaderRenderer {
         let queue = &context.queue;
         let device = &context.device;
         self.vertex_buffer
-            .prepare(&color_mesh_queue.vertices, queue, device);
+            .prepare(color_mesh_queue.vertices(), queue, device);
         self.index_buffer
-            .prepare(&color_mesh_queue.indices, queue, device);
+            .prepare(color_mesh_queue.indices(), queue, device);
         self.instance_buffer
-            .prepare(&color_mesh_queue.instances, queue, device);
+            .prepare(color_mesh_queue.instances(), queue, device);
         color_mesh_queue.clear_and_take_meshes(&mut self.immediate_meshes);
     }
 
@@ -248,6 +193,8 @@ impl ShaderRendererT for ColorMeshShaderRenderer {
         graphics_context: &GraphicsContext,
         pipeline_config: ShaderPipelineConfig,
     ) {
-        *self = Self::new(graphics_context, pipeline_config)
+        let pipeline =
+            ColorMeshShader::build_pipeline(&graphics_context.device, pipeline_config).unwrap();
+        self.pipeline = pipeline;
     }
 }
