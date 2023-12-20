@@ -2734,9 +2734,9 @@ dependencies = [
  "pretty_env_logger",
  "rand",
  "reqwest",
+ "slotmap",
  "smallvec",
  "tokio",
- "vert-core",
  "wgpu",
  "winit",
 ]

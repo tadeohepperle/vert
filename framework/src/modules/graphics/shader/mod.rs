@@ -13,6 +13,7 @@ use super::{
 };
 
 pub mod color_mesh;
+pub mod ui_rect;
 
 const VERTEX_ENTRY_POINT: &str = "vs_main";
 const FRAGMENT_ENTRY_POINT: &str = "fs_main";

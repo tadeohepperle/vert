@@ -1,7 +1,6 @@
 use std::{cell::RefCell, net::Shutdown, sync::Arc};
 
 use log::info;
-use vert_core::arenas::Arenas;
 use wgpu::CommandEncoder;
 use winit::{dpi::PhysicalSize, keyboard::KeyCode};
 
@@ -22,7 +21,6 @@ use self::{
         statics::{
             camera::Camera, screen_size::ScreenSize, static_texture::initialize_static_textures,
         },
-        Prepare,
     },
     input::Input,
     time::Time,
@@ -38,7 +36,6 @@ pub mod time;
 // pub mod ui;
 
 pub struct Modules {
-    pub(crate) arenas: Arenas,
     pub(crate) graphics: GraphicsContextOwner,
     pub(crate) renderer: Renderer,
     pub(crate) camera: Camera,
@@ -56,7 +53,6 @@ impl Modules {
     pub async fn initialize(window: &winit::window::Window) -> anyhow::Result<Self> {
         pretty_env_logger::try_init().unwrap();
         info!("such information");
-        let arenas = Arenas::new();
         let graphics_context = GraphicsContextOwner::intialize(window).await?;
 
         initialize_static_textures(&graphics_context.context);
@@ -78,7 +74,6 @@ impl Modules {
         // let ui = ImmediateUi::new(graphics_context.context.clone()); // needle
 
         Ok(Self {
-            arenas,
             graphics: graphics_context,
             renderer,
             camera,
@@ -143,11 +138,6 @@ impl Modules {
         // user defined state:
         state.prepare(queue, encoder);
 
-        // collect all the components that need preparation in this command encoder
-        for e in self.arenas.iter_component_traits_mut::<dyn Prepare>() {
-            e.prepare(context, encoder);
-        }
-
         // prepare renderer: (gizmos) todo!() probably not the right position here
         self.renderer.prepare(encoder);
     }
@@ -159,7 +149,7 @@ impl Modules {
 
         // queue up all the render commands:
         let (surface_texture, view) = self.graphics.new_surface_texture_and_view();
-        self.renderer.render(&view, &mut encoder, &self.arenas);
+        self.renderer.render(&view, &mut encoder);
 
         // render egui: (egui does its own render pass, does not need msaa and other stuff)
         self.egui.render(&mut encoder, &view);

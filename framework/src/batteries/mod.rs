@@ -1,38 +1,35 @@
 //! batteries are some simple systems that can setup some state and run every frame.
 //! Can be thought of as a simple equivalent to bevy Plugins.
 
-use vert_core::prelude::*;
-use vert_core::{arenas::arena::TypedArena, component::Component, reflect};
-
 use crate::modules::Modules;
 pub mod simple_cam_controller;
 pub mod spawn_some_cubes;
 
 pub use simple_cam_controller::SimpleCamController;
+use slotmap::{DefaultKey, SlotMap};
 pub use spawn_some_cubes::SpawnSomeCubes;
 
 /// a first draft for systems that run each frame.
 /// Later we want to introduce more complicated systems and replace batteries, this is just a workaround right now.
 pub struct Batteries {
-    // always some, just Option to drop it properly
-    arena: Option<TypedArena<DynBattery>>,
+    arena: SlotMap<DefaultKey, DynBattery>,
 }
 
 impl Batteries {
     pub fn new() -> Self {
         Batteries {
-            arena: Some(TypedArena::new()),
+            arena: SlotMap::new(),
         }
     }
 
     pub fn update(&mut self, modules: &mut Modules) {
-        for (_, b) in self.arena.as_mut().unwrap().iter_mut() {
+        for b in self.arena.values_mut() {
             b.update(modules);
         }
     }
 
     pub fn prepare(&mut self, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder) {
-        for (_, b) in self.arena.as_mut().unwrap().iter_mut() {
+        for b in self.arena.values_mut() {
             b.prepare(queue, encoder);
         }
     }
@@ -42,20 +39,10 @@ impl Batteries {
         // through batteries away and implement proper systems.
 
         battery.initialize(modules);
-        self.arena
-            .as_mut()
-            .unwrap()
-            .insert(DynBattery::new(battery));
+        self.arena.insert(DynBattery::new(battery));
     }
 }
 
-impl Drop for Batteries {
-    fn drop(&mut self) {
-        self.arena.take().unwrap().free();
-    }
-}
-
-reflect!(Battery);
 pub trait Battery: 'static {
     fn initialize(&mut self, modules: &mut Modules) {}
     fn update(&mut self, modules: &mut Modules) {}
@@ -63,8 +50,6 @@ pub trait Battery: 'static {
     // todo: explicit order?
 }
 
-impl Component for DynBattery {}
-reflect!(DynBattery: Battery);
 pub struct DynBattery {
     inner: Box<dyn Battery>,
 }

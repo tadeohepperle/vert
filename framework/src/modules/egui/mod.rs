@@ -7,7 +7,7 @@ use crate::constants::DEPTH_FORMAT;
 
 use self::platform::{Platform, PlatformDescriptor};
 
-use super::graphics::{graphics_context::GraphicsContext, Prepare, Render};
+use super::graphics::graphics_context::GraphicsContext;
 
 pub mod platform;
 
@@ -68,6 +68,32 @@ impl EguiState {
         // self.demo_windows.ui(&self.context()); // activate this to see the demo windows!
     }
 
+    pub fn prepare(&mut self, context: &GraphicsContext, encoder: &mut wgpu::CommandEncoder) {
+        let output = self.platform.end_frame();
+        self.paint_jobs.clear();
+        for id in self.textures_delta.free.drain(..) {
+            self.renderer.free_texture(&id)
+        }
+        self.textures_delta = output.textures_delta;
+        for (id, image_delta) in self.textures_delta.set.iter() {
+            self.renderer
+                .update_texture(&context.device, &context.queue, *id, image_delta);
+        }
+
+        self.paint_jobs = self
+            .context()
+            .tessellate(output.shapes, output.pixels_per_point);
+
+        let screen_descriptor = self.platform.screen_descriptor();
+        self.renderer.update_buffers(
+            &context.device,
+            &context.queue,
+            encoder,
+            &self.paint_jobs,
+            &screen_descriptor,
+        );
+    }
+
     /// runs a separate render pass for egui
     pub fn render<'a>(
         &'a self,
@@ -96,45 +122,6 @@ impl EguiState {
             .render(&mut render_pass, &self.paint_jobs, &screen_descriptor);
     }
 }
-
-impl Prepare for EguiState {
-    fn prepare(&mut self, context: &GraphicsContext, encoder: &mut wgpu::CommandEncoder) {
-        let output = self.platform.end_frame();
-        self.paint_jobs.clear();
-        for id in self.textures_delta.free.drain(..) {
-            self.renderer.free_texture(&id)
-        }
-        self.textures_delta = output.textures_delta;
-        for (id, image_delta) in self.textures_delta.set.iter() {
-            self.renderer
-                .update_texture(&context.device, &context.queue, *id, image_delta);
-        }
-
-        self.paint_jobs = self
-            .context()
-            .tessellate(output.shapes, output.pixels_per_point);
-
-        let screen_descriptor = self.platform.screen_descriptor();
-        self.renderer.update_buffers(
-            &context.device,
-            &context.queue,
-            encoder,
-            &self.paint_jobs,
-            &screen_descriptor,
-        );
-    }
-}
-
-// impl Render for EguiState {
-//     fn render<'s: 'encoder, 'pass, 'encoder>(
-//         &'s self,
-//         render_pass: &'pass mut wgpu::RenderPass<'encoder>,
-//     ) {
-//         let screen_descriptor = self.platform.screen_descriptor();
-//         self.renderer
-//             .render(render_pass, &self.paint_jobs, &screen_descriptor);
-//     }
-// }
 
 /*
 

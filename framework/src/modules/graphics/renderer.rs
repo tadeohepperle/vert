@@ -15,7 +15,6 @@ use super::{
     graphics_context::GraphicsContext,
     settings::GraphicsSettings,
     shader::RendererT,
-    Render,
 };
 
 pub mod screen_space;
@@ -68,12 +67,7 @@ impl Renderer {
     /// grabs the stuff he needs from the arenas and renders it.
     ///
     /// surface_view is expected to be in srbg u8 format
-    pub fn render(
-        &self,
-        surface_view: &wgpu::TextureView,
-        encoder: &mut wgpu::CommandEncoder,
-        arenas: &vert_core::arenas::Arenas,
-    ) {
+    pub fn render(&self, surface_view: &wgpu::TextureView, encoder: &mut wgpu::CommandEncoder) {
         // /////////////////////////////////////////////////////////////////////////////
         // MSAA HDR render pass
         // /////////////////////////////////////////////////////////////////////////////
