@@ -2,7 +2,7 @@ use std::mem::size_of;
 
 use glam::{Affine3A, Mat4, Quat, Vec3};
 
-use crate::modules::graphics::VertexT;
+use crate::modules::graphics::shader::{Attribute, VertexT};
 
 use super::buffer::ToRaw;
 
@@ -105,32 +105,10 @@ impl TransformRaw {
 }
 
 impl VertexT for TransformRaw {
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: size_of::<TransformRaw>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 5,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: size_of::<[f32; 4]>() as wgpu::BufferAddress,
-                    shader_location: 6,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: size_of::<[f32; 8]>() as wgpu::BufferAddress,
-                    shader_location: 7,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: size_of::<[f32; 12]>() as wgpu::BufferAddress,
-                    shader_location: 8,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-            ],
-        }
-    }
+    const ATTRIBUTES: &'static [Attribute] = &[
+        Attribute::new("col1", wgpu::VertexFormat::Float32x4),
+        Attribute::new("col2", wgpu::VertexFormat::Float32x4),
+        Attribute::new("col3", wgpu::VertexFormat::Float32x4),
+        Attribute::new("translation", wgpu::VertexFormat::Float32x4),
+    ];
 }

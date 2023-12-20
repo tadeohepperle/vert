@@ -5,8 +5,6 @@ use wgpu::{
     BufferDescriptor,
 };
 
-use crate::modules::graphics::VertexT;
-
 pub trait ToRaw {
     type Raw: Copy + bytemuck::Pod + bytemuck::Zeroable + PartialEq;
     fn to_raw(&self) -> Self::Raw;
@@ -113,12 +111,12 @@ impl<U: ToRaw> InstanceBuffer<U> {
 }
 
 /// VertexBuffer cannot be updated.
-pub struct VertexBuffer<V: VertexT> {
+pub struct VertexBuffer<V: bytemuck::Pod> {
     data: Vec<V>,
     buffer: wgpu::Buffer,
 }
 
-impl<V: VertexT> VertexBuffer<V> {
+impl<V: bytemuck::Pod> VertexBuffer<V> {
     pub fn new(data: Vec<V>, device: &wgpu::Device) -> Self {
         let usage = wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST;
         let buffer = device.create_buffer_init(&BufferInitDescriptor {

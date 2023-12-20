@@ -5,7 +5,7 @@ use winit::dpi::PhysicalSize;
 
 use crate::{
     constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT},
-    modules::{egui::EguiState, watcher::FileWatcher},
+    modules::egui::EguiState,
 };
 
 use self::screen_space::ScreenSpaceRenderer;
@@ -14,7 +14,7 @@ use super::{
     elements::{gizmos::GizmosRenderer, texture::Texture},
     graphics_context::GraphicsContext,
     settings::GraphicsSettings,
-    shader::renderer::RendererT,
+    shader::RendererT,
     Render,
 };
 
@@ -48,7 +48,7 @@ impl Renderer {
 
     /// Creates a new renderer for this shader
     pub fn register_renderer<T: RendererT>(&mut self) {
-        let renderer = <T as RendererT>::new(&self.context, pipeline_config());
+        let renderer = <T as RendererT>::new(&self.context, pipeline_settings());
         self.shader_renderers.push(Box::new(renderer));
     }
 
@@ -129,7 +129,7 @@ impl Renderer {
 }
 
 /// todo! integrate and update this with graphics settings.
-fn pipeline_config() -> PipelineSettings {
+fn pipeline_settings() -> PipelineSettings {
     PipelineSettings {
         multisample: wgpu::MultisampleState {
             count: MSAA_SAMPLE_COUNT,
@@ -146,6 +146,7 @@ fn pipeline_config() -> PipelineSettings {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct PipelineSettings {
     pub multisample: wgpu::MultisampleState,
     pub target: wgpu::ColorTargetState,

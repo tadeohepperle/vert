@@ -7,8 +7,8 @@ use crate::{
     constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT, SURFACE_COLOR_FORMAT},
     modules::graphics::{
         graphics_context::GraphicsContext,
+        shader::{Attribute, VertexT},
         statics::{camera::Camera, StaticBindGroup},
-        VertexT,
     },
 };
 
@@ -31,7 +31,9 @@ impl GizmosRenderer {
         });
 
         // No vertices, just instances
-        let vertex_and_transform_layout: [wgpu::VertexBufferLayout; 1] = [Vertex::desc()];
+        let _empty = &mut vec![];
+        let vertex_and_transform_layout: [wgpu::VertexBufferLayout; 1] =
+            [Vertex::vertex_buffer_layout(0, false, _empty)];
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -198,25 +200,8 @@ struct Vertex {
 }
 
 impl VertexT for Vertex {
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        use std::mem;
-        wgpu::VertexBufferLayout {
-            array_stride: mem::size_of::<Vertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                // 3d pos
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                // uv
-                wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-            ],
-        }
-    }
+    const ATTRIBUTES: &'static [crate::modules::graphics::shader::Attribute] = &[
+        Attribute::new("pos", wgpu::VertexFormat::Float32x3),
+        Attribute::new("color", wgpu::VertexFormat::Float32x4),
+    ];
 }

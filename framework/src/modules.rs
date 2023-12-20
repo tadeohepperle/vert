@@ -1,5 +1,6 @@
 use std::{cell::RefCell, net::Shutdown, sync::Arc};
 
+use log::info;
 use vert_core::arenas::Arenas;
 use wgpu::CommandEncoder;
 use winit::{dpi::PhysicalSize, keyboard::KeyCode};
@@ -17,6 +18,7 @@ use self::{
         graphics_context::{GraphicsContext, GraphicsContextOwner},
         renderer::Renderer,
         settings::GraphicsSettings,
+        shader::color_mesh::ColorMeshRenderer,
         statics::{
             camera::Camera, screen_size::ScreenSize, static_texture::initialize_static_textures,
         },
@@ -24,7 +26,6 @@ use self::{
     },
     input::Input,
     time::Time,
-    watcher::FileWatcher,
     // ui::ImmediateUi, // needle
 };
 
@@ -33,7 +34,7 @@ pub mod egui;
 pub mod graphics;
 pub mod input;
 pub mod time;
-pub mod watcher;
+
 // pub mod ui;
 
 pub struct Modules {
@@ -48,15 +49,15 @@ pub struct Modules {
     // pub(crate) ui: ImmediateUi, // needle
     pub(crate) assets: AssetServer,
     pub(crate) batteries: Option<Batteries>,
-    pub(crate) file_watcher: FileWatcher,
     // todo: egui
 }
 
 impl Modules {
     pub async fn initialize(window: &winit::window::Window) -> anyhow::Result<Self> {
+        pretty_env_logger::try_init().unwrap();
+        info!("such information");
         let arenas = Arenas::new();
         let graphics_context = GraphicsContextOwner::intialize(window).await?;
-        let file_watcher = FileWatcher::new();
 
         initialize_static_textures(&graphics_context.context);
         let camera = Camera::new_default(&graphics_context.context);
@@ -65,7 +66,7 @@ impl Modules {
         let graphics_settings = GraphicsSettings::default();
         let mut renderer =
             Renderer::initialize(graphics_context.context.clone(), graphics_settings)?;
-        // renderer.register_shader::<ColorMeshRenderer>(&file_watcher);
+        renderer.register_renderer::<ColorMeshRenderer>();
 
         let batteries = Batteries::new();
 
@@ -87,7 +88,6 @@ impl Modules {
             egui,
             assets,
             batteries: Some(batteries),
-            file_watcher,
         })
     }
 
@@ -108,7 +108,6 @@ impl Modules {
 
     pub(crate) fn begin_frame(&mut self) -> Flow {
         self.time.update();
-        self.file_watcher.update();
         self.egui.begin_frame(self.time.total_secs_f64());
         self.time.egui_time_stats(self.egui.context());
 
