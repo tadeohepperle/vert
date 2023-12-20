@@ -50,20 +50,6 @@ impl BindGroupT for Camera {
             ]),
         }],
     };
-    // const BIND_GROUP_DEF: wgpu::BindGroupLayoutDescriptor<'static> =
-    //     wgpu::BindGroupLayoutDescriptor {
-    //         label: Some("CameraBindGroupLayout"),
-    //         entries: &[wgpu::BindGroupLayoutEntry {
-    //             binding: 0,
-    //             visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-    //             ty: wgpu::BindingType::Buffer {
-    //                 ty: wgpu::BufferBindingType::Uniform,
-    //                 has_dynamic_offset: false,
-    //                 min_binding_size: None,
-    //             },
-    //             count: None,
-    //         }],
-    //     };
 
     fn bind_group_entries<'a>(&'a self) -> SmallVec<[BindGroupEntry<'a>; 2]> {
         smallvec![wgpu::BindGroupEntry {
@@ -99,7 +85,7 @@ impl Camera {
         // initialize static bind group for the camera:
         let layout = Camera::create_bind_group_layout(device);
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("CameraBindGroup"),
+            label: Some("Camera BindGroup"),
             layout: &layout,
             entries: &camera.bind_group_entries(),
         });

@@ -187,14 +187,4 @@ impl ShaderRendererT for ColorMeshShaderRenderer {
             render_pass.draw_indexed(mesh.index_range.clone(), 0, mesh.instance_range.clone())
         }
     }
-
-    fn rebuild(
-        &mut self,
-        graphics_context: &GraphicsContext,
-        pipeline_config: ShaderPipelineConfig,
-    ) {
-        let pipeline =
-            ColorMeshShader::build_pipeline(&graphics_context.device, pipeline_config).unwrap();
-        self.pipeline = pipeline;
-    }
 }

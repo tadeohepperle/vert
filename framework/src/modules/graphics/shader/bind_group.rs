@@ -1,21 +1,4 @@
-// use smallvec::{smallvec, SmallVec};
-// pub trait IntoBindGroupLayouts {
-//     fn bind_group_layouts() -> SmallVec<[&'static wgpu::BindGroupLayout; 2]>;
-// }
-
-// impl IntoBindGroupLayouts for () {
-//     fn bind_group_layouts() -> SmallVec<[&'static wgpu::BindGroupLayout; 2]> {
-//         smallvec![]
-//     }
-// }
-
-// impl<T: StaticBindGroup> IntoBindGroupLayouts for T {
-//     fn bind_group_layouts() -> SmallVec<[&'static wgpu::BindGroupLayout; 2]> {
-//         smallvec![Self::bind_group_layout()]
-//     }
-// }
-
-use smallvec::{smallvec, SmallVec};
+use smallvec::SmallVec;
 use wgpu::{naga::TypeInner, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry};
 
 pub trait StaticBindGroup {

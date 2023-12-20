@@ -17,6 +17,7 @@ use super::{graphics_context::GraphicsContext, settings::GraphicsSettings};
 
 pub mod bind_group;
 pub mod color_mesh;
+pub mod ui_rect;
 pub mod vertex;
 
 const VERTEX_ENTRY_POINT: &str = "vs_main";
@@ -59,26 +60,29 @@ pub trait ShaderT: 'static + Sized {
         &[]
     }
 
-    fn naga_module() -> anyhow::Result<wgpu::naga::Module> {
-        let vertex = indoc! {"
-            // vertex shader code here.
-            var out: VertexOutput;
-            // ...
-            return out;
-        "};
-
-        let fragment = indoc! {"
-            // fragment shader code here.
-        "};
-
-        let other = indoc! {"
-            // You can also include other code.
-        "};
-
-        let wgsl_string = generate_wgsl::<Self>(vertex, fragment, other);
-        let module = wgpu::naga::front::wgsl::parse_str(&wgsl_string)?;
-        Ok(module)
-    }
+    /// A static implementation could look like this:
+    ///
+    /// ```
+    /// let vertex = indoc! {"
+    ///     // vertex shader code here.
+    ///     var out: VertexOutput;
+    ///     // ...
+    ///     return out;
+    /// "};
+    ///  
+    /// let fragment = indoc! {"
+    ///     // fragment shader code here.
+    /// "};
+    ///   
+    /// let other = indoc! {"
+    ///     // You can also include other code.
+    /// "};
+    ///  
+    /// let wgsl_string = generate_wgsl::<Self>(vertex, fragment, other);
+    /// let module = wgpu::naga::front::wgsl::parse_str(&wgsl_string)?;
+    /// Ok(module)
+    /// ```
+    fn naga_module() -> anyhow::Result<wgpu::naga::Module>;
 
     fn build_pipeline(
         device: &wgpu::Device,
@@ -121,9 +125,11 @@ pub trait ShaderRendererT: 'static {
     /// Can be triggered when settings change or a shader file that is being watched.
     fn rebuild(
         &mut self,
-        graphics_context: &GraphicsContext,
-        pipeline_config: ShaderPipelineConfig,
-    );
+        _graphics_context: &GraphicsContext,
+        _pipeline_config: ShaderPipelineConfig,
+    ) {
+        // optional, some pipelines never need rebuilding...
+    }
 
     fn prepare(&mut self, context: &GraphicsContext, encoder: &mut wgpu::CommandEncoder);
 

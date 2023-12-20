@@ -4,10 +4,13 @@ use std::borrow::Cow;
 
 use image::RgbaImage;
 use rand::{thread_rng, Rng};
+use smallvec::{smallvec, SmallVec};
 use wgpu::BindGroupDescriptor;
 
 use crate::modules::graphics::{
-    graphics_context::GraphicsContext, statics::static_texture::RgbaBindGroupLayout,
+    graphics_context::GraphicsContext,
+    shader::bind_group::{BindGroupDef, BindGroupEntryDef, BindGroupT},
+    statics::static_texture::RgbaBindGroupLayout,
 };
 
 #[derive(Debug)]
@@ -167,5 +170,44 @@ impl Texture {
             label: None,
             id: thread_rng().gen(),
         }
+    }
+}
+
+/// Todo! not sure if this should be for a seperate RgbaTexture type, because it only supports single sampling like this
+/// Todo! what if we have multiple textures on different bind slots? What then?
+impl BindGroupT for Texture {
+    const BIND_GROUP_DEF: BindGroupDef = BindGroupDef {
+        name: "Texture",
+        entries: &[
+            BindGroupEntryDef {
+                name: "texture",
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                struct_fields: None,
+            },
+            BindGroupEntryDef {
+                name: "sampler",
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                struct_fields: None,
+            },
+        ],
+    };
+
+    fn bind_group_entries<'a>(&'a self) -> SmallVec<[wgpu::BindGroupEntry<'a>; 2]> {
+        smallvec![
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&self.view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::Sampler(&self.sampler),
+            },
+        ]
     }
 }

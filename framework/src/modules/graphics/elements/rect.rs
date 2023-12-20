@@ -83,7 +83,7 @@ pub trait RectT: bytemuck::Zeroable + bytemuck::Pod {}
 
 #[derive(Debug)]
 /// We can sort all rects into the texture groups they have. This way we have only N-TextureGroups draw calls.
-pub struct PeparedRects<T: RectT> {
+pub struct PreparedRects<T: RectT> {
     /// instances (sorted)
     pub instances: Vec<T>,
     /// Buffer for instances (sorted)
@@ -92,10 +92,10 @@ pub struct PeparedRects<T: RectT> {
     pub texture_groups: Vec<(Range<u32>, RectTexture)>,
 }
 
-impl<T: RectT> PeparedRects<T> {
+impl<T: RectT> PreparedRects<T> {
     /// create an new DrawRects backed by a gpu buffer with RECT_BUFFER_MIN_SIZE elements in it.
     pub fn new(device: &wgpu::Device) -> Self {
-        PeparedRects {
+        PreparedRects {
             instance_buffer: GrowableBuffer::new(
                 device,
                 RECT_BUFFER_MIN_SIZE,
