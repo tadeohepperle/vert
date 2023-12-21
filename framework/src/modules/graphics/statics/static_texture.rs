@@ -14,13 +14,13 @@ pub struct RgbaBindGroupLayout;
 
 impl RgbaBindGroupLayout {
     /// Must be initialized before
-    pub fn get(&self) -> &'static BindGroupLayout {
+    pub fn static_layout(&self) -> &'static BindGroupLayout {
         _RGBA_BIND_GROUP_LAYOUT
             .get()
             .expect("RgbaBindGroupLayout not initialized")
     }
 
-    pub fn get_multisampled(&self) -> &'static BindGroupLayout {
+    pub fn static_layout_multisampled(&self) -> &'static BindGroupLayout {
         _RGBA_BIND_GROUP_LAYOUT_MSAA4
             .get()
             .expect("RgbaBindGroupLayout MSSA4 not initialized")

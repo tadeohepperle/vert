@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use glam::{vec2, vec3, Vec2};
 use vert_framework::{
     app::App,
@@ -38,7 +40,7 @@ impl StateT for MyState {
                 Transform::from(vec3(x as f32, (e as f32 * 0.01).sin(), y as f32))
             })
             .collect();
-        // ColorMeshRenderer::draw_cubes(&transforms, None);
+        ColorMeshRenderer::draw_cubes(&transforms, None);
         Gizmos::draw_xyz();
 
         UiRectRenderer::draw_rect(UiRect {
@@ -48,19 +50,25 @@ impl StateT for MyState {
             border_radius: [30.0, 0.0, 20.0, 0.0],
         });
 
-        // WorldRectRenderer::draw_rect(
-        //     UiRect {
-        //         pos: Rect::new([300., 200.0], [300., 200.0]),
-        //         uv: Default::default(),
-        //         color: Color::RED,
-        //         border_radius: [30.0, 0.0, 20.0, 0.0],
-        //     },
-        //     Default::default(),
-        // );
+        let to_camera = {
+            let mut t = Transform::default();
+            t.rotate_y(-PI / 2.0);
+            t
+        };
+
+        WorldRectRenderer::draw_3d_rect(
+            UiRect {
+                pos: Rect::new([300., 200.0], [300., 200.0]),
+                uv: Default::default(),
+                color: Color::RED,
+                border_radius: [30.0, 0.0, 20.0, 0.0],
+            },
+            to_camera,
+        );
 
         TextRenderer::draw_ui_text(DrawText {
             text: "Hello".into(),
-            pos: vec2(500.0, 200.0),
+            pos: vec2(500.0, 10.0),
             font_texture_size: 60.0,
             font_layout_size: 60.0,
             max_width: None,
@@ -76,7 +84,7 @@ impl StateT for MyState {
                 max_width: None,
                 color: Color::BLUE,
             },
-            vec3(0.0, 0.0, 0.0).into(),
+            to_camera,
         );
         Flow::Continue
     }

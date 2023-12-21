@@ -11,8 +11,8 @@ use wgpu::{BindGroupLayout, ColorTargetState, ColorWrites, PrimitiveState, Textu
 use super::{
     elements::{color::Color, transform::TransformRaw},
     graphics_context::GraphicsContext,
-    renderer::PipelineSettings,
     settings::GraphicsSettings,
+    PipelineSettings,
 };
 
 pub mod color_mesh;

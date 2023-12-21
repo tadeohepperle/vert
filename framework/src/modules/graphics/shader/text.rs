@@ -146,6 +146,7 @@ use crate::modules::{
             transform::Transform,
         },
         graphics_context::GraphicsContext,
+        PipelineSettings,
     },
 };
 
@@ -194,10 +195,7 @@ fn initialize_singletons(context: &GraphicsContext) {
 pub struct TextRenderer {}
 
 impl RendererT for TextRenderer {
-    fn new(
-        context: &crate::modules::graphics::graphics_context::GraphicsContext,
-        settings: crate::modules::graphics::renderer::PipelineSettings,
-    ) -> Self
+    fn new(context: &GraphicsContext, settings: PipelineSettings) -> Self
     where
         Self: Sized,
     {

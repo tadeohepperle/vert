@@ -20,9 +20,9 @@ use crate::{
                 transform::{Transform, TransformRaw},
             },
             graphics_context::GraphicsContext,
-            renderer::PipelineSettings,
             settings::GraphicsSettings,
             statics::{camera::Camera, static_texture::RgbaBindGroupLayout, StaticBindGroup},
+            PipelineSettings,
         },
     },
     utils::watcher::{FileChangeWatcher, ShaderFileWatcher},
@@ -50,7 +50,7 @@ impl WorldRectRenderer {
         );
     }
 
-    pub fn draw_rect(rect: UiRect, transform: Transform) {
+    pub fn draw_3d_rect(rect: UiRect, transform: Transform) {
         let mut queue = WORLD_RECT_QUEUE.lock().unwrap();
         queue.add(
             WorldRect {
@@ -170,20 +170,20 @@ impl RendererT for WorldRectRenderer {
     //     }
     // }
 
-    // fn primitive() -> wgpu::PrimitiveState
-    // where
-    //     Self: Sized,
-    // {
-    //     PrimitiveState {
-    //         topology: wgpu::PrimitiveTopology::TriangleList,
-    //         strip_index_format: None,
-    //         front_face: wgpu::FrontFace::Ccw,
-    //         cull_mode: Some(wgpu::Face::Back), // this renders both sides of the text. Not sure if it will stay like this
-    //         unclipped_depth: false,
-    //         polygon_mode: wgpu::PolygonMode::Fill,
-    //         conservative: false,
-    //     }
-    // }
+    fn primitive() -> wgpu::PrimitiveState
+    where
+        Self: Sized,
+    {
+        PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            strip_index_format: None,
+            front_face: wgpu::FrontFace::Ccw,
+            cull_mode: None, // this renders both sides of the text. Not sure if it will stay like this
+            unclipped_depth: false,
+            polygon_mode: wgpu::PolygonMode::Fill,
+            conservative: false,
+        }
+    }
 }
 
 fn create_render_pipeline(
@@ -202,7 +202,10 @@ fn create_render_pipeline(
 
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some(&format!("{label} PipelineLayout")),
-        bind_group_layouts: &[Camera::bind_group_layout(), RgbaBindGroupLayout.get()],
+        bind_group_layouts: &[
+            Camera::bind_group_layout(),
+            RgbaBindGroupLayout.static_layout(),
+        ],
         push_constant_ranges: &[],
     });
 

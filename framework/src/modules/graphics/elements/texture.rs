@@ -22,7 +22,7 @@ impl BindableTexture {
     pub fn new(context: &GraphicsContext, texture: Texture) -> Self {
         let bind_group = context.device.create_bind_group(&BindGroupDescriptor {
             label: None,
-            layout: RgbaBindGroupLayout.get(),
+            layout: RgbaBindGroupLayout.static_layout(),
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,

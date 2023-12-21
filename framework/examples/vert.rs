@@ -1,3 +1,5 @@
+//! Run `RUST_LOG=INFO cargo run --example vert --release` to run this example.
+
 use std::{f32::consts::PI, sync::Arc};
 
 use glam::{vec2, vec3};
@@ -66,8 +68,8 @@ impl StateT for MyState {
         // Draw some stuff (some things that are very bright)
         // /////////////////////////////////////////////////////////////////////////////
 
+        // let the text face the camera
         let text_rotation = {
-            // let the text face the camera
             let mut t = Transform::default();
             t.rotate_y(-PI / 2.0);
             t.position.y += 0.5;

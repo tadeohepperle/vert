@@ -1,123 +1,12 @@
 use rand::{thread_rng, Rng};
-use wgpu::{RenderPass, ShaderModule, ShaderModuleDescriptor};
 
-use crate::{
-    constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT, SURFACE_COLOR_FORMAT},
-    modules::graphics::{
-        elements::texture::{BindableTexture, Texture},
-        graphics_context::GraphicsContext,
-        settings::GraphicsSettings,
-        statics::static_texture::RgbaBindGroupLayout,
-    },
+use crate::constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT};
+
+use super::{
+    elements::texture::{BindableTexture, Texture},
+    graphics_context::GraphicsContext,
+    statics::static_texture::RgbaBindGroupLayout,
 };
-
-use self::{bloom::BloomPipeline, tonemapping::ToneMappingPipeline};
-
-pub mod bloom;
-pub mod tonemapping;
-
-pub struct ScreenSpaceRenderer {
-    msaa_depth_texture: DepthTexture,
-    /// 4x msaa samples for this texture
-    hdr_msaa_texture: HdrTexture,
-    /// only 1 sample, the hdr_msaa_texture resolves into the hdr_resolve_texture.
-    hdr_resolve_texture: HdrTexture,
-    tone_mapping_pipeline: ToneMappingPipeline,
-    bloom_pipeline: BloomPipeline,
-    screen_vertex_shader: ShaderModule,
-}
-
-impl ScreenSpaceRenderer {
-    pub fn create(context: &GraphicsContext) -> Self {
-        // setup textures
-        let msaa_depth_texture = DepthTexture::create(&context);
-        let msaa_hdr_texture = HdrTexture::create_screen_sized(context, MSAA_SAMPLE_COUNT);
-        let hdr_resolve_target_texture = HdrTexture::create_screen_sized(context, 1);
-
-        // setup shader where a single triangle covers the entire screen
-        let screen_vertex_shader = context.device.create_shader_module(ShaderModuleDescriptor {
-            label: Some("Screen Vertex Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("screen.vert.wgsl").into()),
-        });
-        let screen_vertex_state = wgpu::VertexState {
-            module: &screen_vertex_shader,
-            entry_point: "vs_main",
-            buffers: &[],
-        };
-
-        // setup pipelines for postprocessing and tonemapping
-        let tone_mapping_pipeline = ToneMappingPipeline::new(&context, screen_vertex_state.clone());
-        let bloom_pipeline = BloomPipeline::new(&context, screen_vertex_state);
-        ScreenSpaceRenderer {
-            msaa_depth_texture,
-            hdr_msaa_texture: msaa_hdr_texture,
-            hdr_resolve_texture: hdr_resolve_target_texture,
-            screen_vertex_shader,
-            tone_mapping_pipeline,
-            bloom_pipeline,
-        }
-    }
-
-    pub fn new_hdr_4xmsaa_render_pass<'a: 'e, 'e>(
-        &'a self,
-        encoder: &'e mut wgpu::CommandEncoder,
-        graphics_settings: &GraphicsSettings,
-    ) -> RenderPass<'e> {
-        let color_attachment = wgpu::RenderPassColorAttachment {
-            view: self.hdr_msaa_texture.view(),
-            resolve_target: Some(self.hdr_resolve_texture.view()),
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(graphics_settings.clear_color.into()),
-                store: wgpu::StoreOp::Store,
-            },
-        };
-        encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Renderpass"),
-            color_attachments: &[Some(color_attachment)],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: self.msaa_depth_texture.view(),
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: wgpu::StoreOp::Store,
-                }),
-                stencil_ops: None,
-            }),
-            occlusion_query_set: None,
-            timestamp_writes: None,
-        })
-    }
-
-    pub fn resize(&mut self, context: &GraphicsContext) {
-        self.msaa_depth_texture.recreate(context);
-        self.hdr_msaa_texture = HdrTexture::create_screen_sized(context, MSAA_SAMPLE_COUNT);
-        self.hdr_resolve_texture = HdrTexture::create_screen_sized(context, 1);
-        // recreate bloom textures too
-        self.bloom_pipeline.resize(context);
-    }
-
-    /// applies post processing to the HDR image and maps from the HDR image to an SRGB image (the surface_view = screen that is presented to user)
-    pub fn render_to_surface_view<'a: 'e, 'e>(
-        &'a self,
-        encoder: &'e mut wgpu::CommandEncoder,
-        surface_view: &wgpu::TextureView,
-        graphics_settings: &GraphicsSettings,
-    ) {
-        if graphics_settings.bloom.activated {
-            self.bloom_pipeline.apply_bloom(
-                encoder,
-                self.hdr_resolve_texture.bind_group(),
-                self.hdr_resolve_texture.view(),
-                graphics_settings,
-            );
-        }
-
-        self.tone_mapping_pipeline.apply_tone_mapping(
-            encoder,
-            self.hdr_resolve_texture.bind_group(),
-            surface_view,
-        );
-    }
-}
 
 pub struct DepthTexture(Texture);
 
@@ -240,9 +129,9 @@ impl HdrTexture {
 
         let label: String = label.into();
         let layout = if sample_count == 1 {
-            RgbaBindGroupLayout.get()
+            RgbaBindGroupLayout.static_layout()
         } else {
-            RgbaBindGroupLayout.get_multisampled()
+            RgbaBindGroupLayout.static_layout_multisampled()
         };
         let bind_group = context
             .device

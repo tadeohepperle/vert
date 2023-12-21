@@ -7,12 +7,20 @@ use crate::{
     },
 };
 
-pub struct ToneMappingPipeline {
+use super::PostProcessingEffectT;
+
+pub struct AcesToneMapping {
     pipeline: wgpu::RenderPipeline,
 }
 
-impl ToneMappingPipeline {
-    pub fn new(context: &GraphicsContext, screen_vertex_state: wgpu::VertexState) -> Self {
+impl PostProcessingEffectT for AcesToneMapping {
+    fn new(
+        context: &GraphicsContext,
+        screen_vertex_shader: &crate::modules::graphics::ScreenVertexShader,
+    ) -> Self
+    where
+        Self: Sized,
+    {
         let shader = context
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -24,7 +32,7 @@ impl ToneMappingPipeline {
                 .device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: None,
-                    bind_group_layouts: &[RgbaBindGroupLayout.get()],
+                    bind_group_layouts: &[RgbaBindGroupLayout.static_layout()],
                     push_constant_ranges: &[],
                 });
 
@@ -33,7 +41,7 @@ impl ToneMappingPipeline {
             .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(&format!("{:?}", shader)),
                 layout: Some(&pipeline_layout),
-                vertex: screen_vertex_state,
+                vertex: screen_vertex_shader.vertex_state(),
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
                     entry_point: "fs_main",
@@ -60,17 +68,18 @@ impl ToneMappingPipeline {
         Self { pipeline }
     }
 
-    /// The input_hdr_texture should be 16 bit float per channel, while the output_surface_texture should be 8 bit 2RGB.
-    pub fn apply_tone_mapping<'e, 'p>(
+    /// input is expected to be hdr texture, and output is surface of window.
+    fn apply<'e>(
         &'e self,
         encoder: &'e mut wgpu::CommandEncoder,
-        input_hdr_texture: &'e wgpu::BindGroup,
-        output_surface_texture: &'e wgpu::TextureView,
+        input: &wgpu::BindGroup,
+        output: &wgpu::TextureView,
+        graphics_settings: &crate::modules::graphics::settings::GraphicsSettings,
     ) {
         let mut tone_mapping_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Hdr::process"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: output_surface_texture,
+                view: output,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Load,
@@ -83,7 +92,7 @@ impl ToneMappingPipeline {
         });
 
         tone_mapping_pass.set_pipeline(&self.pipeline);
-        tone_mapping_pass.set_bind_group(0, input_hdr_texture, &[]);
+        tone_mapping_pass.set_bind_group(0, input, &[]);
         tone_mapping_pass.draw(0..3, 0..1);
     }
 }

@@ -7,7 +7,9 @@ use crate::{
     constants::DEPTH_FORMAT,
     modules::graphics::{
         elements::{buffer::GrowableBuffer, color::Color},
+        graphics_context::GraphicsContext,
         statics::{camera::Camera, StaticBindGroup},
+        PipelineSettings,
     },
 };
 
@@ -113,10 +115,7 @@ pub struct Gizmos {
 }
 
 impl RendererT for Gizmos {
-    fn new(
-        context: &crate::modules::graphics::graphics_context::GraphicsContext,
-        settings: crate::modules::graphics::renderer::PipelineSettings,
-    ) -> Self
+    fn new(context: &GraphicsContext, settings: PipelineSettings) -> Self
     where
         Self: Sized,
     {
@@ -193,11 +192,7 @@ impl RendererT for Gizmos {
         }
     }
 
-    fn prepare(
-        &mut self,
-        context: &crate::modules::graphics::graphics_context::GraphicsContext,
-        encoder: &mut wgpu::CommandEncoder,
-    ) {
+    fn prepare(&mut self, context: &GraphicsContext, encoder: &mut wgpu::CommandEncoder) {
         let mut queue = LINE_QUEUE.lock().unwrap();
         self.previous_vertex_queue.clear();
         std::mem::swap(&mut self.previous_vertex_queue, &mut queue);

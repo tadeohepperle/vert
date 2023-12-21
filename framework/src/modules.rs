@@ -11,8 +11,12 @@ use winit::{dpi::PhysicalSize, keyboard::KeyCode};
 use crate::{
     batteries::{self, Batteries},
     flow::Flow,
-    modules::graphics::shader::{
-        gizmos::Gizmos, text::TextRenderer, ui_rect::UiRectRenderer, world_rect::WorldRectRenderer,
+    modules::graphics::{
+        post_processing::{bloom::Bloom, tonemapping::AcesToneMapping},
+        shader::{
+            gizmos::Gizmos, text::TextRenderer, ui_rect::UiRectRenderer,
+            world_rect::WorldRectRenderer,
+        },
     },
     state::StateT,
 };
@@ -23,12 +27,12 @@ use self::{
     egui::EguiState,
     graphics::{
         graphics_context::{GraphicsContext, GraphicsContextOwner},
-        renderer::Renderer,
         settings::GraphicsSettings,
         shader::color_mesh::ColorMeshRenderer,
         statics::{
             camera::Camera, screen_size::ScreenSize, static_texture::initialize_static_textures,
         },
+        Renderer,
     },
     input::Input,
     time::Time,
@@ -64,23 +68,14 @@ impl Modules {
         initialize_static_textures(&graphics_context.context);
         let camera = Camera::new_default(&graphics_context.context);
         let screen_size = ScreenSize::new(&graphics_context.context);
-
         let graphics_settings = GraphicsSettings::default();
-        let mut renderer =
-            Renderer::initialize(graphics_context.context.clone(), graphics_settings)?;
-        renderer.register_renderer::<ColorMeshRenderer>();
-        renderer.register_renderer::<UiRectRenderer>();
-        renderer.register_renderer::<WorldRectRenderer>();
-        renderer.register_renderer::<TextRenderer>();
-        renderer.register_renderer::<Gizmos>();
-
+        let renderer =
+            Renderer::new_with_defaults(graphics_context.context.clone(), graphics_settings)?;
         let batteries = Batteries::new();
 
         let input = Input::default();
         let time = Time::default();
         let egui = EguiState::new(&graphics_context.context);
-
-        // let ui = ImmediateUi::new(graphics_context.context.clone()); // needle
 
         Ok(Self {
             graphics: graphics_context,

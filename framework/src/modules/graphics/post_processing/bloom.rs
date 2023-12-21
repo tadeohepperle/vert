@@ -1,5 +1,3 @@
-use std::hint;
-
 use wgpu::{
     BlendComponent, BlendFactor, BlendOperation, BlendState, Color, CommandEncoder,
     RenderPassDescriptor, RenderPipeline, TextureView,
@@ -8,14 +6,14 @@ use wgpu::{
 use crate::{
     constants::HDR_COLOR_FORMAT,
     modules::graphics::{
-        elements::texture::{BindableTexture, Texture},
         graphics_context::GraphicsContext,
+        screen_textures::HdrTexture,
         settings::GraphicsSettings,
         statics::{screen_size::ScreenSize, static_texture::RgbaBindGroupLayout, StaticBindGroup},
     },
 };
 
-use super::HdrTexture;
+use super::PostProcessingEffectT;
 
 /// The input to the BloomPipeline is an HDR texture A that has a bindgroup.
 /// We need to be able to use this texture A as a render attachment.
@@ -39,7 +37,7 @@ use super::HdrTexture;
 /// - upsample B1 and add it to the original HDR image A.
 ///
 /// This should result in a bloom.
-pub struct BloomPipeline {
+pub struct Bloom {
     downsample_threshold_pipeline: wgpu::RenderPipeline,
     downsample_pipeline: wgpu::RenderPipeline,
     upsample_pipeline: wgpu::RenderPipeline,
@@ -47,11 +45,14 @@ pub struct BloomPipeline {
     bloom_textures: BloomTextures,
 }
 
-impl BloomPipeline {
-    pub fn new(context: &GraphicsContext, screen_vertex_state: wgpu::VertexState) -> Self {
-        // let fragment_shader =
-
-        //         todo!()
+impl PostProcessingEffectT for Bloom {
+    fn new(
+        context: &GraphicsContext,
+        screen_vertex_shader: &crate::modules::graphics::ScreenVertexShader,
+    ) -> Self
+    where
+        Self: Sized,
+    {
         let pipeline_layout =
             context
                 .device
@@ -59,7 +60,7 @@ impl BloomPipeline {
                     label: None,
                     bind_group_layouts: &[
                         ScreenSize::bind_group_layout(),
-                        RgbaBindGroupLayout.get(),
+                        RgbaBindGroupLayout.static_layout(),
                     ],
                     push_constant_ranges: &[],
                 });
@@ -78,7 +79,7 @@ impl BloomPipeline {
                     .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                         label: Some(label),
                         layout: Some(&pipeline_layout),
-                        vertex: screen_vertex_state.clone(),
+                        vertex: screen_vertex_shader.vertex_state(),
                         fragment: Some(wgpu::FragmentState {
                             module: &fragment_shader,
                             entry_point,
@@ -144,7 +145,7 @@ impl BloomPipeline {
         }
     }
 
-    pub fn resize(&mut self, context: &GraphicsContext) {
+    fn resize(&mut self, context: &GraphicsContext) {
         // recreate textures
         let config = context.surface_config.get();
         let width = config.width;
@@ -152,19 +153,23 @@ impl BloomPipeline {
         self.bloom_textures = BloomTextures::create(context, width, height);
     }
 
-    /// the `texture_view` should be the texture view of the screen. We draw to it.
+    /// the `output_texture` should be the texture view of the screen (but hdr, not the actual surface). We draw to it.
     /// the `texture_view_bind_group` is the same texture, given as an input. We use it to
     /// draw some bloom to intermediate textures and write that bloom back to it at the end.
     ///
     /// Note: Of course having so many render passes is kinda inefficient, but the result looks pretty nice right now.
     /// Later we can see how hazel does bloom and have a similar thing.
-    pub fn apply_bloom<'e>(
+    fn apply<'e>(
         &'e self,
         encoder: &'e mut CommandEncoder,
-        texture_bind_group: &wgpu::BindGroup,
-        texture_view: &TextureView,
+        input_texture: &wgpu::BindGroup,
+        output_texture: &TextureView,
         graphics_settings: &GraphicsSettings,
     ) {
+        if !graphics_settings.bloom.activated {
+            return;
+        }
+
         fn run_screen_render_pass<'e>(
             label: &str,
             encoder: &'e mut CommandEncoder,
@@ -199,7 +204,7 @@ impl BloomPipeline {
         run_screen_render_pass(
             "1 -> 1/2 downsample and threshold",
             encoder,
-            texture_bind_group,
+            input_texture,
             self.bloom_textures.b2.view(),
             &self.downsample_threshold_pipeline,
         );
@@ -348,7 +353,7 @@ impl BloomPipeline {
         let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("1/2 -> 1 upsample and add"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: texture_view,
+                view: output_texture,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Load,

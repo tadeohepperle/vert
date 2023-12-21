@@ -11,7 +11,6 @@ use wgpu::{
 };
 
 use crate::{
-    constants::DEPTH_FORMAT,
     modules::{
         assets::asset_store::{AssetStore, Key},
         graphics::{
@@ -21,13 +20,13 @@ use crate::{
                 texture::{BindableTexture, Texture},
             },
             graphics_context::GraphicsContext,
-            renderer::PipelineSettings,
             statics::{
                 screen_size::ScreenSize, static_texture::RgbaBindGroupLayout, StaticBindGroup,
             },
+            PipelineSettings,
         },
     },
-    utils::watcher::{FileChangeWatcher, ShaderFileWatcher},
+    utils::watcher::ShaderFileWatcher,
     wgsl_file,
 };
 
@@ -240,7 +239,10 @@ fn create_render_pipeline(
 
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some(&format!("{label} PipelineLayout")),
-        bind_group_layouts: &[ScreenSize::bind_group_layout(), RgbaBindGroupLayout.get()],
+        bind_group_layouts: &[
+            ScreenSize::bind_group_layout(),
+            RgbaBindGroupLayout.static_layout(),
+        ],
         push_constant_ranges: &[],
     });
 
