@@ -7,28 +7,31 @@ use vert_framework::{
     flow::Flow,
     modules::{
         assets::fetchable_asset::{AssetSource, ImageAsset},
-        graphics::elements::{
-            buffer::ToRaw,
-            color::Color,
-            color_mesh::{MultiColorMesh, SingleColorMesh},
-            rect::{Rect, RectTexture, RectWithTexture},
-            rect_3d::Rect3D,
-            texture::{BindableTexture, Texture},
-            transform::Transform,
-            ui_rect::UiRect,
+        graphics::{
+            elements::{
+                buffer::ToRaw,
+                color::Color,
+                texture::{BindableTexture, Texture},
+                transform::Transform,
+            },
+            shader::{
+                color_mesh::ColorMeshRenderer,
+                text::{DrawText, TextRenderer},
+            },
         },
-        ui::text_rasterizer::DrawText,
         Modules,
     },
     state::StateT,
 };
 
-pub struct MyState;
+pub struct MyState {
+    blue_cubes: Vec<Transform>,
+    black_cubes: Vec<Transform>,
+}
 
 impl StateT for MyState {
     async fn initialize(modules: &mut Modules) -> anyhow::Result<Self> {
         modules.add_battery(SimpleCamController);
-
         let mut blue_cubes: Vec<Transform> = vec![];
         let mut black_cubes: Vec<Transform> = vec![];
 
@@ -49,21 +52,13 @@ impl StateT for MyState {
             }
         }
 
-        modules.spawn(MultiColorMesh::cubes(
-            blue_cubes,
-            modules.device(),
-            Some(Color::new(0.0, 0.01, 0.01)),
-        ));
-        modules.spawn(MultiColorMesh::cubes(
-            black_cubes,
-            modules.device(),
-            Some(Color::new(0.0, 0.0, 0.0)),
-        ));
-
         // use a very high energy green to get a nice background bloom
         modules.graphics_settings_mut().clear_color = Color::new(2.0, 8.0, 2.0);
 
-        Ok(MyState)
+        Ok(MyState {
+            black_cubes,
+            blue_cubes,
+        })
     }
 
     fn update(&mut self, modules: &mut Modules) -> Flow {
@@ -71,8 +66,16 @@ impl StateT for MyState {
         // Draw some stuff (some things that are very bright)
         // /////////////////////////////////////////////////////////////////////////////
 
-        modules.ui().draw_3d_text(
-            &DrawText {
+        let text_rotation = {
+            // let the text face the camera
+            let mut t = Transform::default();
+            t.rotate_y(-PI / 2.0);
+            t.position.y += 0.5;
+            t
+        };
+
+        TextRenderer::draw_3d_text(
+            DrawText {
                 text: "Vert".into(),
                 font_layout_size: 100.0,
                 font_texture_size: 200.0,
@@ -80,15 +83,10 @@ impl StateT for MyState {
                 color: Color::new(10.0, 1.0, 3.0),
                 ..Default::default()
             },
-            &{
-                // let the text face the camera
-                let mut t = Transform::default();
-                t.rotate_y(-PI / 2.0);
-                t
-            },
+            text_rotation,
         );
-        modules.ui().draw_3d_text(
-            &DrawText {
+        TextRenderer::draw_3d_text(
+            DrawText {
                 text: "Game Engine".into(),
                 font_layout_size: 64.0,
                 font_texture_size: 200.0,
@@ -97,13 +95,16 @@ impl StateT for MyState {
                 color: Color::new(10.0, 1.0, 1.0),
                 ..Default::default()
             },
-            &{
-                // let the text face the camera
-                let mut t = Transform::default();
-                t.rotate_y(-PI / 2.0);
-                t
-            },
+            text_rotation,
         );
+
+        let total_time = modules.time().total_secs().sin() * 0.3;
+        for c in self.blue_cubes.iter_mut() {
+            c.rotation.x = total_time;
+        }
+
+        ColorMeshRenderer::draw_cubes(&self.blue_cubes, Some(Color::new(0.0, 0.01, 0.05)));
+        ColorMeshRenderer::draw_cubes(&self.black_cubes, Some(Color::new(0.0, 0.0, 0.0)));
 
         // /////////////////////////////////////////////////////////////////////////////
         // Make bloom settings controllable by egui
