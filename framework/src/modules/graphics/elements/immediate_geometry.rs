@@ -3,12 +3,12 @@ use std::ops::Range;
 use super::buffer::ToRaw;
 
 #[derive(Debug)]
-pub struct ImmediateMesh {
+pub struct ImmediateMeshRanges {
     pub index_range: Range<u32>,
     pub instance_range: Range<u32>,
 }
 
-impl ImmediateMesh {
+impl ImmediateMeshRanges {
     pub fn index_range(&self) -> Range<u32> {
         self.index_range.clone()
     }
@@ -20,7 +20,7 @@ impl ImmediateMesh {
 #[derive(Debug)]
 pub struct ImmediateMeshQueue<V: Copy, I: ToRaw> {
     /// index and instance ranges into the other vecs.
-    immediate_meshes: Vec<ImmediateMesh>,
+    immediate_meshes: Vec<ImmediateMeshRanges>,
     // buffers for immediate geometry, cleared each frame:
     vertices: Vec<V>,
     indices: Vec<u32>,
@@ -46,14 +46,14 @@ impl<V: Copy, I: ToRaw> ImmediateMeshQueue<V, I> {
         self.vertices.extend(vertices.iter().copied());
         self.indices.extend(indices.iter().map(|e| *e + v_count));
         self.instances.extend(transforms.iter().map(|e| e.to_raw()));
-        self.immediate_meshes.push(ImmediateMesh {
+        self.immediate_meshes.push(ImmediateMeshRanges {
             index_range: i_count..(i_count + indices.len() as u32),
             instance_range: t_count..(t_count + transforms.len() as u32),
         });
     }
 
     /// Note: does not clear immediate meshes, those should be swapped out instead.
-    pub fn clear_and_take_meshes(&mut self, out: &mut Vec<ImmediateMesh>) {
+    pub fn clear_and_take_meshes(&mut self, out: &mut Vec<ImmediateMeshRanges>) {
         self.vertices.clear();
         self.indices.clear();
         self.instances.clear();

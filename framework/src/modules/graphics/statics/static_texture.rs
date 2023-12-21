@@ -89,8 +89,6 @@ pub fn initialize_static_textures(context: &GraphicsContext) {
     _RGBA_BIND_GROUP_LAYOUT_MSAA4
         .set(layout_mssa4)
         .expect("_RGBA_BIND_GROUP_LAYOUT MSAA4 not initializable");
-
-    WhitePxTexture::initialize(context)
 }
 
 pub fn rgba_bind_group_layout(
@@ -131,30 +129,4 @@ pub fn rgba_bind_group_layout(
             ],
         })
     })
-}
-
-pub struct WhitePxTexture;
-static _WHITE_PX_TEXTURE: OnceLock<BindableTexture> = OnceLock::new();
-
-impl WhitePxTexture {
-    pub fn initialize(context: &GraphicsContext) {
-        let mut white_px = RgbaImage::new(1, 1);
-        white_px.get_pixel_mut(0, 0).0 = [255, 255, 255, 255];
-        let texture = Texture::from_image(&context.device, &context.queue, &white_px);
-        let bindable_texture = BindableTexture::new(context, texture);
-        _WHITE_PX_TEXTURE.set(bindable_texture);
-    }
-}
-
-impl StaticBindGroup for WhitePxTexture {
-    fn bind_group_layout() -> &'static wgpu::BindGroupLayout {
-        RgbaBindGroupLayout.get()
-    }
-
-    fn bind_group() -> &'static wgpu::BindGroup {
-        &_WHITE_PX_TEXTURE
-            .get()
-            .expect("_WHITE_PX_TEXTURE_BIND_GROUP not set")
-            .bind_group
-    }
 }

@@ -6,17 +6,20 @@ use wgpu::{
 };
 
 use crate::{
-    modules::graphics::{
-        elements::{
-            buffer::GrowableBuffer,
-            color::Color,
-            immediate_geometry::{ImmediateMesh, ImmediateMeshQueue},
-            transform::{Transform, TransformRaw},
+    modules::{
+        assets::asset_store::AssetStore,
+        graphics::{
+            elements::{
+                buffer::GrowableBuffer,
+                color::Color,
+                immediate_geometry::{ImmediateMeshQueue, ImmediateMeshRanges},
+                transform::{Transform, TransformRaw},
+            },
+            graphics_context::GraphicsContext,
+            renderer::PipelineSettings,
+            settings::GraphicsSettings,
+            statics::{camera::Camera, StaticBindGroup},
         },
-        graphics_context::GraphicsContext,
-        renderer::PipelineSettings,
-        settings::GraphicsSettings,
-        statics::{camera::Camera, StaticBindGroup},
     },
     utils::watcher::FileChangeWatcher,
     wgsl_file,
@@ -29,7 +32,8 @@ use super::{Attribute, RendererT, VertexT, FRAGMENT_ENTRY_POINT, VERTEX_ENTRY_PO
 // /////////////////////////////////////////////////////////////////////////////
 
 impl ColorMeshRenderer {
-    pub fn draw_immediate(vertices: &[Vertex], indices: &[u32], transforms: &[Transform]) {
+    #[inline(always)]
+    pub fn draw_geometry(vertices: &[Vertex], indices: &[u32], transforms: &[Transform]) {
         let mut queue = COLORMESH_QUEUE.lock().unwrap();
         queue.add_mesh(vertices, indices, transforms);
     }
@@ -65,7 +69,7 @@ impl ColorMeshRenderer {
             0, 1, 2, 0, 2, 3, 4, 7, 6, 4, 6, 5, 1, 5, 6, 1, 6, 2, 0, 3, 7, 0, 7, 4, 2, 6, 3, 6, 7,
             3, 0, 4, 1, 4, 5, 1,
         ];
-        Self::draw_immediate(&vertices, &indices, transforms)
+        Self::draw_geometry(&vertices, &indices, transforms)
     }
 }
 
@@ -80,31 +84,30 @@ static COLORMESH_QUEUE: LazyLock<Mutex<ColorMeshQueue>> =
 #[derive(Debug)]
 pub struct ColorMeshRenderer {
     pipeline: wgpu::RenderPipeline,
-    immediate_meshes: Vec<ImmediateMesh>,
 
-    // buffers for immediate geometry, cleared each frame:
+    /// saved for recreating the pipeline later.
+    pipeline_settings: PipelineSettings,
+    /// watcher for hot-reloading the shader:
+    watcher: FileChangeWatcher,
+
+    /// information about index ranges
+    mesh_ranges: Vec<ImmediateMeshRanges>,
+    /// buffers for immediate geometry, cleared each frame:
     vertex_buffer: GrowableBuffer<Vertex>,
     index_buffer: GrowableBuffer<u32>,
     instance_buffer: GrowableBuffer<TransformRaw>,
-
-    // watcher for hot-reloading the shader:
-    watcher: FileChangeWatcher,
-
-    // saved for recreating the pipeline later.
-    pipeline_settings: PipelineSettings,
 }
 
 impl RendererT for ColorMeshRenderer {
     fn new(graphics_context: &GraphicsContext, pipeline_settings: PipelineSettings) -> Self {
         let device = &graphics_context.device;
         let wgsl = include_str!("color_mesh.wgsl");
-        dbg!(wgsl_file!());
         let watcher = FileChangeWatcher::new(&[&wgsl_file!()]);
         let pipeline = create_render_pipeline(device, pipeline_settings.clone(), wgsl);
 
         let renderer = ColorMeshRenderer {
             pipeline,
-            immediate_meshes: vec![],
+            mesh_ranges: vec![],
             vertex_buffer: GrowableBuffer::new(device, 512, BufferUsages::VERTEX),
             index_buffer: GrowableBuffer::new(device, 512, BufferUsages::INDEX),
             // instance_buffer also uses BufferUsages::VERTEX
@@ -141,13 +144,14 @@ impl RendererT for ColorMeshRenderer {
             .prepare(color_mesh_queue.indices(), queue, device);
         self.instance_buffer
             .prepare(color_mesh_queue.instances(), queue, device);
-        color_mesh_queue.clear_and_take_meshes(&mut self.immediate_meshes);
+        color_mesh_queue.clear_and_take_meshes(&mut self.mesh_ranges);
     }
 
-    fn render<'s: 'encoder, 'pass, 'encoder>(
-        &'s self,
+    fn render<'pass, 'encoder>(
+        &'encoder self,
         render_pass: &'pass mut wgpu::RenderPass<'encoder>,
-        _graphics_settings: &GraphicsSettings,
+        graphics_settings: &crate::modules::graphics::settings::GraphicsSettings,
+        asset_store: &'encoder AssetStore<'encoder>,
     ) {
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_bind_group(0, Camera::bind_group(), &[]);
@@ -158,7 +162,7 @@ impl RendererT for ColorMeshRenderer {
         );
         render_pass.set_vertex_buffer(1, self.instance_buffer.buffer().slice(..));
 
-        for mesh in self.immediate_meshes.iter() {
+        for mesh in self.mesh_ranges.iter() {
             render_pass.draw_indexed(mesh.index_range.clone(), 0, mesh.instance_range.clone())
         }
     }

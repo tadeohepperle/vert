@@ -1,6 +1,9 @@
 use std::{borrow::Cow, path::PathBuf};
 
-use crate::constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT};
+use crate::{
+    constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT},
+    modules::assets::asset_store::AssetStore,
+};
 use indoc::indoc;
 use smallvec::{smallvec, SmallVec};
 use wgpu::{BindGroupLayout, PrimitiveState};
@@ -19,16 +22,17 @@ const VERTEX_ENTRY_POINT: &str = "vs_main";
 const FRAGMENT_ENTRY_POINT: &str = "fs_main";
 
 pub trait RendererT: 'static {
-    fn new(graphics_context: &GraphicsContext, settings: PipelineSettings) -> Self
+    fn new(context: &GraphicsContext, settings: PipelineSettings) -> Self
     where
         Self: Sized;
 
     fn prepare(&mut self, context: &GraphicsContext, encoder: &mut wgpu::CommandEncoder);
 
-    fn render<'s: 'encoder, 'pass, 'encoder>(
-        &'s self,
+    fn render<'pass, 'encoder>(
+        &'encoder self,
         render_pass: &'pass mut wgpu::RenderPass<'encoder>,
-        graphics_settings: &GraphicsSettings,
+        graphics_settings: &crate::modules::graphics::settings::GraphicsSettings,
+        asset_store: &'encoder AssetStore<'encoder>,
     );
 
     /// defaults, can be overriden
@@ -82,8 +86,8 @@ pub trait VertexT: 'static + Sized {
         empty_vec: &'a mut Vec<wgpu::VertexAttribute>,
     ) -> wgpu::VertexBufferLayout<'a> {
         let mut shader_location_offset: u32 = shader_location_offset as u32;
-        if is_instance {
-            assert_ne!(shader_location_offset, 0)
+        if !is_instance {
+            assert_eq!(shader_location_offset, 0)
         }
         assert!(empty_vec.is_empty());
         let attributes = Self::ATTRIBUTES;

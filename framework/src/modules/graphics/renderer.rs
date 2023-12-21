@@ -5,7 +5,7 @@ use winit::dpi::PhysicalSize;
 
 use crate::{
     constants::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT},
-    modules::egui::EguiState,
+    modules::{assets::asset_store::AssetStore, egui::EguiState},
 };
 
 use self::screen_space::ScreenSpaceRenderer;
@@ -67,7 +67,12 @@ impl Renderer {
     /// grabs the stuff he needs from the arenas and renders it.
     ///
     /// surface_view is expected to be in srbg u8 format
-    pub fn render(&self, surface_view: &wgpu::TextureView, encoder: &mut wgpu::CommandEncoder) {
+    pub fn render<'e>(
+        &self,
+        surface_view: &wgpu::TextureView,
+        encoder: &'e mut wgpu::CommandEncoder,
+        asset_store: &'e AssetStore<'e>,
+    ) {
         // /////////////////////////////////////////////////////////////////////////////
         // MSAA HDR render pass
         // /////////////////////////////////////////////////////////////////////////////
@@ -78,8 +83,9 @@ impl Renderer {
             .new_hdr_4xmsaa_render_pass(encoder, &self.graphics_settings);
 
         self.gizmos_renderer.render(&mut main_render_pass);
+
         for r in self.shader_renderers.iter() {
-            r.render(&mut main_render_pass, &self.graphics_settings);
+            r.render(&mut main_render_pass, &self.graphics_settings, asset_store);
         }
 
         // // render color meshes:

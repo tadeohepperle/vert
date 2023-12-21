@@ -3,7 +3,6 @@
 use crate::{
     batteries::Battery,
     modules::{
-        assets::AssetServer,
         graphics::{
             elements::gizmos::GizmosRenderer, settings::GraphicsSettings,
             statics::camera::CamTransform,
@@ -33,10 +32,6 @@ impl Modules {
 
     pub fn input(&self) -> &Input {
         &self.input
-    }
-
-    pub fn assets(&mut self) -> &AssetServer {
-        &self.assets
     }
 
     pub fn cam_transform(&self) -> &CamTransform {

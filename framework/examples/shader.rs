@@ -4,7 +4,13 @@ use vert_framework::{
     batteries::SimpleCamController,
     flow::Flow,
     modules::{
-        graphics::{elements::transform::Transform, shader::color_mesh::ColorMeshRenderer},
+        graphics::{
+            elements::{color::Color, transform::Transform},
+            shader::{
+                color_mesh::ColorMeshRenderer,
+                ui_rect::{Rect, UiRect, UiRectRenderer},
+            },
+        },
         Modules,
     },
     state::StateT,
@@ -31,6 +37,13 @@ impl StateT for MyState {
             .collect();
         ColorMeshRenderer::draw_cubes(&transforms, None);
         modules.gizmos().draw_xyz();
+
+        UiRectRenderer::draw_rect(UiRect {
+            pos: Rect::new([300., 200.0], [300., 200.0]),
+            uv: Default::default(),
+            color: Color::RED,
+            border_radius: [0.0, 20.0, 20.0, 0.0],
+        });
         Flow::Continue
     }
 }

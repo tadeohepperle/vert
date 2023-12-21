@@ -7,11 +7,13 @@ use winit::{dpi::PhysicalSize, keyboard::KeyCode};
 use crate::{
     batteries::{self, Batteries},
     flow::Flow,
+    modules::graphics::shader::ui_rect::UiRectRenderer,
     state::StateT,
 };
 
 use self::{
-    assets::AssetServer,
+    assets::{asset_store::AssetStore, fetchable_asset::AssetSource},
+    // ui::ImmediateUi, // needle
     egui::EguiState,
     graphics::{
         graphics_context::{GraphicsContext, GraphicsContextOwner},
@@ -24,7 +26,6 @@ use self::{
     },
     input::Input,
     time::Time,
-    // ui::ImmediateUi, // needle
 };
 
 pub mod assets;
@@ -44,7 +45,6 @@ pub struct Modules {
     pub(crate) time: Time,
     pub(crate) egui: EguiState,
     // pub(crate) ui: ImmediateUi, // needle
-    pub(crate) assets: AssetServer,
     pub(crate) batteries: Option<Batteries>,
     // todo: egui
 }
@@ -63,12 +63,12 @@ impl Modules {
         let mut renderer =
             Renderer::initialize(graphics_context.context.clone(), graphics_settings)?;
         renderer.register_renderer::<ColorMeshRenderer>();
+        renderer.register_renderer::<UiRectRenderer>();
 
         let batteries = Batteries::new();
 
         let input = Input::default();
         let time = Time::default();
-        let assets = AssetServer::new();
         let egui = EguiState::new(&graphics_context.context);
 
         // let ui = ImmediateUi::new(graphics_context.context.clone()); // needle
@@ -81,7 +81,6 @@ impl Modules {
             input,
             time,
             egui,
-            assets,
             batteries: Some(batteries),
         })
     }
@@ -149,7 +148,8 @@ impl Modules {
 
         // queue up all the render commands:
         let (surface_texture, view) = self.graphics.new_surface_texture_and_view();
-        self.renderer.render(&view, &mut encoder);
+        let assets = AssetStore::lock();
+        self.renderer.render(&view, &mut encoder, &assets);
 
         // render egui: (egui does its own render pass, does not need msaa and other stuff)
         self.egui.render(&mut encoder, &view);
