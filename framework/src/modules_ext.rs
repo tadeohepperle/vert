@@ -3,10 +3,7 @@
 use crate::{
     batteries::Battery,
     modules::{
-        graphics::{
-            elements::gizmos::GizmosRenderer, settings::GraphicsSettings,
-            statics::camera::CamTransform,
-        },
+        graphics::{settings::GraphicsSettings, statics::camera::CamTransform},
         input::Input,
         time::Time,
         Modules,
@@ -40,10 +37,6 @@ impl Modules {
 
     pub fn cam_transform_mut(&mut self) -> &mut CamTransform {
         self.camera.transform_mut()
-    }
-
-    pub fn gizmos(&mut self) -> &mut GizmosRenderer {
-        &mut self.renderer.gizmos_renderer
     }
 
     pub fn add_battery<T: Battery>(&mut self, battery: T) {

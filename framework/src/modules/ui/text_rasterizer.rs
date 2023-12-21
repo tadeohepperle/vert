@@ -127,7 +127,7 @@ impl TextRasterizer {
         ));
 
         // create a fully transparent texture.
-        let image = RgbaImage::new(TEXT_ATLAS_SIZE, TEXT_ATLAS_SIZE);
+
         let atlas_texture = Texture::from_image(&context.device, &context.queue, &image);
         let atlas_texture = Arc::new(BindableTexture::new(&context, atlas_texture));
 

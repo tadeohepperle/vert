@@ -203,7 +203,7 @@ fn create_render_pipeline(
         fragment: Some(FragmentState {
             module: &shader_module,
             entry_point: FRAGMENT_ENTRY_POINT,
-            targets: &[Some(settings.target)],
+            targets: &[Some(ColorMeshRenderer::color_target_state(settings.format))],
         }),
         primitive: ColorMeshRenderer::primitive(),
         depth_stencil: ColorMeshRenderer::depth_stencil(),

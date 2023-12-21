@@ -11,9 +11,7 @@ use crate::{
 use self::screen_space::ScreenSpaceRenderer;
 
 use super::{
-    elements::{gizmos::GizmosRenderer, texture::Texture},
-    graphics_context::GraphicsContext,
-    settings::GraphicsSettings,
+    elements::texture::Texture, graphics_context::GraphicsContext, settings::GraphicsSettings,
     shader::RendererT,
 };
 
@@ -21,8 +19,6 @@ pub mod screen_space;
 
 pub struct Renderer {
     context: GraphicsContext,
-    pub(crate) gizmos_renderer: GizmosRenderer,
-
     screen_space_renderer: ScreenSpaceRenderer,
     graphics_settings: GraphicsSettings,
     shader_renderers: Vec<Box<dyn RendererT>>,
@@ -34,12 +30,10 @@ impl Renderer {
         graphics_settings: GraphicsSettings,
     ) -> anyhow::Result<Self> {
         let screen_space_renderer = ScreenSpaceRenderer::create(&context);
-        let gizmos_renderer: GizmosRenderer = GizmosRenderer::new(&context);
 
         Ok(Self {
             context,
             screen_space_renderer,
-            gizmos_renderer,
             graphics_settings,
             shader_renderers: vec![],
         })
@@ -57,8 +51,6 @@ impl Renderer {
     }
 
     pub fn prepare(&mut self, encoder: &mut wgpu::CommandEncoder) {
-        self.gizmos_renderer.prepare();
-
         for r in self.shader_renderers.iter_mut() {
             r.prepare(&self.context, encoder);
         }
@@ -82,29 +74,9 @@ impl Renderer {
             .screen_space_renderer
             .new_hdr_4xmsaa_render_pass(encoder, &self.graphics_settings);
 
-        self.gizmos_renderer.render(&mut main_render_pass);
-
         for r in self.shader_renderers.iter() {
             r.render(&mut main_render_pass, &self.graphics_settings, asset_store);
         }
-
-        // // render color meshes:
-        // self.color_mesh_render_pipeline
-        //     .render_color_meshes(&mut main_render_pass, arenas);
-
-        // // render ui rectangles:
-        // self.ui_rect_render_pipeline.render_ui_rects(
-        //     &mut main_render_pass,
-        //     ui.prepared_ui_rects(),
-        //     ui.text_atlas_texture(),
-        // );
-
-        // // render 3d triangles:
-        // self.rect_3d_render_pipeline.render_3d_rects(
-        //     &mut main_render_pass,
-        //     ui.prepared_3d_rects(),
-        //     ui.text_atlas_texture(),
-        // );
 
         drop(main_render_pass);
 
@@ -135,19 +107,12 @@ fn pipeline_settings() -> PipelineSettings {
             count: MSAA_SAMPLE_COUNT,
             ..Default::default()
         },
-        target: wgpu::ColorTargetState {
-            format: HDR_COLOR_FORMAT,
-            blend: Some(wgpu::BlendState {
-                alpha: wgpu::BlendComponent::REPLACE,
-                color: wgpu::BlendComponent::REPLACE,
-            }),
-            write_mask: wgpu::ColorWrites::ALL,
-        },
+        format: HDR_COLOR_FORMAT,
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct PipelineSettings {
     pub multisample: wgpu::MultisampleState,
-    pub target: wgpu::ColorTargetState,
+    pub format: wgpu::TextureFormat,
 }

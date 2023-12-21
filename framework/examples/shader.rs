@@ -1,4 +1,4 @@
-use glam::vec3;
+use glam::{vec2, vec3, Vec2};
 use vert_framework::{
     app::App,
     batteries::SimpleCamController,
@@ -8,6 +8,8 @@ use vert_framework::{
             elements::{color::Color, transform::Transform},
             shader::{
                 color_mesh::ColorMeshRenderer,
+                gizmos::Gizmos,
+                text::{DrawText, TextRenderer},
                 ui_rect::{Rect, UiRect, UiRectRenderer},
             },
         },
@@ -35,14 +37,23 @@ impl StateT for MyState {
                 Transform::from(vec3(x as f32, (e as f32 * 0.01).sin(), y as f32))
             })
             .collect();
-        ColorMeshRenderer::draw_cubes(&transforms, None);
-        modules.gizmos().draw_xyz();
+        // ColorMeshRenderer::draw_cubes(&transforms, None);
+        Gizmos::draw_xyz();
 
         UiRectRenderer::draw_rect(UiRect {
             pos: Rect::new([300., 200.0], [300., 200.0]),
             uv: Default::default(),
             color: Color::RED,
-            border_radius: [0.0, 20.0, 20.0, 0.0],
+            border_radius: [30.0, 0.0, 20.0, 0.0],
+        });
+
+        TextRenderer::draw_ui_text(DrawText {
+            text: "Hello".into(),
+            pos: vec2(500.0, 200.0),
+            font_texture_size: 60.0,
+            font_layout_size: 60.0,
+            max_width: None,
+            color: Color::BLUE,
         });
         Flow::Continue
     }

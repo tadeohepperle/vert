@@ -6,7 +6,7 @@ use crate::{
 };
 use indoc::indoc;
 use smallvec::{smallvec, SmallVec};
-use wgpu::{BindGroupLayout, PrimitiveState};
+use wgpu::{BindGroupLayout, ColorTargetState, ColorWrites, PrimitiveState, TextureFormat};
 
 use super::{
     elements::{color::Color, transform::TransformRaw},
@@ -16,6 +16,8 @@ use super::{
 };
 
 pub mod color_mesh;
+pub mod gizmos;
+pub mod text;
 pub mod ui_rect;
 
 const VERTEX_ENTRY_POINT: &str = "vs_main";
@@ -63,6 +65,20 @@ pub trait RendererT: 'static {
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         })
+    }
+
+    fn color_target_state(format: TextureFormat) -> wgpu::ColorTargetState
+    where
+        Self: Sized,
+    {
+        wgpu::ColorTargetState {
+            format,
+            blend: Some(wgpu::BlendState {
+                alpha: wgpu::BlendComponent::REPLACE,
+                color: wgpu::BlendComponent::REPLACE,
+            }),
+            write_mask: wgpu::ColorWrites::ALL,
+        }
     }
 }
 

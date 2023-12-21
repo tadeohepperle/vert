@@ -21,6 +21,7 @@ fn vs_main(
     vertex: Vertex,
 ) -> VertexOutput {
     let world_position = vec4<f32>(vertex.pos, 1.0);
+    
     var out: VertexOutput;
     out.clip_position = camera.view_proj * world_position;
     out.color = vertex.color;

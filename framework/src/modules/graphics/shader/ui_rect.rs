@@ -5,7 +5,10 @@ use std::{
 
 use image::RgbaImage;
 use log::{error, info, warn};
-use wgpu::{FragmentState, RenderPipelineDescriptor, ShaderModuleDescriptor, VertexState};
+use wgpu::{
+    ColorTargetState, FragmentState, MultisampleState, RenderPipelineDescriptor,
+    ShaderModuleDescriptor, VertexState,
+};
 
 use crate::{
     constants::DEPTH_FORMAT,
@@ -126,9 +129,11 @@ impl RendererT for UiRectRenderer {
 
         let instance_buffer = GrowableBuffer::new(device, 512, wgpu::BufferUsages::VERTEX);
 
-        let white_texture = create_white_px_texture(context);
-        let white_texture = AssetStore::lock().store_texture(white_texture);
-        WHITE_TEXTURE_KEY.set(white_texture);
+        if !WHITE_TEXTURE_KEY.get().is_some() {
+            let white_texture = create_white_px_texture(context);
+            let key = AssetStore::lock().textures_mut().insert(white_texture);
+            WHITE_TEXTURE_KEY.set(key).unwrap();
+        }
 
         UiRectRenderer {
             pipeline,
@@ -186,7 +191,7 @@ impl RendererT for UiRectRenderer {
         // 6 indices to draw two triangles
         const INDEX_COUNT: u32 = 6;
         for (range, texture) in self.instance_ranges.iter() {
-            let Some(texture) = asset_store.get_texture(*texture) else {
+            let Some(texture) = asset_store.textures().get(*texture) else {
                 warn!("Texture with key {texture:?} does not exist and cannot be rendered for a UI Rect");
                 continue;
             };
@@ -206,6 +211,20 @@ impl RendererT for UiRectRenderer {
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         })
+    }
+
+    fn color_target_state(format: wgpu::TextureFormat) -> wgpu::ColorTargetState
+    where
+        Self: Sized,
+    {
+        wgpu::ColorTargetState {
+            format,
+            blend: Some(wgpu::BlendState {
+                alpha: wgpu::BlendComponent::OVER,
+                color: wgpu::BlendComponent::OVER,
+            }),
+            write_mask: wgpu::ColorWrites::ALL,
+        }
     }
 }
 
@@ -247,11 +266,15 @@ fn create_render_pipeline(
         fragment: Some(FragmentState {
             module: &shader_module,
             entry_point: FRAGMENT_ENTRY_POINT,
-            targets: &[Some(settings.target)],
+            targets: &[Some(UiRectRenderer::color_target_state(settings.format))],
         }),
         primitive: UiRectRenderer::primitive(),
         depth_stencil: UiRectRenderer::depth_stencil(),
-        multisample: settings.multisample,
+        multisample: MultisampleState {
+            count: settings.multisample.count,
+            alpha_to_coverage_enabled: true,
+            ..Default::default()
+        },
         multiview: None,
     })
 }

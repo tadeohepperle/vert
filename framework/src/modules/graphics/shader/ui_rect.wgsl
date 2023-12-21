@@ -89,7 +89,7 @@ fn rounded_box_sdf(offset: vec2<f32>, size: vec2<f32>, radius: vec4<f32>) -> f32
 fn rect_vertex(idx: u32, pos: vec4<f32>, uv: vec4<f32>) -> Vertex {
     var out: Vertex;
     switch idx {
-      case 0u: {
+      case 0u, 4u: {
             out.pos = vec2<f32>(pos.x, pos.y); // min x, min y 
             out.uv = vec2<f32>(uv.x, uv.y);
         }
@@ -97,7 +97,7 @@ fn rect_vertex(idx: u32, pos: vec4<f32>, uv: vec4<f32>) -> Vertex {
             out.pos = vec2<f32>(pos.x, pos.y + pos.w); // min x, max y 
             out.uv = vec2<f32>(uv.x, uv.y + uv.w);
         }
-      case 2u: {
+      case 2u, 5u: {
             out.pos = vec2<f32>(pos.x + pos.z, pos.y + pos.w); // max x, max y
             out.uv = vec2<f32>(uv.x + uv.z, uv.y + uv.w);
         }
