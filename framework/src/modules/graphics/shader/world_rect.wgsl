@@ -1,12 +1,11 @@
 // Inspired by: https://www.shadertoy.com/view/fsdyzB
-struct ScreenSize {
-    width: f32,
-    height: f32,
-    aspect: f32,
+struct Camera {
+    view_pos: vec4<f32>,
+    view_proj: mat4x4<f32>,
 }
 
 @group(0) @binding(0)
-var<uniform> screen: ScreenSize;
+var<uniform> camera: Camera;
 
 @group(1) @binding(0)
 var t_diffuse: texture_2d<f32>;
@@ -14,10 +13,17 @@ var t_diffuse: texture_2d<f32>;
 var s_diffuse: sampler;
 
 struct Instance {
-    @location(0) pos: vec4<f32>, // rect top left corner and size
-    @location(1) uv: vec4<f32>,    // rect top left corner and size
+    /// rect top left corner and size
+    @location(0) pos: vec4<f32>,
+    /// rect top left corner and size
+    @location(1) uv: vec4<f32>,
     @location(2) color: vec4<f32>,
     @location(3) border_radius: vec4<f32>,
+    /// transform
+    @location(4) col1: vec4<f32>,
+    @location(5) col2: vec4<f32>,
+    @location(6) col3: vec4<f32>,
+    @location(7) translation: vec4<f32>,
 }
 
 // we calculate the vertices here in the shader instead of passing a vertex buffer
@@ -35,22 +41,34 @@ struct VertexOutput {
     @location(4) border_radius: vec4<f32>,
 };
 
+
 @vertex
 fn vs_main(
     @builtin(vertex_index) vertex_index: u32,
     instance: Instance,
 ) -> VertexOutput {
+
     let vertex = rect_vertex(vertex_index, instance.pos, instance.uv);
-    let device_pos = vec2<f32>((vertex.pos.x / screen.width) * 2.0 - 1.0, 1.0 - (vertex.pos.y / screen.height) * 2.0) ;
-    let center = instance.pos.xy + instance.pos.zw * 0.5;
+    // offset as if it was on a screen that is the xy plane, with 100 pixels per unit.
+    let xy_plane_offset = vec2<f32>(vertex.pos.x / 100.0, -vertex.pos.y / 100.0);
+
+    let model_matrix = mat4x4<f32>(
+        instance.col1,
+        instance.col2,
+        instance.col3,
+        instance.translation,
+    );
+    let world_position = vec4<f32>(xy_plane_offset, 0.0, 1.0);
 
     var out: VertexOutput;
-    out.clip_position = vec4<f32>(device_pos, 0.0, 1.0);
-    out.color = instance.color;
-    out.uv = vertex.uv; 
-    out.offset = vertex.pos - center;
-    out.size = instance.pos.zw;
+    out.clip_position = camera.view_proj * model_matrix * world_position;
+
     out.border_radius = instance.border_radius;
+    out.size = instance.pos.zw;
+    let center = instance.pos.xy + instance.pos.zw * 0.5;
+    out.offset = vertex.pos - center;
+    out.color = instance.color;
+    out.uv = vertex.uv;
     return out;
 }
  
@@ -80,11 +98,11 @@ fn rounded_box_sdf(offset: vec2<f32>, size: vec2<f32>, radius: vec4<f32>) -> f32
 
 // given some bounding box [f32;4] being min x, min y, max x, max y,
 // extracts the x,y position [f32;2] for the given index in a counter clockwise quad:
-// 0 ------ 1
+// 0 4 ---- 1
 // | .      |
 // |   .    |
 // |     .  |
-// 3 ------ 2  
+// 3 ------ 2 5 
 fn rect_vertex(idx: u32, pos: vec4<f32>, uv: vec4<f32>) -> Vertex {
     var out: Vertex;
     switch idx {
@@ -108,3 +126,25 @@ fn rect_vertex(idx: u32, pos: vec4<f32>, uv: vec4<f32>) -> Vertex {
     return out;
 }
 
+
+
+// float roundedBoxSDF(vec2 CenterPosition, vec2 Size, vec4 Radius)
+// {
+//     Radius.xy =   (CenterPosition.x > 0.0) ? Radius.xy : Radius.zw;
+//     Radius.x  = (CenterPosition.y > 0.0) ? Radius.x  : Radius.y;
+    
+//     vec2 q = abs(CenterPosition)-Size+Radius.x;
+//     return min(max(q.x,q.y),0.0) + length(max(q,0.0)) - Radius.x;
+// }
+
+// float roundedBoxSDF(vec2 CenterPosition, vec2 Size, float Radius) {
+//     return 
+// }
+
+// fn roundedBoxSDF(center: vec2<f32>, size: vec2<f32>, radius: vec4<f32>) -> f32 {
+//     Radius.xy = (CenterPosition.x > 0.0) ? Radius.xy : Radius.zw;
+//     Radius.x  = (CenterPosition.y > 0.0) ? Radius.x  : Radius.y;
+    
+//     vec2 q = abs(CenterPosition)-Size+Radius.x;
+//     return min(max(q.x,q.y),0.0) + length(max(q,0.0)) - Radius.x;
+// }

@@ -3,6 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use log::{error, info};
 use notify::{event::ModifyKind, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::sync::mpsc;
 
@@ -69,6 +70,41 @@ impl FileChangeWatcher {
         } else {
             Some(result)
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct ShaderFileWatcher {
+    wgsl_file: PathBuf,
+    watcher: FileChangeWatcher,
+}
+
+impl ShaderFileWatcher {
+    pub fn new(path: &str) -> Self {
+        let wgsl_file: PathBuf = path.parse().expect("invalid path");
+        if !wgsl_file.exists() {
+            error!("Wgsl file at {wgsl_file:?} path not found!");
+        }
+        Self {
+            wgsl_file,
+            watcher: FileChangeWatcher::new(&[path]),
+        }
+    }
+}
+
+impl ShaderFileWatcher {
+    /// Returns the new wgsl content of the file in case a change was detected
+    pub fn check_for_changes(&mut self) -> Option<String> {
+        if let Some(e) = self.watcher.check_for_changes() {
+            let wgsl = std::fs::read_to_string(&self.wgsl_file).unwrap();
+            if let Err(err) = wgpu::naga::front::wgsl::parse_str(&wgsl) {
+                error!("WGSL at {:?} is invalid: {err}", self.wgsl_file);
+            } else {
+                info!("Hot reloaded WGSL from {:?}", self.wgsl_file);
+                return Some(wgsl);
+            }
+        }
+        None
     }
 }
 

@@ -21,7 +21,7 @@ use crate::{
             statics::{camera::Camera, StaticBindGroup},
         },
     },
-    utils::watcher::FileChangeWatcher,
+    utils::watcher::{FileChangeWatcher, ShaderFileWatcher},
     wgsl_file,
 };
 
@@ -88,7 +88,7 @@ pub struct ColorMeshRenderer {
     /// saved for recreating the pipeline later.
     pipeline_settings: PipelineSettings,
     /// watcher for hot-reloading the shader:
-    watcher: FileChangeWatcher,
+    watcher: ShaderFileWatcher,
 
     /// information about index ranges
     mesh_ranges: Vec<ImmediateMeshRanges>,
@@ -102,7 +102,7 @@ impl RendererT for ColorMeshRenderer {
     fn new(graphics_context: &GraphicsContext, pipeline_settings: PipelineSettings) -> Self {
         let device = &graphics_context.device;
         let wgsl = include_str!("color_mesh.wgsl");
-        let watcher = FileChangeWatcher::new(&[&wgsl_file!()]);
+        let watcher = ShaderFileWatcher::new(&wgsl_file!());
         let pipeline = create_render_pipeline(device, pipeline_settings.clone(), wgsl);
 
         let renderer = ColorMeshRenderer {
@@ -121,18 +121,10 @@ impl RendererT for ColorMeshRenderer {
 
     fn prepare(&mut self, context: &GraphicsContext, _encoder: &mut wgpu::CommandEncoder) {
         // recreate pipeline if the wgsl file has changed:
-        if let Some(_) = self.watcher.check_for_changes() {
-            // load the wgsl and verify it:
-            let wgsl_file = wgsl_file!();
-            let wgsl = std::fs::read_to_string(&wgsl_file).unwrap();
-            if let Err(err) = wgpu::naga::front::wgsl::parse_str(&wgsl) {
-                error!("wgsl file at {wgsl_file} is invalid: {err}");
-            } else {
-                info!("Hot reloaded wgsl from {wgsl_file}");
-                let pipeline =
-                    create_render_pipeline(&context.device, self.pipeline_settings.clone(), &wgsl);
-                self.pipeline = pipeline;
-            }
+        if let Some(new_wgsl) = self.watcher.check_for_changes() {
+            let pipeline =
+                create_render_pipeline(&context.device, self.pipeline_settings.clone(), &new_wgsl);
+            self.pipeline = pipeline;
         }
 
         let mut color_mesh_queue = COLORMESH_QUEUE.lock().unwrap();
@@ -161,7 +153,6 @@ impl RendererT for ColorMeshRenderer {
             wgpu::IndexFormat::Uint32,
         );
         render_pass.set_vertex_buffer(1, self.instance_buffer.buffer().slice(..));
-
         for mesh in self.mesh_ranges.iter() {
             render_pass.draw_indexed(mesh.index_range.clone(), 0, mesh.instance_range.clone())
         }

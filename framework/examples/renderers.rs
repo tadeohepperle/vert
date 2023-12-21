@@ -11,6 +11,7 @@ use vert_framework::{
                 gizmos::Gizmos,
                 text::{DrawText, TextRenderer},
                 ui_rect::{Rect, UiRect, UiRectRenderer},
+                world_rect::WorldRectRenderer,
             },
         },
         Modules,
@@ -47,6 +48,16 @@ impl StateT for MyState {
             border_radius: [30.0, 0.0, 20.0, 0.0],
         });
 
+        // WorldRectRenderer::draw_rect(
+        //     UiRect {
+        //         pos: Rect::new([300., 200.0], [300., 200.0]),
+        //         uv: Default::default(),
+        //         color: Color::RED,
+        //         border_radius: [30.0, 0.0, 20.0, 0.0],
+        //     },
+        //     Default::default(),
+        // );
+
         TextRenderer::draw_ui_text(DrawText {
             text: "Hello".into(),
             pos: vec2(500.0, 200.0),
@@ -55,6 +66,18 @@ impl StateT for MyState {
             max_width: None,
             color: Color::BLUE,
         });
+
+        TextRenderer::draw_3d_text(
+            DrawText {
+                text: "Hello".into(),
+                pos: vec2(0.0, 0.0),
+                font_texture_size: 120.0,
+                font_layout_size: 120.0,
+                max_width: None,
+                color: Color::BLUE,
+            },
+            vec3(0.0, 0.0, 0.0).into(),
+        );
         Flow::Continue
     }
 }

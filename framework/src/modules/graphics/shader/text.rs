@@ -13,31 +13,55 @@ impl TextRenderer {
             text.max_width,
         );
 
-        let text_texture = ATLAS_TEXTURE_KEY.get().unwrap();
+        let text_texture = TEXT_ATLAS_TEXTURE_KEY.get().unwrap();
+        let mut queue = UI_RECT_QUEUE.lock().unwrap();
         for (pos, uv) in layout_result.glyph_pos_and_uv {
-            UiRectRenderer::draw_textured_rect(
+            queue.add(
                 UiRect {
                     pos,
                     uv,
                     color: text.color,
-                    border_radius: [0.0, 0.0, 0.0, 0.0], // todo!() dedicated text renderer without border radius
+                    border_radius: [0.0, 0.0, 0.0, 0.0], // todo!() dedicated text renderer without border radius and with sdf?
                 },
                 *text_texture,
-            )
+            );
         }
+    }
 
-        // let iter = layout_result
-        //     .glyph_pos_and_uv
-        //     .into_iter()
-        //     .map(|(pos, uv)| RectWithTexture {
-        //         rect: UiRect {
-        //             pos,
-        //             uv,
-        //             color: draw_text.color,
-        //             border_radius: [0.0, 0.0, 0.0, 0.0],
-        //         },
-        //         texture: RectTexture::Text,
-        //     });
+    pub fn draw_3d_text(text: DrawText, transform: Transform) {
+        let mut rasterizer = TEXT_RASTERIZER.get().unwrap().lock().unwrap();
+        let layout_result = rasterizer.layout_and_rasterize_text(
+            &text.text,
+            text.pos,
+            text.font_texture_size,
+            text.font_layout_size,
+            text.max_width,
+        );
+
+        let text_texture = TEXT_ATLAS_TEXTURE_KEY.get().unwrap();
+
+        let layout_size_x = layout_result.total_rect.size[0] * 0.5;
+        let layout_size_y = layout_result.total_rect.size[1] * 0.5;
+        let center_to_layout = |mut r: Rect| -> Rect {
+            r.offset = [r.offset[0] - layout_size_x, r.offset[1] - layout_size_y];
+            r
+        };
+
+        let mut queue = WORLD_RECT_QUEUE.lock().unwrap();
+        for (pos, uv) in layout_result.glyph_pos_and_uv {
+            queue.add(
+                WorldRect {
+                    ui_rect: UiRect {
+                        pos: center_to_layout(pos),
+                        uv,
+                        color: text.color,
+                        border_radius: [0.0, 0.0, 0.0, 0.0], // todo!() dedicated text renderer without border radius
+                    },
+                    transform: transform.to_raw(),
+                },
+                *text_texture,
+            );
+        }
     }
 }
 
@@ -116,31 +140,34 @@ use crate::modules::{
     assets::asset_store::{AssetStore, Key},
     graphics::{
         elements::{
+            buffer::ToRaw,
             color::Color,
             texture::{BindableTexture, Texture},
+            transform::Transform,
         },
         graphics_context::GraphicsContext,
     },
 };
 
 use super::{
-    ui_rect::{Rect, UiRect, UiRectRenderer},
+    ui_rect::{Rect, UiRect, UiRectRenderer, UI_RECT_QUEUE},
+    world_rect::{WorldRect, WORLD_RECT_QUEUE},
     RendererT,
 };
 
 pub const DEFAULT_FONT: &[u8] = include_bytes!("../../../../assets/Oswald-Medium.ttf");
 
-static ATLAS_TEXTURE_KEY: OnceLock<Key<BindableTexture>> = OnceLock::new();
+static TEXT_ATLAS_TEXTURE_KEY: OnceLock<Key<BindableTexture>> = OnceLock::new();
 static DEFAULT_FONT_KEY: OnceLock<Key<fontdue::Font>> = OnceLock::new();
 static TEXT_RASTERIZER: OnceLock<Mutex<TextRasterizer>> = OnceLock::new();
 
 fn initialize_singletons(context: &GraphicsContext) {
-    if ATLAS_TEXTURE_KEY.get().is_none() {
+    if TEXT_ATLAS_TEXTURE_KEY.get().is_none() {
         let image = RgbaImage::new(TEXT_ATLAS_SIZE, TEXT_ATLAS_SIZE);
         let atlas_texture = Texture::from_image(&context.device, &context.queue, &image);
         let atlas_texture = BindableTexture::new(&context, atlas_texture);
         let key = AssetStore::lock().textures_mut().insert(atlas_texture);
-        ATLAS_TEXTURE_KEY.set(key).unwrap();
+        TEXT_ATLAS_TEXTURE_KEY.set(key).unwrap();
     }
 
     if DEFAULT_FONT_KEY.get().is_none() {
@@ -175,7 +202,6 @@ impl RendererT for TextRenderer {
         Self: Sized,
     {
         initialize_singletons(context);
-
         TextRenderer {}
     }
 
@@ -191,7 +217,7 @@ impl RendererT for TextRenderer {
             let assets = AssetStore::lock();
             let atlas_texture = assets
                 .textures()
-                .get(*ATLAS_TEXTURE_KEY.get().unwrap())
+                .get(*TEXT_ATLAS_TEXTURE_KEY.get().unwrap())
                 .unwrap();
             let texture_writes = std::mem::take(&mut rasterizer.atlas_texture_writes);
             for glyph_key in texture_writes {

@@ -11,7 +11,9 @@ use winit::{dpi::PhysicalSize, keyboard::KeyCode};
 use crate::{
     batteries::{self, Batteries},
     flow::Flow,
-    modules::graphics::shader::{gizmos::Gizmos, text::TextRenderer, ui_rect::UiRectRenderer},
+    modules::graphics::shader::{
+        gizmos::Gizmos, text::TextRenderer, ui_rect::UiRectRenderer, world_rect::WorldRectRenderer,
+    },
     state::StateT,
 };
 
@@ -68,6 +70,7 @@ impl Modules {
             Renderer::initialize(graphics_context.context.clone(), graphics_settings)?;
         renderer.register_renderer::<ColorMeshRenderer>();
         renderer.register_renderer::<UiRectRenderer>();
+        renderer.register_renderer::<WorldRectRenderer>();
         renderer.register_renderer::<TextRenderer>();
         renderer.register_renderer::<Gizmos>();
 

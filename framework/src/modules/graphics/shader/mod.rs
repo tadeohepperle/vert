@@ -19,6 +19,7 @@ pub mod color_mesh;
 pub mod gizmos;
 pub mod text;
 pub mod ui_rect;
+pub mod world_rect;
 
 const VERTEX_ENTRY_POINT: &str = "vs_main";
 const FRAGMENT_ENTRY_POINT: &str = "fs_main";
