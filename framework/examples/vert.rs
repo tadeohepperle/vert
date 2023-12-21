@@ -20,6 +20,7 @@ use vert_framework::{
                 color_mesh::ColorMeshRenderer,
                 text::{DrawText, TextRenderer},
             },
+            statics::camera::Projection,
         },
         Modules,
     },
@@ -29,6 +30,7 @@ use vert_framework::{
 pub struct MyState {
     blue_cubes: Vec<Transform>,
     black_cubes: Vec<Transform>,
+    camera_orthographic: bool,
 }
 
 impl StateT for MyState {
@@ -60,6 +62,7 @@ impl StateT for MyState {
         Ok(MyState {
             black_cubes,
             blue_cubes,
+            camera_orthographic: false,
         })
     }
 
@@ -113,8 +116,8 @@ impl StateT for MyState {
         // /////////////////////////////////////////////////////////////////////////////
 
         let mut egui_context = modules.egui();
-        let graphics_settings = modules.graphics_settings_mut();
         egui::Window::new("Graphics Settings").show(&mut egui_context, |ui| {
+            let graphics_settings = modules.graphics_settings_mut();
             ui.label("Bloom");
             ui.add(egui::Checkbox::new(
                 &mut graphics_settings.bloom.activated,
@@ -125,6 +128,22 @@ impl StateT for MyState {
                     &mut graphics_settings.bloom.blend_factor,
                     0.0..=1.0,
                 ));
+            }
+            ui.label("Camera Kind");
+            let orthographic = ui.radio_value(&mut self.camera_orthographic, true, "Orthographic");
+            let perspective = ui.radio_value(&mut self.camera_orthographic, false, "Perspective");
+            if orthographic.changed() || perspective.changed() {
+                let size = modules.graphics_context().size.get();
+                let height = size.height;
+                let width = size.width;
+                drop(size);
+                if self.camera_orthographic {
+                    *modules.cam_projection_mut() =
+                        Projection::new_orthographic(width, height, 16.0, 0.1, 5000.0);
+                } else {
+                    *modules.cam_projection_mut() =
+                        Projection::new_perspective(width, height, 0.8, 0.1, 5000.0);
+                }
             }
         });
 

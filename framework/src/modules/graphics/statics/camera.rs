@@ -82,7 +82,7 @@ impl Camera {
     pub fn new_default(ctx: &GraphicsContext) -> Self {
         let camera_data = CamTransform::new(vec3(-5.0, 1.0, 0.0), 0.0, 0.0);
         let size = ctx.size();
-        let projection = Projection::new(size.width, size.height, 0.8, 0.1, 5000.0);
+        let projection = Projection::new_perspective(size.width, size.height, 0.8, 0.1, 5000.0);
         Camera::new(camera_data, projection, &ctx.device)
     }
 
@@ -124,6 +124,10 @@ impl Camera {
 
     pub fn transform_mut(&mut self) -> &mut CamTransform {
         &mut self.uniform.value.transform
+    }
+
+    pub fn projection_mut(&mut self) -> &mut Projection {
+        &mut self.uniform.value.projection
     }
 
     // todo!() fn camera_plane_point(
@@ -178,30 +182,69 @@ impl CamTransform {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Projection {
     /// width / height
     aspect: f32,
-    fovy: f32,
     znear: f32,
     zfar: f32,
+    kind: ProjectionKind,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ProjectionKind {
+    Perspective {
+        fov_y_radians: f32,
+    },
+    Orthographic {
+        // how tall the rectangle covered by the camera is in world space.
+        y_height: f32,
+    },
 }
 
 impl Projection {
-    pub fn new(width: u32, height: u32, fovy: f32, znear: f32, zfar: f32) -> Self {
-        Projection {
-            aspect: width as f32 / height as f32,
-            fovy,
-            znear,
-            zfar,
-        }
-    }
-
     pub fn resize(&mut self, height: u32, width: u32) {
         self.aspect = width as f32 / height as f32;
     }
 
     pub fn calc_matrix(&self) -> Mat4 {
-        Mat4::perspective_rh(self.fovy, self.aspect, self.znear, self.zfar)
+        match self.kind {
+            ProjectionKind::Perspective { fov_y_radians } => {
+                // perspective transform
+                Mat4::perspective_rh(fov_y_radians, self.aspect, self.znear, self.zfar)
+            }
+            ProjectionKind::Orthographic { y_height } => {
+                let top = y_height * 0.5;
+                let bottom = -top;
+                let right = self.aspect * top;
+                let left = -right;
+                Mat4::orthographic_rh(left, right, bottom, top, self.znear, self.zfar)
+            }
+        }
+    }
+
+    pub fn new_perspective(
+        width: u32,
+        height: u32,
+        fov_y_radians: f32,
+        znear: f32,
+        zfar: f32,
+    ) -> Self {
+        Projection {
+            aspect: width as f32 / height as f32,
+            znear,
+            zfar,
+            kind: ProjectionKind::Perspective { fov_y_radians },
+        }
+    }
+
+    pub fn new_orthographic(width: u32, height: u32, y_height: f32, znear: f32, zfar: f32) -> Self {
+        Projection {
+            aspect: width as f32 / height as f32,
+            znear,
+            zfar,
+            kind: ProjectionKind::Orthographic { y_height },
+        }
     }
 }
 

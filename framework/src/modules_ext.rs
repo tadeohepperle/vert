@@ -3,7 +3,11 @@
 use crate::{
     batteries::Battery,
     modules::{
-        graphics::{settings::GraphicsSettings, statics::camera::CamTransform},
+        graphics::{
+            settings::GraphicsSettings,
+            statics::camera::{CamTransform, Projection},
+            Renderer,
+        },
         input::Input,
         time::Time,
         Modules,
@@ -13,6 +17,10 @@ use crate::{
 impl Modules {
     pub fn device(&self) -> &wgpu::Device {
         &self.graphics.context.device
+    }
+
+    pub fn renderer(&mut self) -> &mut Renderer {
+        &mut self.renderer
     }
 
     pub fn egui(&self) -> egui::Context {
@@ -37,6 +45,10 @@ impl Modules {
 
     pub fn cam_transform_mut(&mut self) -> &mut CamTransform {
         self.camera.transform_mut()
+    }
+
+    pub fn cam_projection_mut(&mut self) -> &mut Projection {
+        self.camera.projection_mut()
     }
 
     pub fn add_battery<T: Battery>(&mut self, battery: T) {

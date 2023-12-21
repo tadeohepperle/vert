@@ -14,5 +14,8 @@ pub mod systems;
 pub mod utils;
 
 pub mod ext {
+    pub use bytemuck;
     pub use egui;
+    pub use glam;
+    pub use wgpu;
 }
