@@ -35,7 +35,7 @@ pub struct Renderer {
     post_processing_effects: Vec<Box<dyn PostProcessingEffectT>>,
     /// This is for tonemapping:
     tonemapping_effect: Option<Box<dyn PostProcessingEffectT>>,
-    screen_vertex_shader: ScreenVertexShader,
+    screen_vertex_shader: Arc<ScreenVertexShader>,
     depth_texture: DepthTexture,
     hdr_msaa_texture: HdrTexture,
     hdr_resolve_target: HdrTexture,
@@ -60,7 +60,7 @@ impl Renderer {
     }
 
     pub fn new(context: GraphicsContext, settings: GraphicsSettings) -> anyhow::Result<Self> {
-        let screen_vertex_shader = ScreenVertexShader::new(&context.device);
+        let screen_vertex_shader = Arc::new(ScreenVertexShader::new(&context.device));
 
         let msaa_depth_texture = DepthTexture::create(&context);
         let msaa_hdr_texture = HdrTexture::create_screen_sized(&context, MSAA_SAMPLE_COUNT);
@@ -149,7 +149,7 @@ impl Renderer {
     ///
     /// surface_view is expected to be in srbg u8 format
     pub fn render<'e>(
-        &self,
+        &mut self,
         surface_view: &wgpu::TextureView,
         encoder: &'e mut wgpu::CommandEncoder,
         asset_store: &'e AssetStore<'e>,
@@ -166,7 +166,7 @@ impl Renderer {
             }
         }
         // bloom, vignette, etc.
-        for effect in self.post_processing_effects.iter() {
+        for effect in self.post_processing_effects.iter_mut() {
             effect.apply(
                 encoder,
                 self.hdr_resolve_target.bind_group(),
@@ -176,7 +176,7 @@ impl Renderer {
         }
 
         // tonemapping
-        if let Some(effect) = &self.tonemapping_effect {
+        if let Some(effect) = &mut self.tonemapping_effect {
             effect.apply(
                 encoder,
                 self.hdr_resolve_target.bind_group(),

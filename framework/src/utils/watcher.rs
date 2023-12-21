@@ -39,7 +39,7 @@ impl FileChangeWatcher {
         }
     }
 
-    pub fn check_for_changes(&mut self) -> Option<Vec<&PathBuf>> {
+    pub fn check_for_changes(&self) -> Option<Vec<&PathBuf>> {
         let mut result: Vec<&PathBuf> = vec![];
         while let Ok(event) = self.events_rx.try_recv() {
             if let Ok(event) = event {
@@ -94,7 +94,7 @@ impl ShaderFileWatcher {
 
 impl ShaderFileWatcher {
     /// Returns the new wgsl content of the file in case a change was detected
-    pub fn check_for_changes(&mut self) -> Option<String> {
+    pub fn check_for_changes(&self) -> Option<String> {
         if let Some(e) = self.watcher.check_for_changes() {
             let wgsl = std::fs::read_to_string(&self.wgsl_file).unwrap();
             if let Err(err) = wgpu::naga::front::wgsl::parse_str(&wgsl) {
