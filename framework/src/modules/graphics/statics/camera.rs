@@ -1,6 +1,6 @@
 use std::sync::{Arc, OnceLock};
 
-use glam::{vec3, Mat4, Vec2, Vec3};
+use glam::{vec2, vec3, vec4, Mat4, Vec2, Vec3, Vec4Swizzles};
 use smallvec::{smallvec, SmallVec};
 use wgpu::{
     naga::{ScalarKind, TypeInner, VectorSize},
@@ -130,17 +130,28 @@ impl Camera {
         &mut self.uniform.value.projection
     }
 
-    // todo!() fn camera_plane_point(
-    //     camera: &Camera,
-    //     camera_transform: &GlobalTransform,
-    //     cursor_pos: Vec2,
-    // ) -> Vec3 {
-    //     let ray = camera
-    //         .viewport_to_world(camera_transform, cursor_pos)
-    //         .unwrap();
-    //     let dist_to_plane = ray.intersect_plane(Vec3::ZERO, Vec3::Y).unwrap_or(10.0);
-    //     ray.get_point(dist_to_plane)
-    // }
+    pub fn ray_from_screen_pos(&self, mut screen_pos: Vec2) -> Ray {
+        let projection = &self.uniform.value.projection;
+        let transform = &self.uniform.value.transform;
+
+        let screen_size = vec2(projection.width as f32, projection.height as f32);
+        // flip the y:
+        screen_pos.y = screen_size.y - screen_pos.y;
+        let ndc = screen_pos * 2.0 / screen_size - Vec2::ONE;
+        let ndc_to_world = transform.calc_matrix().inverse() * projection.calc_matrix().inverse();
+        let world_far_plane = ndc_to_world.project_point3(ndc.extend(1.));
+        let world_near_plane = ndc_to_world.project_point3(ndc.extend(f32::EPSILON));
+
+        assert!(!world_near_plane.is_nan());
+        assert!(!world_far_plane.is_nan());
+
+        let direction = (world_far_plane - world_near_plane).normalize();
+
+        Ray {
+            origin: world_near_plane,
+            direction,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -159,6 +170,7 @@ impl CamTransform {
         self.pos
     }
 
+    /// model matrix of the camera
     pub fn calc_matrix(&self) -> Mat4 {
         let (sin_pitch, cos_pitch) = self.pitch.sin_cos();
         let (sin_yaw, cos_yaw) = self.yaw.sin_cos();
@@ -185,6 +197,8 @@ impl CamTransform {
 #[derive(Debug, Clone, Copy)]
 pub struct Projection {
     /// width / height
+    width: u32,
+    height: u32,
     aspect: f32,
     znear: f32,
     zfar: f32,
@@ -204,9 +218,12 @@ pub enum ProjectionKind {
 
 impl Projection {
     pub fn resize(&mut self, height: u32, width: u32) {
+        self.height = height;
+        self.width = width;
         self.aspect = width as f32 / height as f32;
     }
 
+    /// Projection Matrix
     pub fn calc_matrix(&self) -> Mat4 {
         match self.kind {
             ProjectionKind::Perspective { fov_y_radians } => {
@@ -231,6 +248,8 @@ impl Projection {
         zfar: f32,
     ) -> Self {
         Projection {
+            width,
+            height,
             aspect: width as f32 / height as f32,
             znear,
             zfar,
@@ -240,11 +259,38 @@ impl Projection {
 
     pub fn new_orthographic(width: u32, height: u32, y_height: f32, znear: f32, zfar: f32) -> Self {
         Projection {
+            width,
+            height,
             aspect: width as f32 / height as f32,
             znear,
             zfar,
             kind: ProjectionKind::Orthographic { y_height },
         }
+    }
+}
+
+pub struct Ray {
+    pub origin: Vec3,
+    pub direction: Vec3,
+}
+
+impl Ray {
+    /// Shout out to bevy_math
+    pub fn intersect_plane(&self, plane_origin: Vec3, plane_normal: Vec3) -> Option<f32> {
+        let denominator = plane_normal.dot(self.direction);
+        if denominator.abs() > f32::EPSILON {
+            let distance = (plane_origin - self.origin).dot(plane_normal) / denominator;
+            if distance > f32::EPSILON {
+                return Some(distance);
+            }
+        }
+        None
+    }
+
+    /// Shout out to bevy_math
+    #[inline]
+    pub fn get_point(&self, distance: f32) -> Vec3 {
+        self.origin + self.direction * distance
     }
 }
 

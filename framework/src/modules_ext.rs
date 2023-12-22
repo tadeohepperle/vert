@@ -5,7 +5,7 @@ use crate::{
     modules::{
         graphics::{
             settings::GraphicsSettings,
-            statics::camera::{CamTransform, Projection},
+            statics::camera::{CamTransform, Camera, Projection},
             Renderer,
         },
         input::Input,
@@ -37,6 +37,10 @@ impl Modules {
 
     pub fn input(&self) -> &Input {
         &self.input
+    }
+
+    pub fn camera(&self) -> &Camera {
+        &self.camera
     }
 
     pub fn cam_transform(&self) -> &CamTransform {
