@@ -118,39 +118,17 @@ impl Camera {
         self.uniform.update_raw_and_buffer(queue);
     }
 
-    pub fn transform(&self) -> &CamTransform {
-        &self.uniform.value.transform
+    pub fn value(&self) -> &CameraValues {
+        &self.uniform.value
     }
 
-    pub fn transform_mut(&mut self) -> &mut CamTransform {
-        &mut self.uniform.value.transform
+    pub fn value_mut(&mut self) -> &mut CameraValues {
+        &mut self.uniform.value
     }
 
-    pub fn projection_mut(&mut self) -> &mut Projection {
-        &mut self.uniform.value.projection
-    }
-
+    #[inline]
     pub fn ray_from_screen_pos(&self, mut screen_pos: Vec2) -> Ray {
-        let projection = &self.uniform.value.projection;
-        let transform = &self.uniform.value.transform;
-
-        let screen_size = vec2(projection.width as f32, projection.height as f32);
-        // flip the y:
-        screen_pos.y = screen_size.y - screen_pos.y;
-        let ndc = screen_pos * 2.0 / screen_size - Vec2::ONE;
-        let ndc_to_world = transform.calc_matrix().inverse() * projection.calc_matrix().inverse();
-        let world_far_plane = ndc_to_world.project_point3(ndc.extend(1.));
-        let world_near_plane = ndc_to_world.project_point3(ndc.extend(f32::EPSILON));
-
-        assert!(!world_near_plane.is_nan());
-        assert!(!world_far_plane.is_nan());
-
-        let direction = (world_far_plane - world_near_plane).normalize();
-
-        Ray {
-            origin: world_near_plane,
-            direction,
-        }
+        self.uniform.value.ray_from_screen_pos(screen_pos)
     }
 }
 
@@ -294,6 +272,7 @@ impl Ray {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct CameraValues {
     pub transform: CamTransform,
     pub projection: Projection,
@@ -304,6 +283,31 @@ impl ToRaw for CameraValues {
 
     fn to_raw(&self) -> Self::Raw {
         CameraRaw::new(&self.transform, &self.projection)
+    }
+}
+
+impl CameraValues {
+    pub fn ray_from_screen_pos(&self, mut screen_pos: Vec2) -> Ray {
+        let projection = &self.projection;
+        let transform = &self.transform;
+
+        let screen_size = vec2(projection.width as f32, projection.height as f32);
+        // flip the y:
+        screen_pos.y = screen_size.y - screen_pos.y;
+        let ndc = screen_pos * 2.0 / screen_size - Vec2::ONE;
+        let ndc_to_world = transform.calc_matrix().inverse() * projection.calc_matrix().inverse();
+        let world_far_plane = ndc_to_world.project_point3(ndc.extend(1.));
+        let world_near_plane = ndc_to_world.project_point3(ndc.extend(f32::EPSILON));
+
+        assert!(!world_near_plane.is_nan());
+        assert!(!world_far_plane.is_nan());
+
+        let direction = (world_far_plane - world_near_plane).normalize();
+
+        Ray {
+            origin: world_near_plane,
+            direction,
+        }
     }
 }
 

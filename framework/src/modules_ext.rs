@@ -5,7 +5,7 @@ use crate::{
     modules::{
         graphics::{
             settings::GraphicsSettings,
-            statics::camera::{CamTransform, Camera, Projection},
+            statics::camera::{CamTransform, Camera, CameraValues, Projection},
             Renderer,
         },
         input::Input,
@@ -39,20 +39,12 @@ impl Modules {
         &self.input
     }
 
-    pub fn camera(&self) -> &Camera {
-        &self.camera
+    pub fn camera(&self) -> &CameraValues {
+        self.camera.value()
     }
 
-    pub fn cam_transform(&self) -> &CamTransform {
-        self.camera.transform()
-    }
-
-    pub fn cam_transform_mut(&mut self) -> &mut CamTransform {
-        self.camera.transform_mut()
-    }
-
-    pub fn cam_projection_mut(&mut self) -> &mut Projection {
-        self.camera.projection_mut()
+    pub fn camera_mut(&mut self) -> &mut CameraValues {
+        self.camera.value_mut()
     }
 
     pub fn add_battery<T: Battery>(&mut self, battery: T) {

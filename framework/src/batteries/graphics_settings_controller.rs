@@ -48,7 +48,8 @@ impl CameraSettings {
 
 impl Battery for GraphicsSettingsController {
     fn initialize(&mut self, modules: &mut Modules) {
-        self.camera_settings.apply(modules.cam_projection_mut());
+        self.camera_settings
+            .apply(&mut modules.camera_mut().projection);
     }
 
     fn update(&mut self, modules: &mut Modules) {
@@ -109,7 +110,8 @@ impl Battery for GraphicsSettingsController {
             };
 
             if slider.changed() || orthographic_radio.changed() || perspective_radio.changed() {
-                self.camera_settings.apply(modules.cam_projection_mut());
+                self.camera_settings
+                    .apply(&mut modules.camera_mut().projection);
             }
         });
     }

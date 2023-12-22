@@ -18,7 +18,7 @@ impl Battery for SimpleCamController {
         const ANGLE_SPEED: f32 = 1.8;
 
         let delta_time = modules.time().delta_secs();
-        let cam_transform = modules.cam_transform_mut();
+        let cam_transform = &mut modules.camera_mut().transform;
 
         cam_transform.pos += cam_transform.forward() * wasd.y * SPEED * delta_time;
         cam_transform.pos += cam_transform.right() * wasd.x * SPEED * delta_time;

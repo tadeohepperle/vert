@@ -18,4 +18,5 @@ pub mod ext {
     pub use egui;
     pub use glam;
     pub use wgpu;
+    pub use winit;
 }
