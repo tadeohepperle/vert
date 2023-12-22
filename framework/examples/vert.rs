@@ -5,7 +5,7 @@ use std::{f32::consts::PI, sync::Arc};
 use glam::{vec2, vec3};
 use vert_framework::{
     app::App,
-    batteries::{SimpleCamController, SpawnSomeCubes},
+    batteries::{GraphicsSettingsController, SimpleCamController, SpawnSomeCubes},
     flow::Flow,
     modules::{
         assets::fetchable_asset::{AssetSource, ImageAsset},
@@ -36,6 +36,7 @@ pub struct MyState {
 impl StateT for MyState {
     async fn initialize(modules: &mut Modules) -> anyhow::Result<Self> {
         modules.add_battery(SimpleCamController);
+        modules.add_battery(GraphicsSettingsController::new());
         let mut blue_cubes: Vec<Transform> = vec![];
         let mut black_cubes: Vec<Transform> = vec![];
 
@@ -71,6 +72,9 @@ impl StateT for MyState {
         // Draw some stuff (some things that are very bright)
         // /////////////////////////////////////////////////////////////////////////////
 
+        let oscillator = ((modules.time().total_secs() * 10.0).sin() + 1.0) / 2.0;
+        let oscillator2 = modules.time().total_secs().sin() * 0.3;
+
         // let the text face the camera
         let text_rotation = {
             let mut t = Transform::default();
@@ -85,7 +89,11 @@ impl StateT for MyState {
                 font_layout_size: 100.0,
                 font_texture_size: 200.0,
                 max_width: Some(400.0),
-                color: Color::new(10.0, 1.0, 3.0),
+                color: Color::new(
+                    3.0 + oscillator * 10.0,
+                    3.0 + (1.0 - oscillator) * 10.0,
+                    3.0,
+                ),
                 ..Default::default()
             },
             text_rotation,
@@ -103,49 +111,12 @@ impl StateT for MyState {
             text_rotation,
         );
 
-        let total_time = modules.time().total_secs().sin() * 0.3;
         for c in self.blue_cubes.iter_mut() {
-            c.rotation.x = total_time;
+            c.rotation.x = oscillator2;
         }
 
         ColorMeshRenderer::draw_cubes(&self.blue_cubes, Some(Color::new(0.0, 0.01, 0.05)));
         ColorMeshRenderer::draw_cubes(&self.black_cubes, Some(Color::new(0.0, 0.0, 0.0)));
-
-        // /////////////////////////////////////////////////////////////////////////////
-        // Make bloom settings controllable by egui
-        // /////////////////////////////////////////////////////////////////////////////
-
-        let mut egui_context = modules.egui();
-        egui::Window::new("Graphics Settings").show(&mut egui_context, |ui| {
-            let graphics_settings = modules.graphics_settings_mut();
-            ui.label("Bloom");
-            ui.add(egui::Checkbox::new(
-                &mut graphics_settings.bloom.activated,
-                "Bloom Activated",
-            ));
-            if graphics_settings.bloom.activated {
-                ui.add(egui::Slider::new(
-                    &mut graphics_settings.bloom.blend_factor,
-                    0.0..=1.0,
-                ));
-            }
-            ui.label("Camera Kind");
-            let orthographic = ui.radio_value(&mut self.camera_orthographic, true, "Orthographic");
-            let perspective = ui.radio_value(&mut self.camera_orthographic, false, "Perspective");
-            if orthographic.changed() || perspective.changed() {
-                let size = modules.graphics_context().size.get();
-                let height = size.height;
-                let width = size.width;
-                drop(size);
-                if self.camera_orthographic {
-                    *modules.cam_projection_mut() =
-                        Projection::new_orthographic(width, height, 16.0, 0.1, 5000.0);
-                } else {
-                    *modules.cam_projection_mut() =
-                        Projection::new_perspective(width, height, 0.8, 0.1, 5000.0);
-                }
-            }
-        });
 
         Flow::Continue
     }

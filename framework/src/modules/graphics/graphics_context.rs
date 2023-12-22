@@ -64,8 +64,11 @@ impl GraphicsContextOwner {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    features: wgpu::Features::MULTIVIEW,
-                    limits: wgpu::Limits::default(),
+                    features: wgpu::Features::MULTIVIEW | wgpu::Features::PUSH_CONSTANTS,
+                    limits: wgpu::Limits {
+                        max_push_constant_size: 16,
+                        ..Default::default()
+                    },
                 },
                 None,
             )

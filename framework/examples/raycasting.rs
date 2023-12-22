@@ -36,6 +36,8 @@ impl StateT for MyState {
     async fn initialize(modules: &mut Modules) -> anyhow::Result<Self> {
         modules.add_battery(SimpleCamController);
 
+        modules.graphics_settings_mut().bloom.activated = false;
+
         Ok(MyState { ray_points: vec![] })
     }
 

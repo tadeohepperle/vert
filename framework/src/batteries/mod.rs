@@ -2,9 +2,11 @@
 //! Can be thought of as a simple equivalent to bevy Plugins.
 
 use crate::modules::Modules;
+pub mod graphics_settings_controller;
 pub mod simple_cam_controller;
 pub mod spawn_some_cubes;
 
+pub use graphics_settings_controller::GraphicsSettingsController;
 pub use simple_cam_controller::SimpleCamController;
 use slotmap::{DefaultKey, SlotMap};
 pub use spawn_some_cubes::SpawnSomeCubes;

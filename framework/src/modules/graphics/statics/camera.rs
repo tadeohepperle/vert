@@ -197,12 +197,12 @@ impl CamTransform {
 #[derive(Debug, Clone, Copy)]
 pub struct Projection {
     /// width / height
-    width: u32,
-    height: u32,
-    aspect: f32,
-    znear: f32,
-    zfar: f32,
-    kind: ProjectionKind,
+    pub width: u32,
+    pub height: u32,
+    pub aspect: f32,
+    pub znear: f32,
+    pub zfar: f32,
+    pub kind: ProjectionKind,
 }
 
 #[derive(Debug, Clone, Copy)]

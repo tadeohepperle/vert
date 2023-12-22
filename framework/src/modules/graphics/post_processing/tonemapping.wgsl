@@ -1,8 +1,4 @@
-// Taken from learn-wgpu example for hdr.
-struct VertexOutput {
-    @location(0) uv: vec2<f32>,
-    @builtin(position) clip_position: vec4<f32>,
-};
+
 
 @group(0)
 @binding(0)
@@ -12,11 +8,22 @@ var hdr_image: texture_2d<f32>;
 @binding(1)
 var hdr_sampler: sampler;
 
+var<push_constant> tonemapping_mode: u32;
+
+// Taken from learn-wgpu example for hdr.
+struct VertexOutput {
+    @location(0) uv: vec2<f32>,
+    @builtin(position) clip_position: vec4<f32>,
+};
+
 @fragment
 fn fs_main(vs: VertexOutput) -> @location(0) vec4<f32> {
-    let hdr = textureSample(hdr_image, hdr_sampler, vs.uv);
-    let sdr = aces_tone_map(hdr.rgb);
-    return vec4(sdr, hdr.a);
+    let color_with_a: vec4<f32> = textureSample(hdr_image, hdr_sampler, vs.uv);
+    var color: vec3<f32> = color_with_a.rgb;
+    if tonemapping_mode == 1u{
+        color = aces_tone_map(color);
+    }
+    return vec4(color, color_with_a.a);
 }
 
 // Maps HDR values to linear values

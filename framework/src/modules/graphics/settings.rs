@@ -4,6 +4,7 @@ use super::elements::color::Color;
 pub struct GraphicsSettings {
     pub bloom: BloomSettings,
     pub clear_color: Color,
+    pub tonemapping: ToneMappingSettings,
 }
 
 impl Default for GraphicsSettings {
@@ -16,8 +17,15 @@ impl Default for GraphicsSettings {
                 b: 0.6,
                 a: 1.0,
             },
+            tonemapping: ToneMappingSettings::Aces,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ToneMappingSettings {
+    Disabled,
+    Aces,
 }
 
 #[derive(Debug, Clone)]

@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
-use wgpu::{RenderPass, ShaderModule};
+use wgpu::{PushConstantRange, RenderPass, ShaderModule, ShaderStages};
 
 use crate::{
     constants::SURFACE_COLOR_FORMAT,
     modules::graphics::{
-        graphics_context::GraphicsContext, statics::static_texture::RgbaBindGroupLayout,
+        graphics_context::GraphicsContext,
+        settings::{GraphicsSettings, ToneMappingSettings},
+        statics::static_texture::RgbaBindGroupLayout,
         ScreenVertexShader,
     },
     utils::watcher::ShaderFileWatcher,
@@ -44,7 +46,7 @@ impl PostProcessingEffectT for AcesToneMapping {
         encoder: &'e mut wgpu::CommandEncoder,
         input: &wgpu::BindGroup,
         output: &wgpu::TextureView,
-        graphics_settings: &crate::modules::graphics::settings::GraphicsSettings,
+        graphics_settings: &GraphicsSettings,
     ) {
         let mut tone_mapping_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Hdr::process"),
@@ -62,8 +64,24 @@ impl PostProcessingEffectT for AcesToneMapping {
         });
 
         tone_mapping_pass.set_pipeline(&self.pipeline);
+        let tone_map = graphics_settings.tonemapping.to_push_const();
+        tone_mapping_pass.set_push_constants(
+            ShaderStages::FRAGMENT,
+            0,
+            bytemuck::cast_slice(&[tone_map]),
+        );
+
         tone_mapping_pass.set_bind_group(0, input, &[]);
         tone_mapping_pass.draw(0..3, 0..1);
+    }
+}
+
+impl ToneMappingSettings {
+    fn to_push_const(&self) -> u32 {
+        match self {
+            ToneMappingSettings::Disabled => 0,
+            ToneMappingSettings::Aces => 1,
+        }
     }
 }
 
@@ -83,7 +101,10 @@ fn create_pipeline(
         .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
             bind_group_layouts: &[RgbaBindGroupLayout.static_layout()],
-            push_constant_ranges: &[],
+            push_constant_ranges: &[PushConstantRange {
+                stages: ShaderStages::FRAGMENT,
+                range: 0..16,
+            }],
         });
 
     let pipeline = context
