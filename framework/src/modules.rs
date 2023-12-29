@@ -60,7 +60,7 @@ pub struct Modules {
 }
 
 impl Modules {
-    pub async fn initialize(window: &winit::window::Window) -> anyhow::Result<Self> {
+    pub async fn initialize(window: winit::window::Window) -> anyhow::Result<Self> {
         pretty_env_logger::try_init().unwrap();
         info!("such information");
         let graphics_context = GraphicsContextOwner::intialize(window).await?;

@@ -2719,6 +2719,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "atomic_refcell",
+ "bumpalo",
  "bytemuck",
  "egui",
  "egui-wgpu",

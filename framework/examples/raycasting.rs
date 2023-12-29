@@ -48,12 +48,16 @@ impl StateT for MyState {
                 .color(Color::BLACK),
         );
 
+        let time = modules.time().total_secs();
         let mut environment: Vec<Transform> = vec![];
-        for i in 0..10 {
-            for j in 0..10 {
-                environment.push(vec3(i as f32 * 2.0, -1.0, j as f32 * 2.0).into());
+
+        for i in 0..300 {
+            for j in 0..300 {
+                let y = (time + i as f32).sin();
+                environment.push(vec3(i as f32 * 2.0, y, j as f32 * 2.0).into());
             }
         }
+
         ColorMeshRenderer::draw_cubes(&environment, None);
 
         let input = modules.input();

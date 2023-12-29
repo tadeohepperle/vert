@@ -25,6 +25,7 @@ pub struct GraphicsContext {
     pub surface_config: Reader<wgpu::SurfaceConfiguration>,
     pub size: Reader<PhysicalSize<u32>>,
     pub scale_factor: Reader<f64>,
+    pub window: Arc<Window>,
 }
 
 impl GraphicsContext {
@@ -45,12 +46,12 @@ pub struct GraphicsContextOwner {
 }
 
 impl GraphicsContextOwner {
-    pub async fn intialize(window: &Window) -> anyhow::Result<Self> {
+    pub async fn intialize(window: Window) -> anyhow::Result<Self> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
-        let surface = unsafe { instance.create_surface(window) }.unwrap();
+        let surface = unsafe { instance.create_surface(&window) }.unwrap();
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::default(),
@@ -109,6 +110,7 @@ impl GraphicsContextOwner {
             surface_config: surface_config.reader(),
             size: size.reader(),
             scale_factor: scale_factor.reader(),
+            window: Arc::new(window),
         };
 
         let context_updater = GraphicsContextOwner {

@@ -9,7 +9,6 @@ use crate::{flow::Flow, modules::Modules, state::StateT};
 
 pub struct App<S: StateT> {
     event_loop: EventLoop<()>,
-    window: Window,
     modules: Modules,
     state: S,
 }
@@ -39,12 +38,10 @@ impl<S: StateT> App<S> {
             .with_inner_size(size)
             .build(&event_loop)
             .unwrap();
-
-        let mut modules = Modules::initialize(&window).await?;
+        let mut modules = Modules::initialize(window).await?;
         let state = S::initialize(&mut modules).await?;
         let app = Self {
             event_loop,
-            window,
             modules,
             state,
         };
@@ -54,10 +51,11 @@ impl<S: StateT> App<S> {
     async fn run_event_loop(self) -> anyhow::Result<()> {
         let Self {
             event_loop,
-            window,
             mut modules,
             mut state,
         } = self;
+
+        let window = modules.graphics_context().window.clone();
 
         event_loop.run(move |event, window_target| {
             // check what kinds of events received:

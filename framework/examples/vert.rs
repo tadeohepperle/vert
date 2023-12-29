@@ -115,8 +115,8 @@ impl StateT for MyState {
             c.rotation.x = oscillator2;
         }
 
-        ColorMeshRenderer::draw_cubes(&self.blue_cubes, Some(Color::new(0.0, 0.01, 0.05)));
-        ColorMeshRenderer::draw_cubes(&self.black_cubes, Some(Color::new(0.0, 0.0, 0.0)));
+        ColorMeshRenderer::draw_cubes(&self.blue_cubes, None);
+        ColorMeshRenderer::draw_cubes(&self.black_cubes, None);
 
         Flow::Continue
     }
