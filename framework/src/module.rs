@@ -1,15 +1,17 @@
 use std::{
+    any::TypeId,
     cell::UnsafeCell,
     collections::{HashMap, HashSet},
-    fmt::Display,
+    fmt::{Debug, Display},
     ops::DerefMut,
+    sync::Arc,
 };
 
 use anyhow::anyhow;
 use bumpalo::Bump;
 
 pub trait ModuleT: 'static + Sized {
-    type Config: 'static + Sized + Clone = ();
+    type Config: 'static + Sized + Clone + PartialEq + Debug = ();
     type Dependencies: DependenciesT = ();
 
     /// creates this module
@@ -24,6 +26,7 @@ pub trait ModuleT: 'static + Sized {
     fn intialize(handle: Handle<Self>) {}
 }
 
+/// Wraps a type id and a type name for a Module.
 #[derive(Debug, Clone, Copy)]
 pub struct ModuleId {
     type_id: std::any::TypeId,
@@ -158,22 +161,47 @@ impl<A: DependenciesT, B: DependenciesT> DependenciesT for (A, B) {
     }
 }
 
-pub struct AppBuilder {
-    module_configs: &'static mut bumpalo::Bump,
-    added_modules: HashMap<ModuleId, AddedModule>,
+pub trait MainModuleT: ModuleT<Config = ()> {
+    /// takes control over how to run the application
+    fn main(&mut self, app: &App) -> anyhow::Result<()>;
+}
+
+pub struct AllModules {
+    _inner: Arc<HashMap<ModuleId, UntypedHandle>>,
+}
+
+impl AllModules {
+    fn get<M: ModuleT>(&self) -> Option<Handle<M>> {
+        self._inner
+            .get(&ModuleId::of::<M>())
+            .map(|e| e.typed::<M>())
+    }
 }
 
 pub struct App {
-    module_configs: &'static bumpalo::Bump,
+    /// Bump Allocator in which all Modules are allocated.
     modules: &'static bumpalo::Bump,
-    instantiated_modules: HashMap<ModuleId, InstantiatedModule>,
+    /// handles to all modules by their module id
+    all_modules: AllModules,
+}
+
+impl App {
+    pub fn build() -> AppBuilder {
+        AppBuilder::new()
+    }
+
+    pub fn all_modules(&self) {}
+}
+
+pub struct AppBuilder {
+    module_configs: bumpalo::Bump,
+    added_modules: HashMap<ModuleId, AddedModule>,
 }
 
 impl AppBuilder {
-    /// todo! parameterize with some struct that handles inputs and updates.
     pub fn new() -> Self {
         AppBuilder {
-            module_configs: Box::leak(Box::new(bumpalo::Bump::new())),
+            module_configs: bumpalo::Bump::new(),
             added_modules: HashMap::new(),
         }
     }
@@ -188,10 +216,7 @@ impl AppBuilder {
     }
 
     /// Adds a module to the app. Does NOT instantiate and intitialize it yet.
-    pub fn add_with_config<M: ModuleT>(mut self, config: M::Config) -> Self
-    where
-        M::Config: Default,
-    {
+    pub fn add_with_config<M: ModuleT>(mut self, config: M::Config) -> Self {
         // allocate the config in the `module_configs` Bump for later use.
         let config: &M::Config = self.module_configs.alloc(config);
         let config_ptr: *const () = config as *const M::Config as *const ();
@@ -199,19 +224,54 @@ impl AppBuilder {
         // insert an entry for the added module, containing a monomorphized function pointer,
         // that can later be used to instantiate the module.
         let dep_type_ids = M::Dependencies::type_ids();
-        let own_type_id = ModuleId::of::<M>();
+        let module_id = ModuleId::of::<M>();
         let added_module = AddedModule {
             dependencies: dep_type_ids,
-            module: own_type_id,
+            module_id,
             config_ptr,
             instantiate_module_fn: instantiate_module::<M>,
         };
-        self.added_modules.insert(ModuleId::of::<M>(), added_module);
+
+        if let Some(module_before) = self.added_modules.get(&module_id) {
+            // check if the config is the same here: (if yes, the two can be considered the same module, all good)
+            let config_before = unsafe { &*(module_before.config_ptr as *const M::Config) };
+            if config_before != config {
+                panic!("Module {module_id} cannot be added twice, with different configs: {config_before:?} and {config:?}");
+            }
+        }
+
+        self.added_modules.insert(module_id, added_module);
         self
     }
 
-    /// tries to find a
-    pub fn build(self) -> anyhow::Result<App> {
+    pub fn run<M: MainModuleT>(self) -> anyhow::Result<()>
+    where
+        M::Config: Default,
+    {
+        let config: M::Config = Default::default();
+        self.run_with_config::<M>(config)
+    }
+
+    /// tries to builds a valid dependency graph between all modules (no cycles) and instantiates them.
+    /// A `MainModule` is provided as a type parameter. This Module is also just a regular module and is added to the AppBuilder as well.
+    /// It specifies the `main` function, that should be run after all modules are created.
+    ///
+    /// The `MainModule` can be a dependency of other modules. For example the MainModule could expose
+    /// scheduling functions that can be used by other modules in their `initialize` functions,
+    /// to register their own handles in an update or render loop.  
+    ///
+    /// On the other hand, the `MainModule` can also have other modules as dependencies:
+    /// E.g. if the app, assumes there is a window, a GraphicsContext can be created first,
+    /// and be used as a dependency of the main module.
+    ///
+    /// ## Quick overview of App lifecycle:
+    ///
+    /// - Instantiate all modules in a valid order: pass dependencies to the modules that need them
+    /// - Initialize all modules: Here each Module has the chance to do something with a handle to itself. Useful for registering the own handle in other modules, e.g. as a RenderPass
+    /// - Run the `main()` function of the `MainModule`.
+    pub fn run_with_config<M: MainModuleT>(mut self, config: M::Config) -> anyhow::Result<()> {
+        self = self.add_with_config::<M>(config);
+
         let modules_bump: &'static Bump = Box::leak(Box::new(Bump::new()));
         let mut instantiated_modules: HashMap<ModuleId, InstantiatedModule> = HashMap::new();
 
@@ -232,25 +292,60 @@ impl AppBuilder {
             m.initialize();
         }
 
-        Ok(App {
-            module_configs: self.module_configs,
+        let all_modules: HashMap<ModuleId, UntypedHandle> = instantiated_modules
+            .into_iter()
+            .map(|(k, v)| (k, v.handle))
+            .collect();
+
+        // note: configs allocated in module_configs leaks, maybe it should be deallocated here. See bumpalo::boxed.
+
+        let app = App {
             modules: modules_bump,
-            instantiated_modules,
-        })
+            all_modules: AllModules {
+                _inner: Arc::new(all_modules),
+            },
+        };
+
+        let mut main_module = app.all_modules.get::<M>().unwrap();
+        let result = main_module.main(&app);
+
+        // todo!() dealloc modules and configs
+
+        result
     }
 }
 
-// basically finds an order of traversing the directed acyclic graph of dependencies, such that things that come first in the order, do not need any modules that come later in the order as dependencies.
-// currently cannot detect infinite cycles. (todo!())
+/// basically finds an order of traversing the directed acyclic graph of dependencies, such that things that come first in the order, do not need any modules that come later in the order as dependencies.
+/// currently cannot detect infinite cycles. (todo!())
+///
+/// Returns an error if no instantiation order that satisfies the dependency chain can be found.
 fn instantiation_order(modules: &HashMap<ModuleId, AddedModule>) -> anyhow::Result<Vec<ModuleId>> {
+    fn dependency_chain_string(m_id: &ModuleId, dependency_chain: &Vec<ModuleId>) -> String {
+        let mut dep_chain_string = String::new();
+
+        for d in dependency_chain.iter() {
+            dep_chain_string.push_str(&d.to_string());
+            dep_chain_string.push_str(" -> ");
+        }
+
+        format!("{dep_chain_string}{m_id}")
+    }
+
     /// fills `order` in a depth first way,
     fn depth_first_fill_order(
         m_id: &ModuleId,
         modules: &HashMap<ModuleId, AddedModule>,
         visitied: &mut HashSet<ModuleId>,
+        visited_in_this_run: &mut HashSet<ModuleId>,
         order: &mut Vec<ModuleId>,
         dependency_chain: &Vec<ModuleId>,
     ) -> anyhow::Result<()> {
+        if visited_in_this_run.contains(m_id) {
+            let dep_chain_string = dependency_chain_string(m_id, dependency_chain);
+            return Err(anyhow!("Recursive dependency chain: {dep_chain_string}"));
+        }
+        visited_in_this_run.insert(*m_id);
+
         if !visitied.contains(m_id) {
             visitied.insert(*m_id);
 
@@ -258,18 +353,19 @@ fn instantiation_order(modules: &HashMap<ModuleId, AddedModule>) -> anyhow::Resu
                 let mut chain = dependency_chain.clone();
                 chain.push(*m_id);
                 for d_id in m.dependencies.iter() {
-                    depth_first_fill_order(d_id, modules, visitied, order, &chain)?;
+                    depth_first_fill_order(
+                        d_id,
+                        modules,
+                        visitied,
+                        visited_in_this_run,
+                        order,
+                        &chain,
+                    )?;
                 }
             } else {
-                let mut dep_chain_string = String::new();
-
-                for d in dependency_chain.iter() {
-                    dep_chain_string.push_str(&d.to_string());
-                    dep_chain_string.push_str(" -> ");
-                }
-
+                let dep_chain_string = dependency_chain_string(m_id, dependency_chain);
                 return Err(anyhow!(
-                    "Module {m_id} not found. It is needed as a dependency of ({dep_chain_string}{m_id})"
+                    "Module {m_id} not found. Needed in: {dep_chain_string}"
                 ));
             }
 
@@ -283,25 +379,22 @@ fn instantiation_order(modules: &HashMap<ModuleId, AddedModule>) -> anyhow::Resu
     let mut order: Vec<ModuleId> = vec![];
 
     for m_id in modules.keys() {
-        depth_first_fill_order(m_id, modules, &mut visitied, &mut order, &vec![])?;
+        depth_first_fill_order(
+            m_id,
+            modules,
+            &mut visitied,
+            &mut HashSet::new(),
+            &mut order,
+            &vec![],
+        )?;
     }
 
     Ok(order)
 }
 
-// struct DependencyGraph {
-//     nodes: HashMap,
-//     entry_points: HashM
-// }
-
-// struct Node {
-//     module: AddedModule,
-//     dependencies: Vec<TypeId>,
-// }
-
 struct AddedModule {
     dependencies: Vec<ModuleId>,
-    module: ModuleId,
+    module_id: ModuleId,
     config_ptr: *const (), // points to the stored config in the static Bump.
     instantiate_module_fn: fn(
         &AddedModule,
@@ -370,7 +463,9 @@ fn initialize_module<M: ModuleT>(instantiated_module: &InstantiatedModule) {
 
 #[cfg(test)]
 mod test {
-    use super::{instantiation_order, AppBuilder, Handle, ModuleT};
+    use std::path::Component;
+
+    use super::{instantiation_order, AppBuilder, Handle, MainModuleT, ModuleT};
 
     // /////////////////////////////////////////////////////////////////////////////
     // Some test structs that implement the Module trait.
@@ -424,6 +519,33 @@ mod test {
         }
     }
 
+    struct C;
+    impl ModuleT for C {
+        type Config = ();
+        type Dependencies = Handle<A>;
+        fn new(config: Self::Config, deps: Self::Dependencies) -> Self {
+            C
+        }
+    }
+
+    struct A;
+    impl ModuleT for A {
+        type Config = ();
+        type Dependencies = Handle<B>;
+        fn new(config: Self::Config, deps: Self::Dependencies) -> Self {
+            A
+        }
+    }
+
+    struct B;
+    impl ModuleT for B {
+        type Config = ();
+        type Dependencies = Handle<A>;
+        fn new(config: Self::Config, deps: Self::Dependencies) -> Self {
+            B
+        }
+    }
+
     struct LineRenderer {
         renderer: Handle<Renderer>,
     }
@@ -438,6 +560,26 @@ mod test {
 
         fn intialize(handle: Handle<Self>) {
             println!("LineRenderer Initialized");
+        }
+    }
+
+    struct MainMod {}
+
+    impl ModuleT for MainMod {
+        type Config = ();
+
+        type Dependencies = ();
+
+        fn new(config: Self::Config, deps: Self::Dependencies) -> Self {
+            println!("MainMod Initialized");
+            MainMod {}
+        }
+    }
+
+    impl MainModuleT for MainMod {
+        fn main(&mut self, app: &super::App) -> anyhow::Result<()> {
+            println!("Running Main");
+            Ok(())
         }
     }
 
@@ -473,10 +615,16 @@ mod test {
             .add::<Renderer>()
             .add::<RendererSettings>();
 
+        // recursive chain not possible:
+        let apprec = AppBuilder::new().add::<A>().add::<B>();
+        let apprec2 = AppBuilder::new().add::<C>().add::<A>().add::<B>();
+
         assert!(instantiation_order(&app1.added_modules).is_ok());
         assert!(instantiation_order(&app2.added_modules).is_ok());
         assert!(instantiation_order(&app3.added_modules).is_err());
         assert!(instantiation_order(&app4.added_modules).is_err());
+        assert!(instantiation_order(&apprec.added_modules).is_err());
+        assert!(instantiation_order(&apprec2.added_modules).is_err());
     }
 
     #[test]
@@ -486,6 +634,6 @@ mod test {
             .add::<GraphicsContext>()
             .add::<Renderer>()
             .add::<RendererSettings>();
-        app1.build();
+        app1.run::<MainMod>().unwrap();
     }
 }
