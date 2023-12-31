@@ -14,7 +14,10 @@ pub use input::Input;
 pub mod scheduler;
 pub use scheduler::{Schedule, Scheduler, Timing};
 
-use crate::Plugin;
+pub mod time;
+pub use time::Time;
+
+use crate::{app::ModuleId, Dependencies, Handle, Plugin};
 
 pub trait Resize {
     fn resize(&mut self, new_size: PhysicalSize<u64>);
@@ -37,5 +40,42 @@ impl Plugin for DefaultModules {
         app.add::<GraphicsContext>();
         app.add::<Scheduler>();
         app.add::<Input>();
+        app.add::<Time>();
+    }
+}
+
+pub struct DefaultDependencies {
+    pub tokio: Handle<TokioRuntime>,
+    pub input: Handle<Input>,
+    pub time: Handle<Time>,
+    pub winit: Handle<WinitMain>,
+    pub graphics: Handle<GraphicsContext>,
+    pub scheduler: Handle<Scheduler>,
+    // tokio: Handle<TokioRuntime>,
+    // tokio: Handle<TokioRuntime>,
+    // tokio: Handle<TokioRuntime>,
+}
+
+impl Dependencies for DefaultDependencies {
+    fn type_ids() -> Vec<ModuleId> {
+        vec![
+            ModuleId::of::<TokioRuntime>(),
+            ModuleId::of::<Input>(),
+            ModuleId::of::<Time>(),
+            ModuleId::of::<WinitMain>(),
+            ModuleId::of::<GraphicsContext>(),
+            ModuleId::of::<Scheduler>(),
+        ]
+    }
+
+    fn from_untyped_handles(ptrs: &[crate::app::UntypedHandle]) -> Self {
+        DefaultDependencies {
+            tokio: ptrs[0].typed(),
+            input: ptrs[1].typed(),
+            time: ptrs[2].typed(),
+            winit: ptrs[3].typed(),
+            graphics: ptrs[4].typed(),
+            scheduler: ptrs[5].typed(),
+        }
     }
 }

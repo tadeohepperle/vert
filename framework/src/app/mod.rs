@@ -157,7 +157,7 @@ impl AppBuilder {
     /// - Instantiate all modules in a valid order: pass dependencies to the modules that need them
     /// - Initialize all modules: Here each Module has the chance to do something with a handle to itself. Useful for registering the own handle in other modules, e.g. as a RenderPass
     /// - Run the `main()` function of the `MainModule`.
-    pub fn run(mut self) -> anyhow::Result<()> {
+    pub fn run(self) -> anyhow::Result<()> {
         let Some(added_main_module) = self.main_module else {
             return Err(anyhow!("No Main Module registered in the AppBuilder!"));
         };
@@ -172,7 +172,7 @@ impl AppBuilder {
         for m_id in order.iter() {
             let m = self.added_modules.get(m_id).unwrap();
             // instantiate the module by calling the function (that was monomorphized before, to allow for type punning).
-            m.instantiate(&mut instantiated_modules, modules_bump);
+            m.instantiate(&mut instantiated_modules, modules_bump)?;
         }
 
         // call the initialize function on all modules:
@@ -230,14 +230,15 @@ fn instantiation_order(modules: &HashMap<ModuleId, AddedModule>) -> anyhow::Resu
         order: &mut Vec<ModuleId>,
         dependency_chain: &Vec<ModuleId>,
     ) -> anyhow::Result<()> {
-        if visited_in_this_run.contains(m_id) {
-            let dep_chain_string = dependency_chain_string(m_id, dependency_chain);
-            return Err(anyhow!("Recursive dependency chain: {dep_chain_string}"));
-        }
-        visited_in_this_run.insert(*m_id);
-
         if !visitied.contains(m_id) {
             visitied.insert(*m_id);
+
+            if visited_in_this_run.contains(m_id) {
+                dbg!(&visited_in_this_run);
+                let dep_chain_string = dependency_chain_string(m_id, dependency_chain);
+                return Err(anyhow!("Recursive dependency chain: {dep_chain_string}"));
+            }
+            visited_in_this_run.insert(*m_id);
 
             if let Some(m) = modules.get(m_id) {
                 let mut chain = dependency_chain.clone();

@@ -283,6 +283,14 @@ impl Input {
     pub fn clear_at_end_of_frame(&mut self) {
         // dbg!(self.keys.just_pressed.len());
         // dbg!(self.mouse_buttons.just_pressed.len());
+        if self.keys.just_pressed(KeyCode::KeyW) {
+            println!("W");
+        }
+
+        if self.close_requested {
+            self.scheduler.request_exit("Close Button Pressed");
+        }
+
         self.keys.clear_at_end_of_frame();
         self.mouse_buttons.clear_at_end_of_frame();
         self.resized = None;

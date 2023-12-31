@@ -5,7 +5,7 @@ use winit::{dpi::PhysicalSize, window::Window};
 
 use crate::{Handle, Module, WinitMain};
 
-use super::{winit_main, Resize, TokioRuntime};
+use super::{Resize, TokioRuntime};
 
 #[derive(Debug)]
 pub struct GraphicsContext {

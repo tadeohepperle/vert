@@ -2,8 +2,12 @@ use std::fmt::Display;
 
 use super::{dependencies::Dependencies, handle::Handle, App};
 
+/// A module that is part of an app.
 pub trait Module: 'static + Sized {
+    /// Some initial data that configures the module. Provided by the User when adding a module to an app.
     type Config: 'static + Sized + Clone + PartialEq + std::fmt::Debug = ();
+    /// Other modules that are expected to be part of the app. Provided automatically during app setup, where the program
+    /// resolves which dependencies each module has.
     type Dependencies: Dependencies = ();
 
     /// creates this module

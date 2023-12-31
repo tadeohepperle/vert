@@ -11,6 +11,7 @@ use crate::{
 pub struct Scheduler {
     on_exit: ScheduledFunctions,
     on_update: ScheduledFunctions,
+    exit_ordered: Option<String>,
 }
 
 impl Module for Scheduler {
@@ -26,6 +27,7 @@ impl Module for Scheduler {
                 schedule: Schedule::Update,
                 execution_order: vec![],
             },
+            exit_ordered: None,
         })
     }
 }
@@ -37,10 +39,13 @@ impl Scheduler {
     /// Currently hard to protect, while keeping it exposed.
     pub fn update(&mut self) -> UpdateFlow {
         self.on_update.execute();
+        if let Some(reason) = self.exit_ordered.take() {
+            return UpdateFlow::Exit(reason);
+        }
         UpdateFlow::Continue
     }
 
-    /// high priority functions will run before low priority ones.
+    /// high timing functions will run after low timing ones.
     pub fn register<M: Module>(
         &mut self,
         handle: &Handle<M>,
@@ -58,6 +63,10 @@ impl Scheduler {
         };
         let schedule = self.schedule(schedule);
         schedule.insert(function);
+    }
+
+    pub fn request_exit(&mut self, reason: impl ToString) {
+        self.exit_ordered = Some(reason.to_string());
     }
 
     fn schedule(&mut self, schedule: Schedule) -> &mut ScheduledFunctions {

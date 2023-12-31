@@ -50,7 +50,7 @@ pub struct UntypedHandle {
 }
 
 impl UntypedHandle {
-    pub(super) fn typed<T: Module>(&self) -> Handle<T> {
+    pub(crate) fn typed<T: Module>(&self) -> Handle<T> {
         Handle {
             ptr: unsafe { std::mem::transmute(self.ptr) },
         }

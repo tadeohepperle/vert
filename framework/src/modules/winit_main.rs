@@ -47,9 +47,11 @@ impl Module for WinitMain {
 
         let monitor = event_loop.primary_monitor().unwrap();
         let video_mode = monitor.video_modes().next();
-        let size = video_mode
-            .clone()
-            .map_or(PhysicalSize::new(800, 600), |vm| vm.size());
+        // let size = video_mode
+        //     .clone()
+        //     .map_or(PhysicalSize::new(800, 600), |vm| vm.size());
+
+        let size = PhysicalSize::new(400, 300);
 
         let window = WindowBuilder::new()
             .with_visible(true)
@@ -78,6 +80,8 @@ impl MainModule for WinitMain {
                     if *window_id != self.window.id() {
                         return;
                     }
+
+                    self.receive_window_event(event);
 
                     if matches!(event, WindowEvent::RedrawRequested) {
                         //  this is called every frame:
