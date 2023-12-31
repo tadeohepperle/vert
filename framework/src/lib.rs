@@ -5,15 +5,11 @@
 #![feature(associated_type_defaults)]
 
 pub mod app;
-pub mod batteries;
-pub mod constants;
-pub mod flow;
-pub mod module;
 pub mod modules;
-pub mod modules_ext;
-pub mod state;
-pub mod systems;
 pub mod utils;
+
+pub use app::{App, AppBuilder, Dependencies, Handle, MainModule, Module, Plugin};
+pub use modules::WinitMain;
 
 pub mod ext {
     pub use bytemuck;
