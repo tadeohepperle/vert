@@ -49,7 +49,7 @@ impl Module for Time {
         scheduler.register(
             self_handle,
             Schedule::Update,
-            Timing::EARLY - 10,
+            Timing::VERY_EARLY - 10,
             Self::update,
         );
 

@@ -31,7 +31,7 @@ pub trait PostProcessingEffect {
 pub(super) struct PostProcessingEffectHandle {
     module_id: ModuleId,
     handle: UntypedHandle,
-    /// A type punned  fn apply<'e>(&'e mut self, encoder: &'e mut CommandEncoder, input_texture: &wgpu::BindGroup, output_texture: &wgpu::TextureView, );
+    /// A type punned fn apply<'e>(&'e mut self, encoder: &'e mut CommandEncoder, input_texture: &wgpu::BindGroup, output_texture: &wgpu::TextureView, );
     apply_fn: fn(
         *const (),
         encoder: *const (),
@@ -105,5 +105,51 @@ impl ScreenVertexShader {
             entry_point: "vs_main",
             buffers: &[],
         }
+    }
+}
+
+pub trait SdrSurfaceRenderer {
+    fn render<'e>(&'e self, encoder: &'e mut CommandEncoder, view: &wgpu::TextureView);
+}
+
+pub(super) struct SdrSurfaceRendererHandle {
+    module_id: ModuleId,
+    handle: UntypedHandle,
+    /// A type punned fn render<'e>(&'e mut self, encoder: &'e mut CommandEncoder, view: &wgpu::TextureView);
+    render_fn: fn(*const (), encoder: *const (), view: *const ()) -> (),
+}
+
+impl std::fmt::Debug for SdrSurfaceRendererHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SdrSurfaceRendererHandle")
+            .field("module_id", &self.module_id)
+            .finish()
+    }
+}
+
+impl SdrSurfaceRendererHandle {
+    pub fn new<R: SdrSurfaceRenderer + Module>(handle: Handle<R>) -> Self {
+        return SdrSurfaceRendererHandle {
+            module_id: ModuleId::of::<R>(),
+            handle: handle.untyped(),
+            render_fn: render::<R>,
+        };
+
+        fn render<R: SdrSurfaceRenderer>(obj: *const (), encoder: *const (), view: *const ()) {
+            unsafe {
+                <R as SdrSurfaceRenderer>::render(
+                    std::mem::transmute(obj),
+                    std::mem::transmute(encoder),
+                    std::mem::transmute(view),
+                );
+            }
+        }
+    }
+
+    pub fn render<'e>(&'e self, encoder: &'e mut CommandEncoder, view: &wgpu::TextureView) {
+        let obj_ptr = self.handle.ptr();
+        let encoder_ptr = encoder as *const CommandEncoder as *const ();
+        let view_ptr = view as *const wgpu::TextureView as *const ();
+        (self.render_fn)(obj_ptr, encoder_ptr, view_ptr);
     }
 }

@@ -9,7 +9,7 @@ use crate::{
 
 use self::{
     main_pass_renderer::MainPassRendererHandle,
-    post_processing::PostProcessingEffectHandle,
+    post_processing::{PostProcessingEffectHandle, SdrSurfaceRendererHandle},
     screen_texture::{DepthTexture, HdrTexture},
 };
 
@@ -24,7 +24,7 @@ pub mod screen_texture;
 pub use main_pass_renderer::MainPassRenderer;
 pub use post_processing::{
     AcesToneMapping, Bloom, BloomSettings, PostProcessingEffect, ScreenVertexShader,
-    ToneMappingSettings,
+    SdrSurfaceRenderer, ToneMappingSettings,
 };
 
 #[derive(Dependencies)]
@@ -64,6 +64,10 @@ pub struct Renderer {
     post_processing_effects: TimingQueue<PostProcessingEffectHandle>,
     tone_mapping: Option<PostProcessingEffectHandle>,
 
+    /// Renderers that render directly onto the surface, not in hdr space. good for e.g. Egui
+    /// Notice: this also uses PostProcessingEffects, because their interface is quite intuitive. Might change later.
+    surface_renderers: TimingQueue<SdrSurfaceRendererHandle>,
+
     screen_vertex_shader: ScreenVertexShader,
 
     /// this can be optimized in the future, to just use function pointers instead of trait and vtables.
@@ -92,6 +96,7 @@ impl Module for Renderer {
             tone_mapping: None,
             screen_vertex_shader,
             prepare: vec![],
+            surface_renderers: TimingQueue::new(),
         };
 
         Ok(renderer)
@@ -156,8 +161,19 @@ impl Renderer {
         self.tone_mapping = Some(handle);
     }
 
+    /// registers a renderer that renders to the sdr surface after all post processing and tonemapping has been done.
+    /// good for e.g. ui with egui.
+    pub fn register_surface_renderer<R: Module + SdrSurfaceRenderer>(
+        &mut self,
+        handle: Handle<R>,
+        timing: Timing,
+    ) {
+        let handle = SdrSurfaceRendererHandle::new(handle);
+        self.surface_renderers.insert(handle, timing); // todo! maybe return key, to deregister later.
+    }
+
     fn resize(&mut self, new_size: ResizeEvent) {
-        // new_size not used because it is taken from the graphics context, which gets the new screen size before.
+        //Note: new_size not used because it is taken from the graphics context, which gets the new screen size before.
         println!("Renderer Resized");
         self.depth_texture.recreate(&self.deps.ctx);
         self.hdr_msaa_texture = HdrTexture::create_screen_sized(&self.deps.ctx, MSAA_SAMPLE_COUNT);
@@ -205,6 +221,11 @@ impl Renderer {
             tone_mapping.apply(&mut encoder, self.hdr_resolve_target.bind_group(), &view)
         } else {
             println!("Warning! No Tone Mapping Specified");
+        }
+
+        // effects purely on sdr screen surface
+        for surface_renderer in self.surface_renderers.iter() {
+            surface_renderer.render(&mut encoder, &view)
         }
 
         // /////////////////////////////////////////////////////////////////////////////

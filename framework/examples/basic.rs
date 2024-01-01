@@ -26,12 +26,7 @@ impl Module for MyApp {
 
     fn intialize(handle: vert_framework::Handle<Self>) -> anyhow::Result<()> {
         let scheduler = handle.deps.scheduler.get_mut();
-        scheduler.register(
-            handle,
-            Schedule::Update,
-            Timing::DEFAULT - 300000,
-            Self::update,
-        );
+        scheduler.register(handle, Schedule::Update, Timing::DEFAULT, Self::update);
         Ok(())
     }
 }
@@ -55,5 +50,11 @@ impl MyApp {
         {
             self.deps.scheduler.request_exit("Escape");
         }
+
+        let egui = self.deps.egui;
+        let mut egui_ctx = egui.context();
+        egui::Window::new("Hellow World").show(&mut egui_ctx, |ui| {
+            ui.label("Wow!");
+        });
     }
 }

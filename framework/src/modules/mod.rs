@@ -32,6 +32,9 @@ pub use screen_size::{MainScreenSize, ScreenSize};
 pub mod arenas;
 pub use arenas::Arenas;
 
+pub mod egui;
+pub use egui::Egui;
+
 pub struct DefaultModules;
 
 impl Plugin for DefaultModules {
@@ -48,18 +51,23 @@ impl Plugin for DefaultModules {
         app.add::<MainScreenSize>();
         app.add_with_config::<Bloom>(BloomSettings::default());
         app.add_with_config::<AcesToneMapping>(ToneMappingSettings::Aces);
+        app.add::<Egui>();
     }
 }
 
 #[derive(Debug, Dependencies)]
 pub struct DefaultDependencies {
+    pub winit: Handle<WinitMain>,
     pub tokio: Handle<TokioRuntime>,
+    pub ctx: Handle<GraphicsContext>,
+    pub scheduler: Handle<Scheduler>,
     pub input: Handle<Input>,
     pub time: Handle<Time>,
-    pub winit: Handle<WinitMain>,
-    pub graphics: Handle<GraphicsContext>,
-    pub scheduler: Handle<Scheduler>,
-    // tokio: Handle<TokioRuntime>,
-    // tokio: Handle<TokioRuntime>,
-    // tokio: Handle<TokioRuntime>,
+    pub renderer: Handle<Renderer>,
+    pub arenas: Handle<Arenas>,
+    pub camera_3d: Handle<MainCamera3D>,
+    pub screen_size: Handle<MainScreenSize>,
+    pub bloom: Handle<Bloom>,
+    pub tone_mapping: Handle<AcesToneMapping>,
+    pub egui: Handle<Egui>,
 }

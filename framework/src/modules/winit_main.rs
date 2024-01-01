@@ -117,11 +117,10 @@ impl WinitMain {
         &mut self,
         handle: Handle<M>,
         fn_ptr: fn(&mut M, window_event: &WindowEvent) -> (),
-    ) -> anyhow::Result<()> {
+    ) {
         let function_handle = RefFunctionHandle::new(handle, fn_ptr);
         self.event_listeners
             .insert(function_handle, Timing::default());
-        Ok(())
     }
 
     fn receive_window_event(&mut self, event: &WindowEvent) {

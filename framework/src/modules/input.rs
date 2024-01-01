@@ -69,8 +69,7 @@ impl Module for Input {
         handle
             .deps
             .winit_main
-            .register_window_event_listener(cloned_handle, Self::receive_window_event)
-            .unwrap();
+            .register_window_event_listener(cloned_handle, Self::receive_window_event);
 
         handle.deps.scheduler.register(
             cloned_handle,
