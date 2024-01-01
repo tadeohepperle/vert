@@ -8,9 +8,9 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
 };
 
-use crate::{Handle, Module, WinitMain};
+use crate::{utils::Timing, Handle, Module, WinitMain};
 
-use super::{winit_main, Schedule, Scheduler, Timing, WinitWindowEventReceiver};
+use super::{winit_main, Schedule, Scheduler, WinitWindowEventReceiver};
 
 #[derive(Debug)]
 pub struct Input {
@@ -301,6 +301,8 @@ impl Input {
         self.cursor_just_moved = false;
         self.cursor_delta = Vec2::ZERO;
     }
+
+    pub fn add_resize_event_listener() {}
 }
 
 #[derive(Debug, Clone)]

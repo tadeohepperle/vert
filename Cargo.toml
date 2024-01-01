@@ -1,6 +1,6 @@
 
 [workspace]
-members = ["core", "framework"]
+members = ["core", "framework", "macros"]
 exclude = ["core/examples/arenas"]
 
 [package]

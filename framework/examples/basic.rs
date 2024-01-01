@@ -1,5 +1,6 @@
 use vert_framework::{
-    modules::{DefaultDependencies, DefaultModules, Schedule, Timing},
+    modules::{DefaultDependencies, DefaultModules, Schedule},
+    utils::Timing,
     AppBuilder, Module,
 };
 

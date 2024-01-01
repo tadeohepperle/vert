@@ -1,5 +1,11 @@
-pub mod winit_main;
+use crate::{app::ModuleId, Dependencies, Handle, Plugin};
+use vert_macros::Dependencies;
 use winit::{dpi::PhysicalSize, event::WindowEvent};
+
+mod renderer;
+pub use renderer::Renderer;
+
+pub mod winit_main;
 pub use winit_main::WinitMain;
 
 pub mod graphics_context;
@@ -12,12 +18,13 @@ pub mod input;
 pub use input::Input;
 
 pub mod scheduler;
-pub use scheduler::{Schedule, Scheduler, Timing};
+pub use scheduler::{Schedule, Scheduler};
 
 pub mod time;
 pub use time::Time;
 
-use crate::{app::ModuleId, Dependencies, Handle, Plugin};
+pub mod camera;
+pub use camera::MainCamera3D;
 
 pub trait Resize {
     fn resize(&mut self, new_size: PhysicalSize<u64>);
@@ -41,9 +48,11 @@ impl Plugin for DefaultModules {
         app.add::<Scheduler>();
         app.add::<Input>();
         app.add::<Time>();
+        app.add::<Renderer>();
     }
 }
 
+#[derive(Debug, Dependencies)]
 pub struct DefaultDependencies {
     pub tokio: Handle<TokioRuntime>,
     pub input: Handle<Input>,
@@ -54,28 +63,4 @@ pub struct DefaultDependencies {
     // tokio: Handle<TokioRuntime>,
     // tokio: Handle<TokioRuntime>,
     // tokio: Handle<TokioRuntime>,
-}
-
-impl Dependencies for DefaultDependencies {
-    fn type_ids() -> Vec<ModuleId> {
-        vec![
-            ModuleId::of::<TokioRuntime>(),
-            ModuleId::of::<Input>(),
-            ModuleId::of::<Time>(),
-            ModuleId::of::<WinitMain>(),
-            ModuleId::of::<GraphicsContext>(),
-            ModuleId::of::<Scheduler>(),
-        ]
-    }
-
-    fn from_untyped_handles(ptrs: &[crate::app::UntypedHandle]) -> Self {
-        DefaultDependencies {
-            tokio: ptrs[0].typed(),
-            input: ptrs[1].typed(),
-            time: ptrs[2].typed(),
-            winit: ptrs[3].typed(),
-            graphics: ptrs[4].typed(),
-            scheduler: ptrs[5].typed(),
-        }
-    }
 }

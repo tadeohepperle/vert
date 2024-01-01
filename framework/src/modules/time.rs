@@ -5,9 +5,9 @@ use std::{
 
 use smallvec::{smallvec, SmallVec};
 
-use crate::{Handle, Module};
+use crate::{utils::Timing, Handle, Module};
 
-use super::{Schedule, Scheduler, Timing};
+use super::{Schedule, Scheduler};
 
 const CACHED_DELTA_TIMES_COUNT: usize = 20;
 

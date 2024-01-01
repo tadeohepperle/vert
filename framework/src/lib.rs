@@ -5,6 +5,7 @@
 #![feature(associated_type_defaults)]
 
 pub mod app;
+pub mod elements;
 pub mod modules;
 pub mod utils;
 

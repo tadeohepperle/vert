@@ -2738,8 +2738,18 @@ dependencies = [
  "slotmap",
  "smallvec",
  "tokio",
+ "vert-macros",
  "wgpu",
  "winit",
+]
+
+[[package]]
+name = "vert-macros"
+version = "0.0.1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
