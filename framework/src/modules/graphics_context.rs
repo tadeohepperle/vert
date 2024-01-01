@@ -18,6 +18,7 @@ pub struct GraphicsContext {
     pub surface_format: wgpu::TextureFormat,
     pub surface_config: wgpu::SurfaceConfiguration,
     pub size: PhysicalSize<u32>,
+    /// todo! add scale_factor to resize event and make sure it is updated.
     pub scale_factor: f64,
     deps: GraphicsContextDependencies,
 }
@@ -43,7 +44,7 @@ impl Module for GraphicsContext {
 
     fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
         let mut input = handle.deps.input;
-        input.register_resize_event_listener(handle, Self::resize, Timing::START - 10);
+        input.register_resize_listener(handle, Self::resize, Timing::START - 10);
         Ok(())
     }
 }
@@ -54,6 +55,7 @@ impl GraphicsContext {
         // todo!()
         self.surface_config.width = event.new_size.width;
         self.surface_config.height = event.new_size.height;
+        self.size = event.new_size;
         self.surface.configure(&self.device, &self.surface_config);
     }
 

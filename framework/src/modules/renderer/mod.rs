@@ -8,8 +8,8 @@ use crate::{
 };
 
 use self::{
-    main_pass_renderer::{MainPassRenderer, MainPassRendererHandle},
-    post_processing::{PostProcessingEffect, PostProcessingEffectHandle, ScreenVertexShader},
+    main_pass_renderer::MainPassRendererHandle,
+    post_processing::PostProcessingEffectHandle,
     screen_texture::{DepthTexture, HdrTexture},
 };
 
@@ -21,7 +21,10 @@ pub mod main_pass_renderer;
 pub mod post_processing;
 pub mod screen_texture;
 
-pub use post_processing::{AcesToneMapping, ToneMappingSettings};
+pub use main_pass_renderer::MainPassRenderer;
+pub use post_processing::{
+    AcesToneMapping, PostProcessingEffect, ScreenVertexShader, ToneMappingSettings,
+};
 
 #[derive(Dependencies)]
 pub struct RendererDependencies {
@@ -61,6 +64,9 @@ pub struct Renderer {
     tone_mapping: Option<PostProcessingEffectHandle>,
 
     screen_vertex_shader: ScreenVertexShader,
+
+    /// this can be optimized in the future, to just use function pointers instead of trait and vtables.
+    prepare: Vec<&'static mut dyn Prepare>,
 }
 
 impl Module for Renderer {
@@ -84,6 +90,7 @@ impl Module for Renderer {
             post_processing_effects: TimingQueue::new(),
             tone_mapping: None,
             screen_vertex_shader,
+            prepare: vec![],
         };
 
         Ok(renderer)
@@ -93,7 +100,7 @@ impl Module for Renderer {
         // register resize handler in input
         let mut input = handle.deps.input;
         // Note: Should be registered after the resize event listener of the graphics context, such that the graphics context is already configured to the new size.
-        input.register_resize_event_listener(handle, Self::resize, Timing::MIDDLE);
+        input.register_resize_listener(handle, Self::resize, Timing::MIDDLE);
 
         let mut scheduler = handle.deps.scheduler;
         scheduler.register(
@@ -109,6 +116,12 @@ impl Module for Renderer {
 impl Renderer {
     pub fn screen_vertex_shader(&self) -> &ScreenVertexShader {
         &self.screen_vertex_shader
+    }
+
+    /// This is not ideal, but right now it is a simple way to prepare data using the command encoder of the frame.
+    pub fn register_prepare<R: Module + Prepare>(&mut self, handle: Handle<R>) {
+        let trait_obj_ref: &'static mut dyn Prepare = handle.get_mut();
+        self.prepare.push(trait_obj_ref);
     }
 
     pub fn register_main_pass_renderer<R: Module + MainPassRenderer>(
@@ -152,11 +165,18 @@ impl Renderer {
 
     fn prepare_and_render(&mut self) {
         let ctx = &self.deps.ctx;
+        let device = &ctx.device;
+        let queue = &ctx.queue;
+
         let mut encoder = ctx.new_encoder();
 
         // /////////////////////////////////////////////////////////////////////////////
         // Prepare
         // /////////////////////////////////////////////////////////////////////////////
+
+        for e in self.prepare.iter_mut() {
+            e.prepare(device, queue, &mut encoder);
+        }
 
         // /////////////////////////////////////////////////////////////////////////////
         // Render
@@ -222,4 +242,13 @@ impl Renderer {
         });
         main_render_pass
     }
+}
+
+pub trait Prepare {
+    fn prepare(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+    );
 }

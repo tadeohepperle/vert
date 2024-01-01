@@ -333,7 +333,7 @@ impl Input {
         self.scroll
     }
 
-    pub fn register_resize_event_listener<M: Module>(
+    pub fn register_resize_listener<M: Module>(
         &mut self,
         handle: Handle<M>,
         func: fn(&mut M, new_size: ResizeEvent),

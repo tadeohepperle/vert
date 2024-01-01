@@ -1,15 +1,16 @@
-use wgpu::{CommandEncoder, ShaderModuleDescriptor};
-
-pub mod tone_mapping;
-pub use tone_mapping::{AcesToneMapping, ToneMappingSettings};
-
 use crate::{
     app::{ModuleId, UntypedHandle},
     modules::GraphicsContext,
     Dependencies, Handle, Module,
 };
+use wgpu::{CommandEncoder, ShaderModuleDescriptor};
 
 use super::Renderer;
+
+pub mod tone_mapping;
+pub use tone_mapping::{AcesToneMapping, ToneMappingSettings};
+
+pub mod bloom;
 
 #[derive(Debug, Dependencies)]
 pub struct PostProcessingDefaultDeps {
