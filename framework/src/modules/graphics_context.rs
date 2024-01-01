@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use crate::{utils::Timing, Dependencies};
-use vert_macros::Dependencies;
 use wgpu::SurfaceTexture;
 use winit::{dpi::PhysicalSize, window::Window};
 

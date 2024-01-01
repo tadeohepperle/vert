@@ -1,5 +1,4 @@
 use crate::{app::ModuleId, Dependencies, Handle, Plugin};
-use vert_macros::Dependencies;
 use winit::{dpi::PhysicalSize, event::WindowEvent};
 
 mod renderer;
@@ -26,6 +25,8 @@ pub use time::Time;
 pub mod camera;
 pub use camera::MainCamera3D;
 
+use self::renderer::{AcesToneMapping, ToneMappingSettings};
+
 pub struct DefaultModules;
 
 impl Plugin for DefaultModules {
@@ -37,6 +38,7 @@ impl Plugin for DefaultModules {
         app.add::<Input>();
         app.add::<Time>();
         app.add::<Renderer>();
+        app.add_with_config::<AcesToneMapping>(ToneMappingSettings::Aces);
     }
 }
 

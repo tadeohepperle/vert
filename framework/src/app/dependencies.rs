@@ -1,4 +1,5 @@
 use super::{ModuleId, UntypedHandle};
+pub use vert_macros::Dependencies;
 
 pub trait Dependencies {
     fn type_ids() -> Vec<ModuleId>;

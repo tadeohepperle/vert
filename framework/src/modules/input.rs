@@ -2,7 +2,6 @@ use std::fmt::Debug;
 
 use glam::{vec2, Vec2, Vec3};
 use smallvec::SmallVec;
-use vert_macros::Dependencies;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{ElementState, KeyEvent, MouseButton, WindowEvent},

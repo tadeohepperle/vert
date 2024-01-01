@@ -1,18 +1,27 @@
+use std::sync::Arc;
+
 use crate::{
     app::{self, ModuleId, UntypedHandle},
     elements::Color,
     utils::{Timing, TimingQueue},
-    Dependencies, Handle, Module,
+    Dependencies, Handle, Module, Plugin,
 };
 
-use self::screen_texture::{DepthTexture, HdrTexture};
+use self::{
+    main_pass_renderer::{MainPassRenderer, MainPassRendererHandle},
+    post_processing::{PostProcessingEffect, PostProcessingEffectHandle, ScreenVertexShader},
+    screen_texture::{DepthTexture, HdrTexture},
+};
 
 use super::{input::ResizeEvent, GraphicsContext, Input, Schedule, Scheduler};
 use log::error;
-use vert_macros::Dependencies;
 use wgpu::{CommandEncoder, RenderPass};
 
-mod screen_texture;
+pub mod main_pass_renderer;
+pub mod post_processing;
+pub mod screen_texture;
+
+pub use post_processing::{AcesToneMapping, ToneMappingSettings};
 
 #[derive(Dependencies)]
 pub struct RendererDependencies {
@@ -50,6 +59,8 @@ pub struct Renderer {
     main_pass_renderers: TimingQueue<MainPassRendererHandle>,
     post_processing_effects: TimingQueue<PostProcessingEffectHandle>,
     tone_mapping: Option<PostProcessingEffectHandle>,
+
+    screen_vertex_shader: ScreenVertexShader,
 }
 
 impl Module for Renderer {
@@ -61,6 +72,8 @@ impl Module for Renderer {
         let hdr_msaa_texture = HdrTexture::create_screen_sized(&deps.ctx, 4);
         let hdr_resolve_target = HdrTexture::create_screen_sized(&deps.ctx, 1);
 
+        let screen_vertex_shader = ScreenVertexShader::new(&deps.ctx.device);
+
         let renderer = Renderer {
             settings,
             deps,
@@ -70,6 +83,7 @@ impl Module for Renderer {
             main_pass_renderers: TimingQueue::new(),
             post_processing_effects: TimingQueue::new(),
             tone_mapping: None,
+            screen_vertex_shader,
         };
 
         Ok(renderer)
@@ -93,6 +107,10 @@ impl Module for Renderer {
 }
 
 impl Renderer {
+    pub fn screen_vertex_shader(&self) -> &ScreenVertexShader {
+        &self.screen_vertex_shader
+    }
+
     pub fn register_main_pass_renderer<R: Module + MainPassRenderer>(
         &mut self,
         handle: Handle<R>,
@@ -203,102 +221,5 @@ impl Renderer {
             timestamp_writes: None,
         });
         main_render_pass
-    }
-}
-
-pub trait MainPassRenderer {
-    /// The renderpass here is expected to be 4xMSAA and has HDR_COLOR_FORMAT as its format.
-    fn render<'pass, 'encoder>(&'encoder self, render_pass: &'pass mut wgpu::RenderPass<'encoder>);
-}
-
-struct MainPassRendererHandle {
-    module_id: ModuleId,
-    handle: UntypedHandle,
-    /// A type punned fn render<'pass, 'encoder>(&'encoder self, render_pass: &'pass mut wgpu::RenderPass<'encoder>);
-    render_fn: fn(*const (), render_pass: *const ()) -> (),
-}
-
-impl MainPassRendererHandle {
-    fn new<R: MainPassRenderer + Module>(handle: Handle<R>) -> Self {
-        return MainPassRendererHandle {
-            module_id: ModuleId::of::<R>(),
-            handle: handle.untyped(),
-            render_fn: render::<R>,
-        };
-
-        fn render<R: MainPassRenderer>(obj: *const (), render_pass: *const ()) {
-            unsafe {
-                <R as MainPassRenderer>::render(
-                    std::mem::transmute(obj),
-                    std::mem::transmute(render_pass),
-                );
-            }
-        }
-    }
-
-    fn render<'encoder>(&self, render_pass: &mut wgpu::RenderPass<'encoder>) {
-        let obj_ptr = self.handle.ptr();
-        let render_pass_ptr = render_pass as *const wgpu::RenderPass<'encoder> as *const ();
-        (self.render_fn)(obj_ptr, render_pass_ptr);
-    }
-}
-
-pub trait PostProcessingEffect {
-    fn apply<'e>(
-        &'e mut self,
-        encoder: &'e mut CommandEncoder,
-        input_texture: &wgpu::BindGroup,
-        output_texture: &wgpu::TextureView,
-    );
-}
-
-struct PostProcessingEffectHandle {
-    module_id: ModuleId,
-    handle: UntypedHandle,
-    /// A type punned  fn apply<'e>(&'e mut self, encoder: &'e mut CommandEncoder, input_texture: &wgpu::BindGroup, output_texture: &wgpu::TextureView, );
-    apply_fn: fn(
-        *const (),
-        encoder: *const (),
-        input_texture: *const (),
-        output_texture: *const (),
-    ) -> (),
-}
-
-impl PostProcessingEffectHandle {
-    fn new<R: PostProcessingEffect + Module>(handle: Handle<R>) -> Self {
-        return PostProcessingEffectHandle {
-            module_id: ModuleId::of::<R>(),
-            handle: handle.untyped(),
-            apply_fn: apply::<R>,
-        };
-
-        fn apply<R: PostProcessingEffect>(
-            obj: *const (),
-            encoder: *const (),
-            input_texture: *const (),
-            output_texture: *const (),
-        ) {
-            unsafe {
-                <R as PostProcessingEffect>::apply(
-                    std::mem::transmute(obj),
-                    std::mem::transmute(encoder),
-                    std::mem::transmute(input_texture),
-                    std::mem::transmute(output_texture),
-                );
-            }
-        }
-    }
-
-    fn apply<'e>(
-        &'e self,
-        encoder: &'e mut CommandEncoder,
-        input_texture: &wgpu::BindGroup,
-        output_texture: &wgpu::TextureView,
-    ) {
-        let obj_ptr = self.handle.ptr();
-        let encoder_ptr = encoder as *const CommandEncoder as *const ();
-        let input_texture_ptr = input_texture as *const wgpu::BindGroup as *const ();
-        let output_texture_ptr = output_texture as *const wgpu::TextureView as *const ();
-        (self.apply_fn)(obj_ptr, encoder_ptr, input_texture_ptr, output_texture_ptr);
     }
 }
