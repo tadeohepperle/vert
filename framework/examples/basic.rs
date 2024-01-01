@@ -27,7 +27,7 @@ impl Module for MyApp {
     fn intialize(handle: vert_framework::Handle<Self>) -> anyhow::Result<()> {
         let scheduler = handle.deps.scheduler.get_mut();
         scheduler.register(
-            &handle,
+            handle,
             Schedule::Update,
             Timing::MIDDLE - 300000,
             Self::update,

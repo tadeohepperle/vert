@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
+use crate::{utils::Timing, Dependencies};
+use vert_macros::Dependencies;
 use wgpu::SurfaceTexture;
 use winit::{dpi::PhysicalSize, window::Window};
 
 use crate::{Handle, Module, WinitMain};
 
-use super::{Resize, TokioRuntime};
+use super::{input::ResizeEvent, Input, TokioRuntime};
 
 #[derive(Debug)]
 pub struct GraphicsContext {
@@ -18,9 +20,44 @@ pub struct GraphicsContext {
     pub surface_config: wgpu::SurfaceConfiguration,
     pub size: PhysicalSize<u32>,
     pub scale_factor: f64,
+    deps: GraphicsContextDependencies,
+}
+
+#[derive(Debug, Dependencies)]
+pub struct GraphicsContextDependencies {
+    tokio: Handle<TokioRuntime>,
+    winit: Handle<WinitMain>,
+    input: Handle<Input>,
+}
+
+impl Module for GraphicsContext {
+    type Config = ();
+
+    type Dependencies = GraphicsContextDependencies;
+
+    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+        let tokio = deps.tokio;
+        let graphics_context =
+            tokio.block_on(async move { initialize_graphics_context(deps).await })?;
+        Ok(graphics_context)
+    }
+
+    fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
+        let mut input = handle.deps.input;
+        input.register_resize_event_listener(handle, Self::resize, Timing::START - 10);
+        Ok(())
+    }
 }
 
 impl GraphicsContext {
+    fn resize(&mut self, event: ResizeEvent) {
+        println!("Graphics context resized: {event:?}");
+        // todo!()
+        self.surface_config.width = event.new_size.width;
+        self.surface_config.height = event.new_size.height;
+        self.surface.configure(&self.device, &self.surface_config);
+    }
+
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size
     }
@@ -50,15 +87,11 @@ impl GraphicsContext {
     }
 }
 
-impl Resize for GraphicsContext {
-    fn resize(&mut self, new_size: PhysicalSize<u64>) {
-        self.surface_config.width = new_size.width as u32;
-        self.surface_config.height = new_size.height as u32;
-        self.surface.configure(&self.device, &self.surface_config);
-    }
-}
+async fn initialize_graphics_context(
+    deps: GraphicsContextDependencies,
+) -> anyhow::Result<GraphicsContext> {
+    let window = deps.winit.window();
 
-async fn initialize_graphics_context(window: &Window) -> anyhow::Result<GraphicsContext> {
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::all(),
         ..Default::default()
@@ -111,32 +144,17 @@ async fn initialize_graphics_context(window: &Window) -> anyhow::Result<Graphics
     let scale_factor = window.scale_factor();
 
     let context = GraphicsContext {
-        instance: instance,
-        adapter: adapter,
-        device: device,
-        queue: queue,
-        surface: surface,
+        instance,
+        adapter,
+        device,
+        queue,
+        surface,
         surface_format,
-        surface_config: surface_config,
+        surface_config,
         size: size,
-        scale_factor: scale_factor,
+        scale_factor,
+        deps,
     };
 
     Ok(context)
-}
-
-impl Module for GraphicsContext {
-    type Config = ();
-
-    type Dependencies = (Handle<TokioRuntime>, Handle<WinitMain>);
-
-    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
-        let tokio_rt = deps.0;
-        let winit_main_module = deps.1;
-        let window = winit_main_module.window();
-
-        let graphics_context =
-            tokio_rt.block_on(async move { initialize_graphics_context(window).await })?;
-        Ok(graphics_context)
-    }
 }

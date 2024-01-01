@@ -42,11 +42,16 @@ impl Module for Time {
         })
     }
 
-    fn intialize(mut handle: crate::Handle<Self>) -> anyhow::Result<()> {
-        handle.start_time = Instant::now();
-        handle.last_frame = Instant::now();
-        let scheduler = handle.scheduler.get_mut();
-        scheduler.register(&handle, Schedule::Update, Timing::START - 10, Self::update);
+    fn intialize(mut self_handle: crate::Handle<Self>) -> anyhow::Result<()> {
+        self_handle.start_time = Instant::now();
+        self_handle.last_frame = Instant::now();
+        let scheduler = self_handle.scheduler.get_mut();
+        scheduler.register(
+            self_handle,
+            Schedule::Update,
+            Timing::START - 10,
+            Self::update,
+        );
 
         Ok(())
     }

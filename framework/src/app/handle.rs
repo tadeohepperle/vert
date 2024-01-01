@@ -2,9 +2,18 @@ use std::{cell::UnsafeCell, fmt::Debug, ops::DerefMut};
 
 use super::{Dependencies, Module, ModuleId};
 
+/// Warning: The Clone and Copy impls may be removed in the future? Are they safe to expose like that?
 pub struct Handle<T: Module> {
     pub(super) ptr: &'static UnsafeCell<T>,
 }
+
+impl<T: Module> Clone for Handle<T> {
+    fn clone(&self) -> Self {
+        Self { ptr: self.ptr }
+    }
+}
+
+impl<T: Module> Copy for Handle<T> {}
 
 impl<T: Module> Debug for Handle<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -17,6 +26,10 @@ impl<T: Module> Handle<T> {
     pub fn get_mut(&self) -> &'static mut T {
         let reference: &'static mut T = unsafe { &mut *self.ptr.get() };
         reference
+    }
+
+    pub fn clone(&self) -> Self {
+        Handle { ptr: self.ptr }
     }
 }
 
@@ -46,14 +59,20 @@ impl<T: Module> Handle<T> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct UntypedHandle {
-    pub(crate) ptr: *const (),
+    pub ptr: *const (),
 }
 
 impl UntypedHandle {
+    #[inline]
     pub(crate) fn typed<T: Module>(&self) -> Handle<T> {
         Handle {
             ptr: unsafe { std::mem::transmute(self.ptr) },
         }
+    }
+
+    #[inline]
+    pub fn ptr(&self) -> *const () {
+        self.ptr
     }
 }
 

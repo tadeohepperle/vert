@@ -1,4 +1,8 @@
-use crate::{app::ModuleId, Handle, MainModule, Module};
+use crate::{
+    app::{FunctionHandle, ModuleId, RefFunctionHandle},
+    utils::{Timing, TimingQueue},
+    Handle, MainModule, Module,
+};
 use anyhow::anyhow;
 use winit::{
     dpi::PhysicalSize,
@@ -7,7 +11,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-use super::{scheduler::UpdateFlow, Scheduler, WinitWindowEventReceiver};
+use super::{scheduler::UpdateFlow, Scheduler};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct WinitMainConfig {
@@ -27,7 +31,7 @@ pub struct WinitMain {
     /// Should be some, if the WinitMain is built, and the value is taken, leaving None, when the main function is run.
     event_loop: Option<EventLoop<()>>,
     window: Window,
-    event_listeners: Vec<(ModuleId, &'static mut dyn WinitWindowEventReceiver)>,
+    event_listeners: TimingQueue<RefFunctionHandle<WindowEvent>>,
     scheduler: Handle<Scheduler>,
 }
 
@@ -63,7 +67,7 @@ impl Module for WinitMain {
         Ok(WinitMain {
             event_loop: Some(event_loop),
             window,
-            event_listeners: vec![],
+            event_listeners: TimingQueue::new(),
             scheduler,
         })
     }
@@ -109,22 +113,20 @@ impl MainModule for WinitMain {
 }
 
 impl WinitMain {
-    pub fn register_event_listener<M: WinitWindowEventReceiver + Module>(
+    pub fn register_window_event_listener<M: Module>(
         &mut self,
-        handle: &Handle<M>,
+        handle: Handle<M>,
+        fn_ptr: fn(&mut M, window_event: &WindowEvent) -> (),
     ) -> anyhow::Result<()> {
-        let m_id = ModuleId::of::<M>();
-        if self.event_listeners.iter().any(|e| e.0 == m_id) {
-            return Err(anyhow!("Module {m_id} is already registered, as an event_listener for the WinitMain module"));
-        }
-        let trait_obj: &mut dyn WinitWindowEventReceiver = handle.get_mut();
-        self.event_listeners.push((m_id, trait_obj));
+        let function_handle = RefFunctionHandle::new(handle, fn_ptr);
+        self.event_listeners
+            .insert(function_handle, Timing::default());
         Ok(())
     }
 
     fn receive_window_event(&mut self, event: &WindowEvent) {
-        for (_, event_listener) in self.event_listeners.iter_mut() {
-            event_listener.receive_window_event(event);
+        for event_listener in self.event_listeners.iter() {
+            event_listener.call(event)
         }
     }
 }

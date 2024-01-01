@@ -1,11 +1,13 @@
 use std::ops::{Add, Sub};
 
+#[derive(Debug, Clone)]
 pub struct TimingQueue<T> {
     next_key: i32,
     /// sorted in ascending order according to their timing
     entries: Vec<Entry<T>>,
 }
 
+#[derive(Debug, Clone)]
 struct Entry<T> {
     timing: Timing,
     key: EntryKey,
@@ -71,9 +73,16 @@ pub struct EntryKey(i32);
 pub struct Timing(i32);
 
 impl Timing {
-    pub const START: Timing = Timing(-10000);
+    pub const START: Timing = Timing(-30000);
     pub const MIDDLE: Timing = Timing(0);
-    pub const END: Timing = Timing(10000);
+    pub const RENDER: Timing = Timing(20000);
+    pub const END: Timing = Timing(30000);
+}
+
+impl Default for Timing {
+    fn default() -> Self {
+        Timing::MIDDLE
+    }
 }
 
 impl Add<i32> for Timing {

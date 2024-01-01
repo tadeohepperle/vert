@@ -2,15 +2,26 @@ use std::fmt::Debug;
 
 use glam::{vec2, Vec2, Vec3};
 use smallvec::SmallVec;
+use vert_macros::Dependencies;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{ElementState, KeyEvent, MouseButton, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
 };
 
-use crate::{utils::Timing, Handle, Module, WinitMain};
+use crate::{
+    app::{FunctionHandle, ModuleId, UntypedHandle},
+    utils::{Timing, TimingQueue},
+    Dependencies, Handle, Module, WinitMain,
+};
 
-use super::{winit_main, Schedule, Scheduler, WinitWindowEventReceiver};
+use super::{winit_main, Schedule, Scheduler};
+
+#[derive(Debug, Dependencies)]
+pub struct InputDependencies {
+    winit_main: Handle<WinitMain>,
+    scheduler: Handle<Scheduler>,
+}
 
 #[derive(Debug)]
 pub struct Input {
@@ -24,18 +35,20 @@ pub struct Input {
     cursor_pos: Vec2,
     cursor_delta: Vec2,
     scroll: Option<f32>,
-    winit_main: Handle<WinitMain>,
-    scheduler: Handle<Scheduler>,
+    deps: InputDependencies,
+    resize_event_listerners: TimingQueue<FunctionHandle<ResizeEvent>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ResizeEvent {
+    pub new_size: PhysicalSize<u32>,
 }
 
 impl Module for Input {
     type Config = ();
-    type Dependencies = (Handle<WinitMain>, Handle<Scheduler>);
+    type Dependencies = InputDependencies;
 
-    fn new(
-        config: Self::Config,
-        (winit_main, scheduler): Self::Dependencies,
-    ) -> anyhow::Result<Self> {
+    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
         Ok(Input {
             keys: Default::default(),
             mouse_buttons: Default::default(),
@@ -47,26 +60,37 @@ impl Module for Input {
             cursor_pos: Default::default(),
             cursor_delta: Default::default(),
             scroll: Default::default(),
-            winit_main,
-            scheduler,
+            deps,
+            resize_event_listerners: TimingQueue::new(),
         })
     }
 
-    fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
-        let winit_main = handle.winit_main.get_mut();
-        winit_main.register_event_listener(&handle).unwrap();
-        let scheduler = handle.scheduler.get_mut();
-        scheduler.register(
-            &handle,
+    fn intialize(mut handle: Handle<Self>) -> anyhow::Result<()> {
+        let cloned_handle = handle;
+        handle
+            .deps
+            .winit_main
+            .register_window_event_listener(cloned_handle, Self::receive_window_event)
+            .unwrap();
+
+        handle.deps.scheduler.register(
+            cloned_handle,
             Schedule::Update,
             Timing::START,
-            Self::clear_at_end_of_frame,
+            Self::start_of_frame,
+        );
+
+        handle.deps.scheduler.register(
+            cloned_handle,
+            Schedule::Update,
+            Timing::END,
+            Self::end_of_frame,
         );
         Ok(())
     }
 }
 
-impl WinitWindowEventReceiver for Input {
+impl Input {
     fn receive_window_event(&mut self, window_event: &WindowEvent) {
         match window_event {
             WindowEvent::Resized(new_size) => {
@@ -173,9 +197,39 @@ impl WinitWindowEventReceiver for Input {
             } => {}
         }
     }
-}
 
-impl Input {
+    fn start_of_frame(&mut self) {
+        // notify resize event listeners at the start of the frame.
+        if let Some(new_size) = self.resized {
+            let event = ResizeEvent { new_size };
+            for listener in self.resize_event_listerners.iter() {
+                listener.call(event);
+            }
+        }
+    }
+
+    fn end_of_frame(&mut self) {
+        // dbg!(self.keys.just_pressed.len());
+        // dbg!(self.mouse_buttons.just_pressed.len());
+        if self.keys.just_pressed(KeyCode::KeyW) {
+            println!("W");
+        }
+
+        if self.close_requested {
+            self.deps.scheduler.request_exit("Close Button Pressed");
+        }
+
+        self.keys.clear_at_end_of_frame();
+        self.mouse_buttons.clear_at_end_of_frame();
+        self.resized = None;
+        self.scroll = None;
+        self.close_requested = false;
+        self.cursor_just_entered = false;
+        self.cursor_just_left = false;
+        self.cursor_just_moved = false;
+        self.cursor_delta = Vec2::ZERO;
+    }
+
     pub fn wasd_vec(&self) -> glam::Vec2 {
         let mut v = Vec2::ZERO;
         if self.keys.is_pressed(KeyCode::KeyW) {
@@ -280,29 +334,15 @@ impl Input {
         self.scroll
     }
 
-    pub fn clear_at_end_of_frame(&mut self) {
-        // dbg!(self.keys.just_pressed.len());
-        // dbg!(self.mouse_buttons.just_pressed.len());
-        if self.keys.just_pressed(KeyCode::KeyW) {
-            println!("W");
-        }
-
-        if self.close_requested {
-            self.scheduler.request_exit("Close Button Pressed");
-        }
-
-        self.keys.clear_at_end_of_frame();
-        self.mouse_buttons.clear_at_end_of_frame();
-        self.resized = None;
-        self.scroll = None;
-        self.close_requested = false;
-        self.cursor_just_entered = false;
-        self.cursor_just_left = false;
-        self.cursor_just_moved = false;
-        self.cursor_delta = Vec2::ZERO;
+    pub fn register_resize_event_listener<M: Module>(
+        &mut self,
+        handle: Handle<M>,
+        func: fn(&mut M, new_size: ResizeEvent),
+        timing: Timing,
+    ) {
+        self.resize_event_listerners
+            .insert(FunctionHandle::new(handle, func), timing);
     }
-
-    pub fn add_resize_event_listener() {}
 }
 
 #[derive(Debug, Clone)]

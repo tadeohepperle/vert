@@ -26,18 +26,6 @@ pub use time::Time;
 pub mod camera;
 pub use camera::MainCamera3D;
 
-pub trait Resize {
-    fn resize(&mut self, new_size: PhysicalSize<u64>);
-}
-
-pub trait WinitWindowEventReceiver {
-    fn receive_window_event(&mut self, window_event: &WindowEvent);
-}
-
-pub trait Runnable {
-    fn run(&mut self);
-}
-
 pub struct DefaultModules;
 
 impl Plugin for DefaultModules {

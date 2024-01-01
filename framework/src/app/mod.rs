@@ -8,11 +8,13 @@ use anyhow::anyhow;
 use bumpalo::Bump;
 
 pub mod dependencies;
+pub mod function_handle;
 pub mod handle;
 pub mod module;
 pub mod plugin;
 
 pub use dependencies::Dependencies;
+pub use function_handle::{FunctionHandle, RefFunctionHandle};
 pub use handle::{Handle, UntypedHandle};
 pub use module::{MainModule, Module, ModuleId};
 pub use plugin::Plugin;
