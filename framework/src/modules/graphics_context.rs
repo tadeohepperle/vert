@@ -44,7 +44,7 @@ impl Module for GraphicsContext {
 
     fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
         let mut input = handle.deps.input;
-        input.register_resize_listener(handle, Self::resize, Timing::START - 10);
+        input.register_resize_listener(handle, Self::resize, Timing::EARLY - 10);
         Ok(())
     }
 }
@@ -152,7 +152,7 @@ async fn initialize_graphics_context(
         surface,
         surface_format,
         surface_config,
-        size: size,
+        size,
         scale_factor,
         deps,
     };

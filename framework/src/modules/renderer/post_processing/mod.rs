@@ -11,6 +11,7 @@ pub mod tone_mapping;
 pub use tone_mapping::{AcesToneMapping, ToneMappingSettings};
 
 pub mod bloom;
+pub use bloom::{Bloom, BloomSettings};
 
 #[derive(Debug, Dependencies)]
 pub struct PostProcessingDefaultDeps {

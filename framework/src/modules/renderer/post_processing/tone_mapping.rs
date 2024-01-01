@@ -5,10 +5,10 @@ use wgpu::{PushConstantRange, ShaderStages};
 use crate::{
     elements::texture::rgba_bind_group_layout,
     modules::{renderer::SURFACE_COLOR_FORMAT, GraphicsContext, Renderer},
-    Handle, Module,
+    Dependencies, Handle, Module,
 };
 
-use super::{PostProcessingDefaultDeps, PostProcessingEffect, ScreenVertexShader};
+use super::{PostProcessingEffect, ScreenVertexShader};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ToneMappingSettings {
@@ -28,12 +28,17 @@ impl ToneMappingSettings {
 pub struct AcesToneMapping {
     pipeline: wgpu::RenderPipeline,
     settings: ToneMappingSettings,
-    deps: PostProcessingDefaultDeps,
+    deps: Deps,
 }
 
+#[derive(Debug, Dependencies)]
+pub struct Deps {
+    renderer: Handle<Renderer>,
+    ctx: Handle<GraphicsContext>,
+}
 impl Module for AcesToneMapping {
     type Config = ToneMappingSettings;
-    type Dependencies = PostProcessingDefaultDeps;
+    type Dependencies = Deps;
 
     fn new(settings: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
         let pipeline = create_pipeline(

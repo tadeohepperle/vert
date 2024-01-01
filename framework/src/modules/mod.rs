@@ -1,10 +1,8 @@
-use crate::{app::ModuleId, elements::Camera3D, Dependencies, Handle, Plugin};
-use winit::{dpi::PhysicalSize, event::WindowEvent};
-
+use crate::{Dependencies, Handle, Plugin};
 mod renderer;
 pub use renderer::{
-    AcesToneMapping, MainPassRenderer, PostProcessingEffect, Prepare, Renderer, ScreenVertexShader,
-    ToneMappingSettings,
+    AcesToneMapping, Bloom, BloomSettings, MainPassRenderer, PostProcessingEffect, Prepare,
+    Renderer, ScreenVertexShader, ToneMappingSettings,
 };
 
 pub mod winit_main;
@@ -48,6 +46,7 @@ impl Plugin for DefaultModules {
         app.add::<Arenas>();
         app.add::<MainCamera3D>();
         app.add::<MainScreenSize>();
+        app.add_with_config::<Bloom>(BloomSettings::default());
         app.add_with_config::<AcesToneMapping>(ToneMappingSettings::Aces);
     }
 }

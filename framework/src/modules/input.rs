@@ -75,14 +75,14 @@ impl Module for Input {
         handle.deps.scheduler.register(
             cloned_handle,
             Schedule::Update,
-            Timing::START,
+            Timing::EARLY,
             Self::start_of_frame,
         );
 
         handle.deps.scheduler.register(
             cloned_handle,
             Schedule::Update,
-            Timing::END,
+            Timing::VERY_LATE,
             Self::end_of_frame,
         );
         Ok(())

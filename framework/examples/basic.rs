@@ -29,7 +29,7 @@ impl Module for MyApp {
         scheduler.register(
             handle,
             Schedule::Update,
-            Timing::MIDDLE - 300000,
+            Timing::DEFAULT - 300000,
             Self::update,
         );
         Ok(())

@@ -6,6 +6,7 @@ use crate::{
     },
     modules::GraphicsContext,
 };
+use log::warn;
 use rand::{thread_rng, Rng};
 pub struct DepthTexture(Texture);
 
@@ -90,11 +91,27 @@ impl HdrTexture {
 
     pub fn create(
         device: &wgpu::Device,
-        width: u32,
-        height: u32,
+        mut width: u32,
+        mut height: u32,
         sample_count: u32,
         label: impl Into<String>,
     ) -> Self {
+        let label: String = label.into();
+
+        if width == 0 {
+            warn!(
+                "Attempted to create Hdr HdrTexture with size {width}x{height} with label {label}",
+            );
+            width = 1;
+        }
+
+        if height == 0 {
+            warn!(
+                "Attempted to create Hdr HdrTexture with size {width}x{height} with label {label}",
+            );
+            height = 1;
+        }
+
         let size = wgpu::Extent3d {
             width,
             height,
@@ -125,7 +142,6 @@ impl HdrTexture {
             ..Default::default()
         });
 
-        let label: String = label.into();
         let layout = match sample_count {
             1 => rgba_bind_group_layout(device),
             4 => rgba_bind_group_layout_msaa4(device),

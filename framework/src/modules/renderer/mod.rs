@@ -23,7 +23,8 @@ pub mod screen_texture;
 
 pub use main_pass_renderer::MainPassRenderer;
 pub use post_processing::{
-    AcesToneMapping, PostProcessingEffect, ScreenVertexShader, ToneMappingSettings,
+    AcesToneMapping, Bloom, BloomSettings, PostProcessingEffect, ScreenVertexShader,
+    ToneMappingSettings,
 };
 
 #[derive(Dependencies)]
@@ -100,13 +101,13 @@ impl Module for Renderer {
         // register resize handler in input
         let mut input = handle.deps.input;
         // Note: Should be registered after the resize event listener of the graphics context, such that the graphics context is already configured to the new size.
-        input.register_resize_listener(handle, Self::resize, Timing::MIDDLE);
+        input.register_resize_listener(handle, Self::resize, Timing::DEFAULT);
 
         let mut scheduler = handle.deps.scheduler;
         scheduler.register(
             handle,
             Schedule::Update,
-            Timing::RENDER,
+            Timing::LATE,
             Self::prepare_and_render,
         );
         Ok(())

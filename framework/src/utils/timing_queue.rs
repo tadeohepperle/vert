@@ -73,15 +73,16 @@ pub struct EntryKey(i32);
 pub struct Timing(i32);
 
 impl Timing {
-    pub const START: Timing = Timing(-30000);
-    pub const MIDDLE: Timing = Timing(0);
-    pub const RENDER: Timing = Timing(20000);
-    pub const END: Timing = Timing(30000);
+    pub const VERY_EARLY: Timing = Timing(-200000);
+    pub const EARLY: Timing = Timing(-100000);
+    pub const DEFAULT: Timing = Timing(0);
+    pub const LATE: Timing = Timing(100000);
+    pub const VERY_LATE: Timing = Timing(200000);
 }
 
 impl Default for Timing {
     fn default() -> Self {
-        Timing::MIDDLE
+        Timing::DEFAULT
     }
 }
 

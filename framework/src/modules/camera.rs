@@ -68,7 +68,7 @@ impl Module for MainCamera3D {
 
     fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
         let mut input = handle.deps.input;
-        input.register_resize_listener(handle, Self::resize, Timing::MIDDLE);
+        input.register_resize_listener(handle, Self::resize, Timing::DEFAULT);
 
         let mut renderer = handle.deps.renderer;
         renderer.register_prepare(handle);
