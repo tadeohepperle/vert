@@ -35,7 +35,9 @@ pub use arenas::Arenas;
 pub mod egui;
 pub use egui::Egui;
 
-use self::renderer::main_pass_renderer::{ColorMeshRenderer, Gizmos, UiRectRenderer};
+use self::renderer::main_pass_renderer::{
+    ColorMeshRenderer, Gizmos, TextRenderer, UiRectRenderer, WorldRectRenderer,
+};
 
 pub mod batteries;
 
@@ -59,6 +61,8 @@ impl Plugin for DefaultModules {
         app.add::<ColorMeshRenderer>();
         app.add::<Egui>();
         app.add::<UiRectRenderer>();
+        app.add::<WorldRectRenderer>();
+        app.add::<TextRenderer>();
     }
 }
 
@@ -80,4 +84,6 @@ pub struct DefaultDependencies {
     pub gizmos: Handle<Gizmos>,
     pub color_mesh: Handle<ColorMeshRenderer>,
     pub ui_rects: Handle<UiRectRenderer>,
+    pub world_rects: Handle<WorldRectRenderer>,
+    pub text: Handle<TextRenderer>,
 }

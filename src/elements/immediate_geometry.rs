@@ -120,6 +120,7 @@ impl<T: bytemuck::Pod> TexturedInstancesQueue<T> {
             let range = (last_start_idx as u32)..(instances.len() as u32);
             texture_groups.push((range, last_texture));
         }
+
         (instances, texture_groups)
     }
 }

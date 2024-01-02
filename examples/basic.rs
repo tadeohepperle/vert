@@ -1,9 +1,12 @@
-use glam::vec3;
+use glam::{vec2, vec3, Vec2};
 use vert::{
     elements::{Color, Transform},
     modules::{
         batteries::FlyCam,
-        renderer::main_pass_renderer::ui_rect::{Rect, UiRect},
+        renderer::main_pass_renderer::{
+            text_renderer::DrawText,
+            ui_rect::{Rect, UiRect},
+        },
         DefaultDependencies, DefaultModules, Schedule,
     },
     utils::Timing,
@@ -61,6 +64,27 @@ impl MyApp {
             color: Color::RED,
             border_radius: [20.0, 0.0, 20.0, 0.0],
         });
+
+        self.deps.text.draw_ui_text(DrawText {
+            text: "Hello".to_string(),
+            pos: vec2(20.0, 200.0),
+            font_texture_size: 70.0,
+            max_width: None,
+            color: Color::GREEN,
+            font_layout_size: 70.0,
+        });
+
+        self.deps.text.draw_world_text(
+            DrawText {
+                text: "Hello".to_string(),
+                pos: vec2(20.0, 200.0),
+                font_texture_size: 256.0,
+                max_width: None,
+                color: Color::new(5.0, 2.0, 2.0),
+                font_layout_size: 128.0,
+            },
+            Transform::new(5.0, 0.0, 0.0).face_minus_z(),
+        );
 
         if self
             .deps

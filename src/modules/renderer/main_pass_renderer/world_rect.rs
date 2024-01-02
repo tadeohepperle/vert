@@ -14,30 +14,48 @@ use crate::{
     elements::{
         immediate_geometry::TexturedInstancesQueue,
         texture::{create_white_px_texture, rgba_bind_group_layout},
-        BindableTexture, Color, GrowableBuffer,
+        BindableTexture, Color, GrowableBuffer, ToRaw, Transform, TransformRaw,
     },
     modules::{
         arenas::Key,
         renderer::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT},
-        Arenas, Attribute, GraphicsContext, MainScreenSize, Prepare, Renderer, VertexT,
+        Arenas, Attribute, GraphicsContext, MainCamera3D, MainScreenSize, Prepare, Renderer,
+        VertexT,
     },
     utils::Timing,
     Dependencies, Handle, Module,
 };
 
-use super::MainPassRenderer;
+use super::{ui_rect::UiRect, MainPassRenderer};
 
 // /////////////////////////////////////////////////////////////////////////////
 // Interface
 // /////////////////////////////////////////////////////////////////////////////
 
-impl UiRectRenderer {
-    pub fn draw_textured_rect(&mut self, rect: UiRect, texture: Key<BindableTexture>) {
-        self.queue.add(rect, texture);
+impl WorldRectRenderer {
+    pub fn draw_textured_rect(
+        &mut self,
+        rect: UiRect,
+        transform: Transform,
+        texture: Key<BindableTexture>,
+    ) {
+        self.queue.add(
+            WorldRect {
+                ui_rect: rect,
+                transform: transform.to_raw(),
+            },
+            texture,
+        );
     }
 
-    pub fn draw_rect(&mut self, rect: UiRect) {
-        self.queue.add(rect, self.white_px_texture_key);
+    pub fn draw_rect(&mut self, rect: UiRect, transform: Transform) {
+        self.queue.add(
+            WorldRect {
+                ui_rect: rect,
+                transform: transform.to_raw(),
+            },
+            self.white_px_texture_key,
+        );
     }
 }
 
@@ -49,19 +67,22 @@ impl UiRectRenderer {
 pub struct Deps {
     renderer: Handle<Renderer>,
     ctx: Handle<GraphicsContext>,
-    screen: Handle<MainScreenSize>,
+    cam: Handle<MainCamera3D>,
     arenas: Handle<Arenas>,
 }
-pub struct UiRectRenderer {
+
+/// Pretty much a copy paste of UiRectRenderer, but we want to stay flexible, so keep both duplicated for now, with their own minor adjustments.
+/// Let's not abstract too early.
+pub struct WorldRectRenderer {
     pipeline: wgpu::RenderPipeline,
     white_px_texture_key: Key<BindableTexture>,
-    queue: TexturedInstancesQueue<UiRect>,
+    queue: TexturedInstancesQueue<WorldRect>,
     instance_ranges: Vec<(Range<u32>, Key<BindableTexture>)>,
-    instance_buffer: GrowableBuffer<UiRect>,
+    instance_buffer: GrowableBuffer<WorldRect>,
     deps: Deps,
 }
 
-impl Module for UiRectRenderer {
+impl Module for WorldRectRenderer {
     type Config = ();
 
     type Dependencies = Deps;
@@ -69,11 +90,10 @@ impl Module for UiRectRenderer {
     fn new(config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
         let white_texture = create_white_px_texture(&deps.ctx.device, &deps.ctx.queue);
         let white_px_texture_key = deps.arenas.textures_mut().insert(white_texture);
-
         let pipeline =
-            create_render_pipeline(&deps.ctx.device, include_str!("ui_rect.wgsl"), &deps.screen);
+            create_render_pipeline(&deps.ctx.device, include_str!("world_rect.wgsl"), &deps.cam);
 
-        Ok(UiRectRenderer {
+        Ok(WorldRectRenderer {
             pipeline,
             instance_ranges: vec![],
             instance_buffer: GrowableBuffer::new(&deps.ctx.device, 512, BufferUsages::VERTEX),
@@ -91,7 +111,7 @@ impl Module for UiRectRenderer {
     }
 }
 
-impl Prepare for UiRectRenderer {
+impl Prepare for WorldRectRenderer {
     fn prepare(
         &mut self,
         device: &wgpu::Device,
@@ -105,14 +125,14 @@ impl Prepare for UiRectRenderer {
     }
 }
 
-impl MainPassRenderer for UiRectRenderer {
+impl MainPassRenderer for WorldRectRenderer {
     fn render<'pass, 'encoder>(&'encoder self, render_pass: &'pass mut wgpu::RenderPass<'encoder>) {
         if self.instance_ranges.is_empty() {
             return;
         }
 
         render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, self.deps.screen.bind_group(), &[]);
+        render_pass.set_bind_group(0, self.deps.cam.bind_group(), &[]);
         // set the instance buffer: (no vertex buffer is used, instead just one big instance buffer that contains the sorted texture group ranges.)
         render_pass.set_vertex_buffer(0, self.instance_buffer.buffer().slice(..));
 
@@ -136,63 +156,41 @@ impl MainPassRenderer for UiRectRenderer {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct UiRect {
-    pub pos: Rect,
-    pub uv: Rect,
-    pub color: Color,
-    pub border_radius: [f32; 4],
+pub struct WorldRect {
+    pub ui_rect: UiRect,
+    pub transform: TransformRaw,
 }
 
-impl VertexT for UiRect {
+impl VertexT for WorldRect {
     const ATTRIBUTES: &'static [Attribute] = &[
         Attribute::new("pos", wgpu::VertexFormat::Float32x4),
         Attribute::new("uv", wgpu::VertexFormat::Float32x4),
         Attribute::new("color", wgpu::VertexFormat::Float32x4),
         Attribute::new("border_radius", wgpu::VertexFormat::Float32x4),
+        Attribute::new("col1", wgpu::VertexFormat::Float32x4),
+        Attribute::new("col2", wgpu::VertexFormat::Float32x4),
+        Attribute::new("col3", wgpu::VertexFormat::Float32x4),
+        Attribute::new("translation", wgpu::VertexFormat::Float32x4),
     ];
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Rect {
-    /// min x, min y (top left corner)
-    pub offset: [f32; 2],
-    /// size x, size y
-    pub size: [f32; 2],
-}
-
-impl Rect {
-    pub const fn new(offset: [f32; 2], size: [f32; 2]) -> Self {
-        Self { offset, size }
-    }
-}
-
-impl Default for Rect {
-    fn default() -> Self {
-        Self {
-            offset: [0.0, 0.0],
-            size: [1.0, 1.0],
-        }
-    }
 }
 
 fn create_render_pipeline(
     device: &wgpu::Device,
     wgsl: &str,
-    screen: &MainScreenSize,
+    cam: &MainCamera3D,
 ) -> wgpu::RenderPipeline {
-    let label = "UiRect";
+    let label = "WorldRect";
     let shader_module = device.create_shader_module(ShaderModuleDescriptor {
         label: Some(&format!("{label} ShaderModule")),
         source: wgpu::ShaderSource::Wgsl(wgsl.into()),
     });
 
     let _empty = &mut vec![];
-    let vertex_buffers_layout = &[UiRect::vertex_buffer_layout(0, true, _empty)];
+    let vertex_buffers_layout = &[WorldRect::vertex_buffer_layout(0, true, _empty)];
 
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some(&format!("{label} PipelineLayout")),
-        bind_group_layouts: &[screen.bind_group_layout(), rgba_bind_group_layout(device)],
+        bind_group_layouts: &[cam.bind_group_layout(), rgba_bind_group_layout(device)],
         push_constant_ranges: &[],
     });
 

@@ -9,6 +9,12 @@ pub use color_mesh::ColorMeshRenderer;
 pub mod ui_rect;
 pub use ui_rect::UiRectRenderer;
 
+pub mod world_rect;
+pub use world_rect::WorldRectRenderer;
+
+pub mod text_renderer;
+pub use text_renderer::TextRenderer;
+
 use crate::{
     app::{ModuleId, UntypedHandle},
     Handle, Module,

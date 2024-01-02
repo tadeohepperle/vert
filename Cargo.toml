@@ -3,7 +3,7 @@ name = "vert"
 version = "0.1.0"
 edition = "2021"
 authors = ["Tadeo Hepperle"]
-description = "The 51th Game Engine in Rust, to write the 6th Game in Rust"
+description = "The 51th Rust Game Engine, to write the 6th Game in Rust"
 readme = "README.md"
 license = "MIT"
 

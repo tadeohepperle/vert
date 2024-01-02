@@ -1,4 +1,4 @@
-use std::mem::size_of;
+use std::{f32::consts::PI, mem::size_of};
 
 use glam::{vec3, Affine3A, Mat4, Quat, Vec3};
 
@@ -21,6 +21,11 @@ impl Transform {
             rotation: Default::default(),
             scale: Vec3::ONE,
         }
+    }
+
+    pub fn face_minus_z(mut self) -> Self {
+        self.rotate_y(-PI / 2.0);
+        self
     }
 
     pub fn with_scale(mut self, s: f32) -> Self {
