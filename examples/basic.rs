@@ -1,5 +1,5 @@
 use glam::vec3;
-use vert_framework::{
+use vert::{
     elements::{Color, Transform},
     modules::{
         batteries::FlyCam,
@@ -31,7 +31,7 @@ impl Module for MyApp {
         Ok(MyApp { deps })
     }
 
-    fn intialize(handle: vert_framework::Handle<Self>) -> anyhow::Result<()> {
+    fn intialize(handle: vert::Handle<Self>) -> anyhow::Result<()> {
         let scheduler = handle.deps.scheduler.get_mut();
         scheduler.register(handle, Schedule::Update, Timing::DEFAULT, Self::update);
         Ok(())

@@ -1,10 +1,11 @@
+A nice idea that I did not use in the end:
+
 // // /////////////////////////////////////////////////////////////////////////////
 // // Super Simple Trait Reflection
 // // /////////////////////////////////////////////////////////////////////////////
 
-use std::any::TypeId;
-
 use smallvec::{smallvec, SmallVec};
+use std::any::TypeId;
 
 /// should only be implemented for `dyn MyTrait`
 pub trait DynTrait: 'static {
@@ -108,32 +109,34 @@ multi_implements_impl_for_tuples!(A, B, C, D, E, F, G, H);
 multi_implements_impl_for_tuples!(A, B, C, D, E, F, G, H, I);
 multi_implements_impl_for_tuples!(A, B, C, D, E, F, G, H, I, J);
 
-use std::sync::OnceLock;
-
 // /////////////////////////////////////////////////////////////////////////////
 // Macros!
 // /////////////////////////////////////////////////////////////////////////////
 
 /// This macro can be applied to traits or specifying a struct and some traits it implements:
 /// ### Use on traits:
-/// ```rust,norun
+/// ```rust,no_run,ignore
+/// use vert_core::prelude::*;
 /// trait Render { }
 /// reflect!(Render)
 /// ```
 /// which expands to:
-/// ```rust,norun
+/// ```rust,no_run,ignore
 /// trait Render { }
 /// impl DynTrait for dyn Render {}
 /// ```
 ///
 /// ### Use on structs, specifying traits:
-/// ```rust,norun
+/// ```rust,no_run,ignore
+/// use vert_core::prelude::*;
+///
 /// trait Render { }
 /// struct Circle;
 /// reflect!(Circle: Render)
 /// ```
 /// which expands to:
-/// ```rust,norun
+/// ```rust,no_run,ignore
+///
 /// impl Implementor for Circle {
 ///     unsafe fn dyn_traits() -> &'static [VTablePtrWithMeta] {
 ///         const UNINIT: Circle =
@@ -159,7 +162,7 @@ macro_rules! reflect {
     ($trait:ident) => {
         impl DynTrait for dyn $trait {}
     };
-    ($component:ident : $($trait:ident),+ ) => {
+    ($component:ident : $($trait:ident),* ) => {
         impl Implementor for $component {
             unsafe fn dyn_traits() -> &'static [VTablePtrWithMeta]{
                 use std::sync::OnceLock;
@@ -172,9 +175,9 @@ macro_rules! reflect {
                         $(
                             {
                                 let trait_obj: &dyn $trait = &uninit as &dyn $trait;
-                                if std::mem::size_of::<&dyn $trait>() != std::mem::size_of::<usize>() * 2 {
-                                    panic!("Error in Implementor::dyn_traits, invalid fat pointer...")
-                                }
+                                // if std::mem::size_of::<&dyn $trait>() != std::mem::size_of::<usize>() * 2 {
+                                //     panic!("Error in Implementor::dyn_traits, invalid fat pointer...")
+                                // }
                                 let vtable = &trait_obj as *const _ as *const VTable;
                                 VTablePtrWithMeta {
                                     ptr: unsafe { (*vtable).ptr },
@@ -182,8 +185,9 @@ macro_rules! reflect {
                                     dyn_trait_name: std::any::type_name::<dyn $trait>(),
                                 }
                             }
-                        ),+
+                        ),*
                     ];
+                    std::mem::forget(uninit);
                     impls.into()
                 })
             }
