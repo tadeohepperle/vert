@@ -10,7 +10,6 @@ pub struct Deps {
     input: Handle<Input>,
     time: Handle<Time>,
     scheduler: Handle<Scheduler>,
-    egui: Handle<Egui>,
 }
 
 pub struct FlyCam {
@@ -39,12 +38,6 @@ impl FlyCam {
         let wasd = input.wasd_vec();
         let arrows = input.arrow_vec();
         let updown = input.rf_updown();
-
-        let mut egui_ctx = self.deps.egui.context();
-        egui::Window::new("Movement").show(&mut egui_ctx, |ui| {
-            ui.label(format!("WASD: {wasd:?}"));
-            ui.label(format!("ARROWS: {arrows:?}"));
-        });
 
         // move camera around:
         const SPEED: f32 = 10.0;

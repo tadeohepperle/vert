@@ -3,3 +3,6 @@
 
 pub mod fly_cam;
 pub use fly_cam::FlyCam;
+
+pub mod graphics_settings_controller;
+pub use graphics_settings_controller::GraphicsSettingsController;

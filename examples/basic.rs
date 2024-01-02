@@ -2,7 +2,7 @@ use glam::{vec2, vec3, Vec2};
 use vert::{
     elements::{Color, Transform},
     modules::{
-        batteries::FlyCam,
+        batteries::{FlyCam, GraphicsSettingsController},
         renderer::main_pass_renderer::{
             text_renderer::DrawText,
             ui_rect::{Rect, UiRect},
@@ -17,6 +17,7 @@ fn main() {
     let mut app = AppBuilder::new();
     app.add_plugin(DefaultModules);
     app.add::<FlyCam>();
+    app.add::<GraphicsSettingsController>();
     app.add::<MyApp>();
     app.run().unwrap();
 }
