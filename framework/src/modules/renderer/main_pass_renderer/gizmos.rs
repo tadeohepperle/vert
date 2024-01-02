@@ -25,71 +25,9 @@ use crate::Module;
 
 use super::MainPassRenderer;
 
-#[derive(Debug, Dependencies)]
-pub struct Deps {
-    renderer: Handle<Renderer>,
-    ctx: Handle<GraphicsContext>,
-    main_cam: Handle<MainCamera3D>,
-}
-
-pub struct Gizmos {
-    /// immediate vertices, written to vertex_buffer every frame.
-    vertex_queue: Vec<Vertex>,
-    pipeline: wgpu::RenderPipeline,
-    vertex_buffer: GrowableBuffer<Vertex>,
-    deps: Deps,
-}
-impl Module for Gizmos {
-    type Config = ();
-
-    type Dependencies = Deps;
-
-    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
-        let vertex_buffer = GrowableBuffer::new(&deps.ctx.device, 256, BufferUsages::VERTEX);
-        let pipeline = create_pipeline(&deps.ctx.device, &deps.main_cam);
-
-        let gizmos = Gizmos {
-            pipeline,
-            vertex_queue: vec![],
-            vertex_buffer,
-            deps,
-        };
-
-        Ok(gizmos)
-    }
-
-    fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
-        let mut renderer = handle.deps.renderer;
-        renderer.register_prepare(handle);
-        renderer.register_main_pass_renderer(handle, Timing::LATE);
-        Ok(())
-    }
-}
-
-impl Prepare for Gizmos {
-    fn prepare(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
-    ) {
-        self.vertex_buffer
-            .prepare(&self.vertex_queue, device, queue);
-        self.vertex_queue.clear();
-    }
-}
-
-impl MainPassRenderer for Gizmos {
-    fn render<'pass, 'encoder>(&'encoder self, render_pass: &'pass mut wgpu::RenderPass<'encoder>) {
-        if self.vertex_buffer.buffer_len() == 0 {
-            return;
-        }
-        render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, self.deps.main_cam.bind_group(), &[]);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.buffer().slice(..));
-        render_pass.draw(0..(self.vertex_buffer.buffer_len() as u32), 0..1);
-    }
-}
+// /////////////////////////////////////////////////////////////////////////////
+// Interface
+// /////////////////////////////////////////////////////////////////////////////
 
 impl Gizmos {
     pub fn draw_line(&mut self, from: Vec3, to: Vec3, color: Color) {
@@ -170,6 +108,80 @@ impl Gizmos {
         }
     }
 }
+
+// /////////////////////////////////////////////////////////////////////////////
+// Module
+// /////////////////////////////////////////////////////////////////////////////
+
+#[derive(Debug, Dependencies)]
+pub struct Deps {
+    renderer: Handle<Renderer>,
+    ctx: Handle<GraphicsContext>,
+    main_cam: Handle<MainCamera3D>,
+}
+
+pub struct Gizmos {
+    /// immediate vertices, written to vertex_buffer every frame.
+    vertex_queue: Vec<Vertex>,
+    pipeline: wgpu::RenderPipeline,
+    vertex_buffer: GrowableBuffer<Vertex>,
+    deps: Deps,
+}
+impl Module for Gizmos {
+    type Config = ();
+
+    type Dependencies = Deps;
+
+    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+        let vertex_buffer = GrowableBuffer::new(&deps.ctx.device, 256, BufferUsages::VERTEX);
+        let pipeline = create_pipeline(&deps.ctx.device, &deps.main_cam);
+
+        let gizmos = Gizmos {
+            pipeline,
+            vertex_queue: vec![],
+            vertex_buffer,
+            deps,
+        };
+
+        Ok(gizmos)
+    }
+
+    fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
+        let mut renderer = handle.deps.renderer;
+        renderer.register_prepare(handle);
+        renderer.register_main_pass_renderer(handle, Timing::LATE);
+        Ok(())
+    }
+}
+
+impl Prepare for Gizmos {
+    fn prepare(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+    ) {
+        self.vertex_buffer
+            .prepare(&self.vertex_queue, device, queue);
+        self.vertex_queue.clear();
+    }
+}
+
+impl MainPassRenderer for Gizmos {
+    fn render<'pass, 'encoder>(&'encoder self, render_pass: &'pass mut wgpu::RenderPass<'encoder>) {
+        if self.vertex_buffer.buffer_len() == 0 {
+            return;
+        }
+        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_bind_group(0, self.deps.main_cam.bind_group(), &[]);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.buffer().slice(..));
+        render_pass.draw(0..(self.vertex_buffer.buffer_len() as u32), 0..1);
+    }
+}
+
+// /////////////////////////////////////////////////////////////////////////////
+// Renderer
+// /////////////////////////////////////////////////////////////////////////////
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]

@@ -17,6 +17,61 @@ use crate::{
 
 use super::MainPassRenderer;
 
+// /////////////////////////////////////////////////////////////////////////////
+// Interface
+// /////////////////////////////////////////////////////////////////////////////
+
+impl ColorMeshRenderer {
+    #[inline(always)]
+    pub fn draw_geometry(
+        &mut self,
+        vertices: &[Vertex],
+        indices: &[u32],
+        transforms: &[Transform],
+    ) {
+        self.color_mesh_queue
+            .add_mesh(vertices, indices, transforms);
+    }
+
+    pub fn draw_cubes(&mut self, transforms: &[Transform], color: Option<Color>) {
+        const P: f32 = 0.5;
+        const M: f32 = -0.5;
+        let positions = vec![
+            [M, M, M],
+            [P, M, M],
+            [P, M, P],
+            [M, M, P],
+            [M, P, M],
+            [P, P, M],
+            [P, P, P],
+            [M, P, P],
+        ];
+
+        let vertices: Vec<Vertex> = positions
+            .into_iter()
+            .map(|p| {
+                let x = p[0];
+                let y = p[1];
+                let z = p[2];
+                Vertex {
+                    pos: [x, y, z],
+                    color: color.unwrap_or_else(|| Color::new(x, y, z)),
+                }
+            })
+            .collect();
+
+        let indices = vec![
+            0, 1, 2, 0, 2, 3, 4, 7, 6, 4, 6, 5, 1, 5, 6, 1, 6, 2, 0, 3, 7, 0, 7, 4, 2, 6, 3, 6, 7,
+            3, 0, 4, 1, 4, 5, 1,
+        ];
+        self.draw_geometry(&vertices, &indices, transforms)
+    }
+}
+
+// /////////////////////////////////////////////////////////////////////////////
+// Module
+// /////////////////////////////////////////////////////////////////////////////
+
 #[derive(Debug, Dependencies)]
 pub struct Deps {
     renderer: Handle<Renderer>,
@@ -113,57 +168,6 @@ impl MainPassRenderer for ColorMeshRenderer {
         for mesh in self.render_data.mesh_ranges.iter() {
             render_pass.draw_indexed(mesh.index_range.clone(), 0, mesh.instance_range.clone())
         }
-    }
-}
-
-// /////////////////////////////////////////////////////////////////////////////
-// Interface
-// /////////////////////////////////////////////////////////////////////////////
-
-impl ColorMeshRenderer {
-    #[inline(always)]
-    pub fn draw_geometry(
-        &mut self,
-        vertices: &[Vertex],
-        indices: &[u32],
-        transforms: &[Transform],
-    ) {
-        self.color_mesh_queue
-            .add_mesh(vertices, indices, transforms);
-    }
-
-    pub fn draw_cubes(&mut self, transforms: &[Transform], color: Option<Color>) {
-        const P: f32 = 0.5;
-        const M: f32 = -0.5;
-        let positions = vec![
-            [M, M, M],
-            [P, M, M],
-            [P, M, P],
-            [M, M, P],
-            [M, P, M],
-            [P, P, M],
-            [P, P, P],
-            [M, P, P],
-        ];
-
-        let vertices: Vec<Vertex> = positions
-            .into_iter()
-            .map(|p| {
-                let x = p[0];
-                let y = p[1];
-                let z = p[2];
-                Vertex {
-                    pos: [x, y, z],
-                    color: color.unwrap_or_else(|| Color::new(x, y, z)),
-                }
-            })
-            .collect();
-
-        let indices = vec![
-            0, 1, 2, 0, 2, 3, 4, 7, 6, 4, 6, 5, 1, 5, 6, 1, 6, 2, 0, 3, 7, 0, 7, 4, 2, 6, 3, 6, 7,
-            3, 0, 4, 1, 4, 5, 1,
-        ];
-        self.draw_geometry(&vertices, &indices, transforms)
     }
 }
 

@@ -98,6 +98,13 @@ impl BindableTexture {
     }
 }
 
+pub fn create_white_px_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> BindableTexture {
+    let mut white_px = RgbaImage::new(1, 1);
+    white_px.get_pixel_mut(0, 0).0 = [255, 255, 255, 255];
+    let texture = Texture::from_image(device, queue, &white_px);
+    BindableTexture::new(device, texture)
+}
+
 #[derive(Debug)]
 pub struct Texture {
     pub label: Option<Cow<'static, str>>,

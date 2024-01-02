@@ -6,6 +6,9 @@ pub use gizmos::Gizmos;
 pub mod color_mesh;
 pub use color_mesh::ColorMeshRenderer;
 
+pub mod ui_rect;
+pub use ui_rect::UiRectRenderer;
+
 use crate::{
     app::{ModuleId, UntypedHandle},
     Handle, Module,

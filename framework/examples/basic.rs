@@ -1,7 +1,11 @@
 use glam::vec3;
 use vert_framework::{
-    elements::Transform,
-    modules::{batteries::FlyCam, DefaultDependencies, DefaultModules, Schedule},
+    elements::{Color, Transform},
+    modules::{
+        batteries::FlyCam,
+        renderer::main_pass_renderer::ui_rect::{Rect, UiRect},
+        DefaultDependencies, DefaultModules, Schedule,
+    },
     utils::Timing,
     AppBuilder, Module,
 };
@@ -50,6 +54,13 @@ impl MyApp {
         self.deps
             .color_mesh
             .draw_cubes(&[Transform::new(1.0, 1.0, 1.0)], None);
+
+        self.deps.ui_rects.draw_rect(UiRect {
+            pos: Rect::new([100.0, 100.0], [200.0, 50.0]),
+            uv: Rect::default(),
+            color: Color::RED,
+            border_radius: [20.0, 0.0, 20.0, 0.0],
+        });
 
         if self
             .deps
