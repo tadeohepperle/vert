@@ -1,5 +1,5 @@
 use vert_framework::{
-    modules::{DefaultDependencies, DefaultModules, Schedule},
+    modules::{batteries::FlyCam, DefaultDependencies, DefaultModules, Schedule},
     utils::Timing,
     AppBuilder, Module,
 };
@@ -7,6 +7,7 @@ use vert_framework::{
 fn main() {
     let mut app = AppBuilder::new();
     app.add_plugin(DefaultModules);
+    app.add::<FlyCam>();
     app.add::<MyApp>();
     app.run().unwrap();
 }
@@ -42,6 +43,9 @@ impl MyApp {
             let fps = self.deps.time.fps();
             println!("Fps: {fps}");
         }
+
+        self.deps.gizmos.draw_xyz();
+
         if self
             .deps
             .input

@@ -200,7 +200,7 @@ impl<T: bytemuck::Pod + bytemuck::Zeroable> GrowableBuffer<T> {
     /// updates the gpu buffer, growing it, when not having enough space for data.
     ///
     /// Todo! do not write, if empty!!
-    pub fn prepare(&mut self, data: &[T], queue: &wgpu::Queue, device: &wgpu::Device) {
+    pub fn prepare(&mut self, data: &[T], device: &wgpu::Device, queue: &wgpu::Queue) {
         self.buffer_len = data.len();
         if self.buffer_len <= self.buffer_cap {
             // println!(

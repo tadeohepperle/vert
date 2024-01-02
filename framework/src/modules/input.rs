@@ -207,12 +207,6 @@ impl Input {
     }
 
     fn end_of_frame(&mut self) {
-        // dbg!(self.keys.just_pressed.len());
-        // dbg!(self.mouse_buttons.just_pressed.len());
-        if self.keys.just_pressed(KeyCode::KeyW) {
-            println!("W");
-        }
-
         if self.close_requested {
             self.deps.scheduler.request_exit("Close Button Pressed");
         }

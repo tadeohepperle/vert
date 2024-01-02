@@ -1,5 +1,8 @@
 use std::fmt::Debug;
 
+pub mod gizmos;
+pub use gizmos::Gizmos;
+
 use crate::{
     app::{ModuleId, UntypedHandle},
     Handle, Module,

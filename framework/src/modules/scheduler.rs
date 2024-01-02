@@ -38,6 +38,9 @@ impl Scheduler {
             e.call();
         }
         if let Some(reason) = self.exit_requested.take() {
+            for e in self.on_exit.iter() {
+                e.call();
+            }
             return UpdateFlow::Exit(reason);
         }
         UpdateFlow::Continue

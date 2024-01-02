@@ -274,3 +274,59 @@ pub trait Prepare {
         encoder: &mut wgpu::CommandEncoder,
     );
 }
+
+pub struct Attribute {
+    pub ident: &'static str,
+    pub format: wgpu::VertexFormat,
+}
+impl Attribute {
+    pub const fn new(ident: &'static str, format: wgpu::VertexFormat) -> Self {
+        Self { ident, format }
+    }
+}
+
+pub trait VertexT: 'static + Sized {
+    const ATTRIBUTES: &'static [Attribute];
+
+    /// We pass in `empty_vec`, because Rust does not have super let lifetimes yet... sigh...
+    fn vertex_buffer_layout<'a>(
+        shader_location_offset: usize,
+        is_instance: bool,
+        empty_vec: &'a mut Vec<wgpu::VertexAttribute>,
+    ) -> wgpu::VertexBufferLayout<'a> {
+        let mut shader_location_offset: u32 = shader_location_offset as u32;
+        if !is_instance {
+            assert_eq!(shader_location_offset, 0)
+        }
+        assert!(empty_vec.is_empty());
+        let attributes = Self::ATTRIBUTES;
+
+        let mut offset: u64 = 0;
+        for a in attributes {
+            empty_vec.push(wgpu::VertexAttribute {
+                format: a.format,
+                offset,
+                shader_location: shader_location_offset,
+            });
+            shader_location_offset += 1;
+            offset += a.format.size();
+        }
+
+        let step_mode = if is_instance {
+            wgpu::VertexStepMode::Instance
+        } else {
+            wgpu::VertexStepMode::Vertex
+        };
+        let layout = wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<Self>() as u64,
+            step_mode,
+            attributes: empty_vec,
+        };
+        layout
+    }
+}
+
+impl VertexT for Color {
+    const ATTRIBUTES: &'static [Attribute] =
+        &[Attribute::new("color", wgpu::VertexFormat::Float32x4)];
+}

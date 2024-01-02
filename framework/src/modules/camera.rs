@@ -102,4 +102,8 @@ impl MainCamera3D {
             .projection
             .resize(event.new_size.width, event.new_size.height);
     }
+
+    pub fn camera_mut(&mut self) -> &mut Camera3D {
+        &mut self.uniform.value
+    }
 }

@@ -35,6 +35,10 @@ pub use arenas::Arenas;
 pub mod egui;
 pub use egui::Egui;
 
+use self::renderer::main_pass_renderer::Gizmos;
+
+pub mod batteries;
+
 pub struct DefaultModules;
 
 impl Plugin for DefaultModules {
@@ -51,6 +55,7 @@ impl Plugin for DefaultModules {
         app.add::<MainScreenSize>();
         app.add_with_config::<Bloom>(BloomSettings::default());
         app.add_with_config::<AcesToneMapping>(ToneMappingSettings::Aces);
+        app.add::<Gizmos>();
         app.add::<Egui>();
     }
 }
@@ -70,4 +75,5 @@ pub struct DefaultDependencies {
     pub bloom: Handle<Bloom>,
     pub tone_mapping: Handle<AcesToneMapping>,
     pub egui: Handle<Egui>,
+    pub gizmos: Handle<Gizmos>,
 }
