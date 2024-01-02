@@ -174,7 +174,6 @@ impl Renderer {
 
     fn resize(&mut self, new_size: ResizeEvent) {
         //Note: new_size not used because it is taken from the graphics context, which gets the new screen size before.
-        println!("Renderer Resized");
         self.depth_texture.recreate(&self.deps.ctx);
         self.hdr_msaa_texture = HdrTexture::create_screen_sized(&self.deps.ctx, MSAA_SAMPLE_COUNT);
         self.hdr_resolve_target = HdrTexture::create_screen_sized(&self.deps.ctx, 1);

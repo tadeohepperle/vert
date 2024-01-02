@@ -1,8 +1,8 @@
 use crate::{Dependencies, Handle, Plugin};
-mod renderer;
+pub mod renderer;
 pub use renderer::{
-    AcesToneMapping, Bloom, BloomSettings, MainPassRenderer, PostProcessingEffect, Prepare,
-    Renderer, ScreenVertexShader, ToneMappingSettings,
+    AcesToneMapping, Attribute, Bloom, BloomSettings, MainPassRenderer, PostProcessingEffect,
+    Prepare, Renderer, ScreenVertexShader, ToneMappingSettings, VertexT,
 };
 
 pub mod winit_main;
@@ -35,7 +35,7 @@ pub use arenas::Arenas;
 pub mod egui;
 pub use egui::Egui;
 
-use self::renderer::main_pass_renderer::Gizmos;
+use self::renderer::main_pass_renderer::{ColorMeshRenderer, Gizmos};
 
 pub mod batteries;
 
@@ -56,6 +56,7 @@ impl Plugin for DefaultModules {
         app.add_with_config::<Bloom>(BloomSettings::default());
         app.add_with_config::<AcesToneMapping>(ToneMappingSettings::Aces);
         app.add::<Gizmos>();
+        app.add::<ColorMeshRenderer>();
         app.add::<Egui>();
     }
 }
@@ -76,4 +77,5 @@ pub struct DefaultDependencies {
     pub tone_mapping: Handle<AcesToneMapping>,
     pub egui: Handle<Egui>,
     pub gizmos: Handle<Gizmos>,
+    pub color_mesh: Handle<ColorMeshRenderer>,
 }

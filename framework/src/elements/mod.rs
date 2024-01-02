@@ -9,3 +9,9 @@ pub use buffer::{GrowableBuffer, IndexBuffer, ToRaw, UniformBuffer, VertexBuffer
 
 pub mod camera3d;
 pub use camera3d::Camera3D;
+
+pub mod immediate_geometry;
+pub use immediate_geometry::{ImmediateMeshQueue, ImmediateMeshRanges};
+
+pub mod transform;
+pub use transform::{Transform, TransformRaw};

@@ -3,6 +3,9 @@ use std::fmt::Debug;
 pub mod gizmos;
 pub use gizmos::Gizmos;
 
+pub mod color_mesh;
+pub use color_mesh::ColorMeshRenderer;
+
 use crate::{
     app::{ModuleId, UntypedHandle},
     Handle, Module,

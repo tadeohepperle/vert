@@ -1,4 +1,6 @@
+use glam::vec3;
 use vert_framework::{
+    elements::Transform,
     modules::{batteries::FlyCam, DefaultDependencies, DefaultModules, Schedule},
     utils::Timing,
     AppBuilder, Module,
@@ -45,6 +47,9 @@ impl MyApp {
         }
 
         self.deps.gizmos.draw_xyz();
+        self.deps
+            .color_mesh
+            .draw_cubes(&[Transform::new(1.0, 1.0, 1.0)], None);
 
         if self
             .deps
