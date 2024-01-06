@@ -46,6 +46,15 @@ impl Scheduler {
         UpdateFlow::Continue
     }
 
+    pub fn on_update<M: Module>(
+        &mut self,
+        handle: Handle<M>,
+        timing: Timing,
+        func: fn(&mut M) -> (),
+    ) {
+        self.register(handle, Schedule::Update, timing, func)
+    }
+
     /// high timing functions will run after low timing ones.
     pub fn register<M: Module>(
         &mut self,

@@ -1495,6 +1495,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "morphorm"
+version = "0.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "618fb979b26c8898ae0ed4677ca01385b0588bd4a27a8b2d3d9795f468e33366"
+dependencies = [
+ "smallvec",
+]
+
+[[package]]
 name = "naga"
 version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2698,6 +2707,7 @@ dependencies = [
  "image",
  "indoc",
  "log",
+ "morphorm",
  "notify",
  "pretty_env_logger",
  "rand",

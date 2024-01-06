@@ -17,3 +17,15 @@ macro_rules! wgsl_file {
         wgsl_file
     }};
 }
+
+/// Returns the next _^2 number such that it is greater or euqual to n.
+/// Is at least 2.
+pub fn next_pow2_number(mut n: usize) -> usize {
+    let mut e = 2;
+    loop {
+        if e >= n {
+            return e;
+        }
+        e *= 2;
+    }
+}

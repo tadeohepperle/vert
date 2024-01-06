@@ -5,6 +5,8 @@ use wgpu::{
     BufferDescriptor,
 };
 
+use crate::utils::next_pow2_number;
+
 pub trait ToRaw {
     type Raw: Copy + bytemuck::Pod + bytemuck::Zeroable + PartialEq;
     fn to_raw(&self) -> Self::Raw;
@@ -219,10 +221,8 @@ impl<T: bytemuck::Pod + bytemuck::Zeroable> GrowableBuffer<T> {
             //     std::any::type_name::<T>()
             // );
             // space is not enough, we need to create a new buffer:
-            let mut new_cap = self.min_cap;
-            while self.buffer_len > new_cap {
-                new_cap *= 2;
-            }
+
+            let new_cap = next_pow2_number(self.buffer_len);
 
             // not ideal here, but we can optimize later, should not happen too often that a buffer doubles hopefully.
             let mut cloned_data_with_zeros = data.to_vec();

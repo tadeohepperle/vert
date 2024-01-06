@@ -3,6 +3,7 @@ use std::{
     sync::{LazyLock, Mutex, OnceLock},
 };
 
+use glam::Vec2;
 use image::RgbaImage;
 use log::{error, info, warn};
 use wgpu::{
@@ -14,7 +15,7 @@ use crate::{
     elements::{
         immediate_geometry::TexturedInstancesQueue,
         texture::{create_white_px_texture, rgba_bind_group_layout},
-        BindableTexture, Color, GrowableBuffer,
+        BindableTexture, Color, GrowableBuffer, Rect,
     },
     modules::{
         arenas::Key,
@@ -150,30 +151,6 @@ impl VertexT for UiRect {
         Attribute::new("color", wgpu::VertexFormat::Float32x4),
         Attribute::new("border_radius", wgpu::VertexFormat::Float32x4),
     ];
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Rect {
-    /// min x, min y (top left corner)
-    pub offset: [f32; 2],
-    /// size x, size y
-    pub size: [f32; 2],
-}
-
-impl Rect {
-    pub const fn new(offset: [f32; 2], size: [f32; 2]) -> Self {
-        Self { offset, size }
-    }
-}
-
-impl Default for Rect {
-    fn default() -> Self {
-        Self {
-            offset: [0.0, 0.0],
-            size: [1.0, 1.0],
-        }
-    }
 }
 
 fn create_render_pipeline(

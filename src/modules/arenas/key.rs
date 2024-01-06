@@ -1,9 +1,15 @@
-use std::marker::PhantomData;
+use std::{fmt::Display, marker::PhantomData};
 
 use slotmap::{Key as KeyT, KeyData};
 pub struct Key<T: 'static + Sized> {
     value: KeyData,
     phantom: PhantomData<T>,
+}
+
+impl<T: 'static + Sized> Display for Key<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 impl<T: 'static + Sized> Clone for Key<T> {

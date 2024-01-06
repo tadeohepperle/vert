@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use etagere::euclid::default;
 use glam::{vec2, Vec2, Vec3};
 use smallvec::SmallVec;
 use winit::{
@@ -24,8 +25,8 @@ pub struct InputDependencies {
 
 #[derive(Debug)]
 pub struct Input {
-    keys: ElementStateCache<KeyCode>,
-    mouse_buttons: ElementStateCache<MouseButton>,
+    keys: PressCache<KeyCode>,
+    mouse_buttons: PressCache<MouseButton>,
     resized: Option<PhysicalSize<u32>>,
     close_requested: bool,
     cursor_just_moved: bool,
@@ -314,11 +315,11 @@ impl Input {
         self.resized
     }
 
-    pub fn keys(&self) -> &ElementStateCache<KeyCode> {
+    pub fn keys(&self) -> &PressCache<KeyCode> {
         &self.keys
     }
 
-    pub fn mouse_buttons(&self) -> &ElementStateCache<MouseButton> {
+    pub fn mouse_buttons(&self) -> &PressCache<MouseButton> {
         &self.mouse_buttons
     }
 
@@ -338,12 +339,32 @@ impl Input {
 }
 
 #[derive(Debug, Clone)]
-pub struct ElementStateCache<T> {
+pub struct PressCache<T> {
     just_pressed: SmallVec<[T; 8]>,
     pressed: SmallVec<[T; 8]>,
     just_released: SmallVec<[T; 8]>,
 }
-impl<T> Default for ElementStateCache<T> {
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PressState {
+    JustPressed,
+    Pressed,
+    JustReleased,
+    #[default]
+    Released,
+}
+
+impl PressState {
+    pub fn is_pressed(&self) -> bool {
+        matches!(self, PressState::JustPressed | PressState::Pressed)
+    }
+
+    pub fn is_released(&self) -> bool {
+        matches!(self, PressState::JustReleased | PressState::Released)
+    }
+}
+
+impl<T> Default for PressCache<T> {
     fn default() -> Self {
         Self {
             just_pressed: Default::default(),
@@ -353,13 +374,27 @@ impl<T> Default for ElementStateCache<T> {
     }
 }
 
-impl<T: Copy + PartialEq + Debug> ElementStateCache<T> {
+impl<T: Copy + PartialEq + Debug> PressCache<T> {
+    pub fn press_state(&self, key: T) -> PressState {
+        if self.just_pressed.contains(&key) {
+            PressState::JustPressed
+        } else if self.pressed.contains(&key) {
+            PressState::Pressed
+        } else if self.just_released.contains(&key) {
+            PressState::JustReleased
+        } else {
+            PressState::Released
+        }
+    }
+
     pub fn is_pressed(&self, key: T) -> bool {
         self.pressed.contains(&key)
     }
+
     pub fn just_pressed(&self, key: T) -> bool {
         self.just_pressed.contains(&key)
     }
+
     pub fn just_released(&self, key: T) -> bool {
         self.just_released.contains(&key)
     }

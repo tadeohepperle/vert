@@ -35,8 +35,13 @@ pub use arenas::Arenas;
 pub mod egui;
 pub use egui::Egui;
 
-use self::renderer::main_pass_renderer::{
-    ColorMeshRenderer, Gizmos, TextRenderer, UiRectRenderer, WorldRectRenderer,
+pub mod ui;
+
+use self::{
+    renderer::main_pass_renderer::{
+        ColorMeshRenderer, Gizmos, TextRenderer, UiRectRenderer, WorldRectRenderer,
+    },
+    ui::UiDeps,
 };
 
 pub mod batteries;
@@ -86,4 +91,5 @@ pub struct DefaultDependencies {
     pub ui_rects: Handle<UiRectRenderer>,
     pub world_rects: Handle<WorldRectRenderer>,
     pub text: Handle<TextRenderer>,
+    pub ui: UiDeps,
 }

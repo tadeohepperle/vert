@@ -15,3 +15,6 @@ pub use immediate_geometry::{ImmediateMeshQueue, ImmediateMeshRanges};
 
 pub mod transform;
 pub use transform::{Transform, TransformRaw};
+
+pub mod rect;
+pub use rect::Rect;

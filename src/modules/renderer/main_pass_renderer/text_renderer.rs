@@ -16,15 +16,12 @@ use glam::{ivec2, IVec2, Vec2};
 use image::RgbaImage;
 
 use crate::{
-    elements::{BindableTexture, Color, Texture, Transform},
+    elements::{BindableTexture, Color, Rect, Texture, Transform},
     modules::{arenas::Key, Arenas, GraphicsContext, Prepare, Renderer},
     Dependencies, Handle, Module,
 };
 
-use super::{
-    ui_rect::{Rect, UiRect},
-    UiRectRenderer, WorldRectRenderer,
-};
+use super::{ui_rect::UiRect, UiRectRenderer, WorldRectRenderer};
 
 // /////////////////////////////////////////////////////////////////////////////
 // Interface
@@ -57,10 +54,11 @@ impl TextRenderer {
 
         // center the text for 3d rendering:
 
-        let layout_size_x = layout_result.total_rect.size[0] * 0.5;
-        let layout_size_y = layout_result.total_rect.size[1] * 0.5;
+        let layout_size_x = layout_result.total_rect.width * 0.5;
+        let layout_size_y = layout_result.total_rect.height * 0.5;
         let center_to_layout = |mut r: Rect| -> Rect {
-            r.offset = [r.offset[0] - layout_size_x, r.offset[1] - layout_size_y];
+            r.min_x -= layout_size_x;
+            r.min_y -= layout_size_y;
             r
         };
 
@@ -328,20 +326,24 @@ impl TextRasterizer {
             max_y = max_y.max(glyph_pos.y + glyph_pos.height as f32);
 
             if let Some(atlas_uv) = atlas_uv {
-                let pos = Rect {
-                    offset: [glyph_pos.x, glyph_pos.y],
-                    size: [glyph_pos.width as f32, glyph_pos.height as f32],
-                };
+                let pos = Rect::new(
+                    glyph_pos.x,
+                    glyph_pos.y,
+                    glyph_pos.width as f32,
+                    glyph_pos.height as f32,
+                );
                 glyph_pos_and_uv.push((pos, atlas_uv));
             }
         }
 
         LayoutTextResult {
             glyph_pos_and_uv,
-            total_rect: Rect {
-                offset: [text.pos.x, text.pos.y],
-                size: [max_x - text.pos.x, max_y - text.pos.y],
-            },
+            total_rect: Rect::new(
+                text.pos.x,
+                text.pos.y,
+                max_x - text.pos.x,
+                max_y - text.pos.y,
+            ),
         }
     }
 
@@ -386,16 +388,12 @@ fn rasterize(
         .expect("Allocation in atlas allocator failed!");
     let corner = allocation.rectangle.min;
     let offset_in_atlas = ivec2(corner.x + pad, corner.y + pad);
-    let uv = Rect {
-        offset: [
-            offset_in_atlas.x as f32 / TEXT_ATLAS_SIZE_F,
-            offset_in_atlas.y as f32 / TEXT_ATLAS_SIZE_F,
-        ],
-        size: [
-            metrics.width as f32 / TEXT_ATLAS_SIZE_F,
-            metrics.height as f32 / TEXT_ATLAS_SIZE_F,
-        ],
-    };
+    let uv = Rect::new(
+        offset_in_atlas.x as f32 / TEXT_ATLAS_SIZE_F,
+        offset_in_atlas.y as f32 / TEXT_ATLAS_SIZE_F,
+        metrics.width as f32 / TEXT_ATLAS_SIZE_F,
+        metrics.height as f32 / TEXT_ATLAS_SIZE_F,
+    );
 
     // create the glyph
     let glyph = Glyph {

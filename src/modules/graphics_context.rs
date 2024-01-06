@@ -81,9 +81,7 @@ impl GraphicsContext {
             .surface
             .get_current_texture()
             .expect("wgpu surface error");
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+        let view = output.texture.create_view(&Default::default());
         (output, view)
     }
 }

@@ -1,12 +1,9 @@
 use glam::{vec2, vec3, Vec2};
 use vert::{
-    elements::{Color, Transform},
+    elements::{Color, Rect, Transform},
     modules::{
         batteries::{FlyCam, GraphicsSettingsController},
-        renderer::main_pass_renderer::{
-            text_renderer::DrawText,
-            ui_rect::{Rect, UiRect},
-        },
+        renderer::main_pass_renderer::{text_renderer::DrawText, ui_rect::UiRect},
         DefaultDependencies, DefaultModules, Schedule,
     },
     utils::Timing,
@@ -60,8 +57,8 @@ impl MyApp {
             .draw_cubes(&[Transform::new(1.0, 1.0, 1.0)], None);
 
         self.deps.ui_rects.draw_rect(UiRect {
-            pos: Rect::new([100.0, 100.0], [200.0, 50.0]),
-            uv: Rect::default(),
+            pos: Rect::new(100.0, 100.0, 200.0, 50.0),
+            uv: Rect::unit(),
             color: Color::RED,
             border_radius: [20.0, 0.0, 20.0, 0.0],
         });
