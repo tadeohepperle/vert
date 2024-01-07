@@ -1,12 +1,15 @@
 use anyhow::anyhow;
 use etagere::AtlasAllocator;
-use fontdue::Font;
+use fontdue::{
+    layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle},
+    Font,
+};
 use glam::{ivec2, IVec2};
 use image::{GenericImage, RgbaImage};
 use std::collections::HashMap;
 
 use crate::{
-    elements::{rect::Aabb, BindableTexture, Texture},
+    elements::{rect::Aabb, BindableTexture, Rect, Texture},
     modules::{
         arenas::{Arena, Key},
         GraphicsContext,
@@ -28,7 +31,7 @@ pub struct FontCache {
     ctx: Handle<GraphicsContext>,
     fonts: Arena<Font>,
     default_font_key: Key<Font>,
-    cached_fonts: Arena<CachedFont>,
+    rasterized_fonts: Arena<RasterizedFont>,
 }
 
 impl Module for FontCache {
@@ -47,17 +50,32 @@ impl Module for FontCache {
             ctx,
             fonts,
             default_font_key,
-            cached_fonts,
+            rasterized_fonts: cached_fonts,
         })
     }
 }
 
 impl FontCache {
+    pub fn get_font(&self, key: Key<Font>) -> Option<&Font> {
+        self.fonts.get(key)
+    }
+
+    pub fn get_rasterized_font(&self, key: Key<RasterizedFont>) -> Option<&RasterizedFont> {
+        self.rasterized_fonts.get(key)
+    }
+
+    pub fn default_font_key(&self) -> Key<Font> {
+        self.default_font_key
+    }
+
     pub fn add_font(&mut self, font: fontdue::Font) -> Key<Font> {
         self.fonts.insert(font)
     }
 
-    pub fn rasterize_default_font(&mut self, font_size_px: f32) -> anyhow::Result<Key<CachedFont>> {
+    pub fn rasterize_default_font(
+        &mut self,
+        font_size_px: f32,
+    ) -> anyhow::Result<Key<RasterizedFont>> {
         self.rasterize_font(self.default_font_key, font_size_px)
     }
 
@@ -65,7 +83,7 @@ impl FontCache {
         &mut self,
         font_key: Key<Font>,
         font_size_px: f32,
-    ) -> anyhow::Result<Key<CachedFont>> {
+    ) -> anyhow::Result<Key<RasterizedFont>> {
         let Some(font) = self.fonts.get(font_key) else {
             return Err(anyhow!("Font key {font_key} is invalid"));
         };
@@ -98,6 +116,12 @@ impl FontCache {
         // We can implement a fancier approach later (if e.g. chinese should be supported, we need something better anyway.)
         for ch in PREALLOCATED_CHARACTERS.chars() {
             let (metrics, bitmap) = font.rasterize(ch, font_size_px);
+            debug_assert_eq!(bitmap.len(), metrics.width * metrics.height);
+
+            if metrics.height == 0 || metrics.width == 0 {
+                continue;
+            }
+
             let mut glyph_image = RgbaImage::new(metrics.width as u32, metrics.height as u32);
             for (pix, v) in glyph_image.pixels_mut().zip(bitmap.iter()) {
                 *pix = image::Rgba([255, 255, 255, *v]);
@@ -135,7 +159,7 @@ impl FontCache {
                 metrics,
                 bitmap,
                 offset_in_atlas,
-                uv,
+                atlas_uv: uv,
             };
             rasterized_glyphs.insert(ch, glyph);
         }
@@ -144,23 +168,95 @@ impl FontCache {
         let texture = Texture::from_image(&self.ctx.device, &self.ctx.queue, &atlas_image);
         let texture = BindableTexture::new(&self.ctx.device, texture);
 
-        let cached_font = CachedFont {
+        let cached_font = RasterizedFont {
             font: font_key,
             font_size_px,
             atlas_allocator,
-            rasterized_glyphs,
+            glyphs: rasterized_glyphs,
             texture,
         };
-        let key = self.cached_fonts.insert(cached_font);
+        let key = self.rasterized_fonts.insert(cached_font);
         Ok(key)
+    }
+
+    /// if layout_font_size_px is None, the size at which the font was rasterized font is used for layout
+    pub fn perform_text_layout(
+        &self,
+        text: &str,
+        layout_font_size_px: Option<f32>,
+        layout_settings: &LayoutSettings,
+        font: Key<RasterizedFont>,
+    ) -> LayoutTextResult {
+        // Note: (layout_settings.x, layout_settings.y) is the top left corner where the text starts.
+        let rasterized_font = self
+            .rasterized_fonts
+            .get(font)
+            .expect("Rasterized Font not found");
+        let font = self
+            .fonts
+            .get(rasterized_font.font)
+            .expect("Rasterized Font not found");
+
+        let mut layout: Layout<()> = Layout::new(CoordinateSystem::PositiveYDown);
+        layout.reset(layout_settings);
+        // this performs the layout:
+        layout.append(
+            &[font],
+            &TextStyle {
+                text,
+                px: layout_font_size_px.unwrap_or_else(|| rasterized_font.font_size_px),
+                font_index: 0,
+                user_data: (),
+            },
+        );
+
+        let mut glyph_pos_and_atlas_uv: Vec<(Aabb, Aabb)> = vec![];
+        let mut max_x: f32 = layout_settings.x; // top left corner
+        let mut max_y: f32 = layout_settings.y; // top left corner
+
+        for glyph_pos in layout.glyphs() {
+            let char = glyph_pos.parent;
+            let Some(glyph) = rasterized_font.glyphs.get(&char) else {
+                // empty character, or unknown character, just skip// todo!(warn user if non empty cahr skipped)
+                continue;
+            };
+
+            max_x = max_x.max(glyph_pos.x + glyph_pos.width as f32);
+            max_y = max_y.max(glyph_pos.y + glyph_pos.height as f32);
+
+            let pos = Aabb::new(
+                glyph_pos.x,
+                glyph_pos.y,
+                glyph_pos.x + glyph_pos.width as f32,
+                glyph_pos.y + glyph_pos.height as f32,
+            );
+            glyph_pos_and_atlas_uv.push((pos, glyph.atlas_uv));
+        }
+
+        LayoutTextResult {
+            glyph_pos_and_atlas_uv,
+            total_rect: Rect::new(
+                layout_settings.x,
+                layout_settings.y,
+                max_x - layout_settings.x,
+                max_y - layout_settings.y,
+            ),
+        }
     }
 }
 
-pub struct CachedFont {
+pub struct LayoutTextResult {
+    /// glyph position and their uv position in the texture atlas
+    pub glyph_pos_and_atlas_uv: Vec<(Aabb, Aabb)>,
+    // total bounding rect of the text. Can be used e.g. for centering all of the glyphs by shifting them by half the size or so.
+    pub total_rect: Rect,
+}
+
+pub struct RasterizedFont {
     pub font: Key<Font>,
     pub font_size_px: f32,
     pub atlas_allocator: etagere::AtlasAllocator,
-    pub rasterized_glyphs: HashMap<char, Glyph>,
+    pub glyphs: HashMap<char, Glyph>,
     pub texture: BindableTexture,
 }
 
@@ -170,5 +266,5 @@ pub struct Glyph {
     /// minx and miny in px in the atlas texture.
     pub offset_in_atlas: IVec2,
     /// UV coordinates in the text atlas texture (always in range 0.0 to 1.0)
-    pub uv: Aabb,
+    pub atlas_uv: Aabb,
 }

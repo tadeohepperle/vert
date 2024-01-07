@@ -15,6 +15,7 @@ pub struct BindableTexture {
 
 /// cached bind group layout for rgba images
 pub fn rgba_bind_group_layout(device: &wgpu::Device) -> &'static BindGroupLayout {
+    /// ugly, use resources cache in the future.
     static _RGBA_BIND_GROUP_LAYOUT: OnceLock<BindGroupLayout> = OnceLock::new();
     _RGBA_BIND_GROUP_LAYOUT.get_or_init(|| {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {

@@ -240,6 +240,21 @@ impl<T: bytemuck::Pod + bytemuck::Zeroable> GrowableBuffer<T> {
         }
     }
 
+    // /// may destroy buffer.
+    // ///
+    // /// You can use `allocate_enough_space` + `buffer_write` as an alternative to `prepare` to write data that is not in one continous memory region into the buffer.
+    // pub fn allocate_enough_space(&mut self, len: usize, device: &wgpu::Device) {
+    //     self.buffer_len = 0;
+    //     if len > self.buffer_cap {
+    //         let new_cap = next_pow2_number(len);
+    //         self.buffer_cap= new_cap;
+    //         let buffer_size = ( new_cap * size_of::<T>()) as u64;
+    //         device.create_buffer(&BufferDescriptor { label: None, size:buffer_size, usage: self.buffer.usage(), mapped_at_creation: false });
+    //     }
+    // }
+
+    // pub fn buffer_write(&mut self, index:  )
+
     pub fn buffer(&self) -> &wgpu::Buffer {
         &self.buffer
     }

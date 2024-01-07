@@ -366,6 +366,7 @@ pub struct LayoutTextResult {
     pub total_rect: Rect,
 }
 
+// returns None for empty characters
 fn rasterize(
     glyph_key: &GlyphKey,
     font: &Font,

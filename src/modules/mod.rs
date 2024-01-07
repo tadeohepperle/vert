@@ -41,7 +41,7 @@ use self::{
     renderer::main_pass_renderer::{
         ColorMeshRenderer, Gizmos, TextRenderer, UiRectRenderer, WorldRectRenderer,
     },
-    ui::UiDeps,
+    ui::{UiDeps, UiPlugin},
 };
 
 pub mod batteries;
@@ -68,6 +68,7 @@ impl Plugin for DefaultModules {
         app.add::<UiRectRenderer>();
         app.add::<WorldRectRenderer>();
         app.add::<TextRenderer>();
+        app.add_plugin(UiPlugin);
     }
 }
 

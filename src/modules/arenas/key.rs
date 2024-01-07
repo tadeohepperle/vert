@@ -1,9 +1,17 @@
 use std::{fmt::Display, marker::PhantomData};
 
 use slotmap::{Key as KeyT, KeyData};
+
+#[repr(C)]
 pub struct Key<T: 'static + Sized> {
     value: KeyData,
     phantom: PhantomData<T>,
+}
+
+impl<T: 'static + Sized> Key<T> {
+    pub fn as_u64(&self) -> u64 {
+        unsafe { std::mem::transmute(*self) }
+    }
 }
 
 impl<T: 'static + Sized> Display for Key<T> {
