@@ -186,7 +186,7 @@ impl FontCache {
         layout_font_size_px: Option<f32>,
         layout_settings: &LayoutSettings,
         font: Key<RasterizedFont>,
-    ) -> LayoutTextResult {
+    ) -> TextLayoutResult {
         // Note: (layout_settings.x, layout_settings.y) is the top left corner where the text starts.
         let rasterized_font = self
             .rasterized_fonts
@@ -233,7 +233,7 @@ impl FontCache {
             glyph_pos_and_atlas_uv.push((pos, glyph.atlas_uv));
         }
 
-        LayoutTextResult {
+        TextLayoutResult {
             glyph_pos_and_atlas_uv,
             total_rect: Rect::new(
                 layout_settings.x,
@@ -245,7 +245,8 @@ impl FontCache {
     }
 }
 
-pub struct LayoutTextResult {
+#[derive(Debug)]
+pub struct TextLayoutResult {
     /// glyph position and their uv position in the texture atlas
     pub glyph_pos_and_atlas_uv: Vec<(Aabb, Aabb)>,
     // total bounding rect of the text. Can be used e.g. for centering all of the glyphs by shifting them by half the size or so.

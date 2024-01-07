@@ -12,7 +12,7 @@ use crate::elements::GrowableBuffer;
 use crate::modules::renderer::DEPTH_FORMAT;
 use crate::modules::renderer::HDR_COLOR_FORMAT;
 use crate::modules::renderer::MSAA_SAMPLE_COUNT;
-use crate::modules::ui::billboard::BillboardPhase;
+use crate::modules::ui::board::BoardPhase;
 use crate::modules::GraphicsContext;
 use crate::modules::MainPassRenderer;
 use crate::modules::MainScreenSize;
@@ -28,7 +28,7 @@ use super::batching::BatchRegion;
 use super::batching::BatchingResult;
 use super::batching::GlyphRaw;
 use super::batching::RectRaw;
-use super::billboard::Billboard;
+use super::board::Board;
 use super::font_cache::FontCache;
 
 pub struct UiRenderer {
@@ -103,10 +103,10 @@ impl Module for UiRenderer {
 impl UiRenderer {
     /// Warning: only call AFTER layout has been performed for this frame. (needs to be BillboardPhase::Rendering)
     /// Assumes all rects and text layouts are calculated.
-    pub fn draw_billboard(&mut self, billboard: &Billboard) {
+    pub fn draw_billboard(&mut self, board: &Board) {
         // ensure layout has been done by checking the phase
-        assert_eq!(billboard.phase(), BillboardPhase::Rendering);
-        let batches = get_batches(billboard);
+        assert_eq!(board.phase(), BoardPhase::Rendering);
+        let batches = get_batches(board);
         // dbg!(&batches);
         self.collected_batches.combine(batches);
 

@@ -1,4 +1,9 @@
-use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::{
+    borrow::Borrow,
+    cell::UnsafeCell,
+    ops::{Deref, DerefMut},
+    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
+};
 
 pub mod timing_queue;
 pub use timing_queue::{EntryKey, Timing, TimingQueue};
@@ -27,5 +32,43 @@ pub fn next_pow2_number(mut n: usize) -> usize {
             return e;
         }
         e *= 2;
+    }
+}
+
+/// Thin wrapper around UnsafeCell to make it less annoying.
+///
+/// Like RefCell but we don't keep count of borrowing, so it is a bit more unsafe, but free.
+#[derive(Debug)]
+pub struct YoloCell<T> {
+    _inner: UnsafeCell<T>,
+}
+
+impl<T> YoloCell<T> {
+    pub const fn new(value: T) -> Self {
+        YoloCell {
+            _inner: UnsafeCell::new(value),
+        }
+    }
+
+    pub fn get_mut(&self) -> &mut T {
+        unsafe { &mut *self._inner.get() }
+    }
+
+    pub fn get(&self) -> &T {
+        unsafe { &*self._inner.get() }
+    }
+}
+
+impl<T> Deref for YoloCell<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*self._inner.get() }
+    }
+}
+
+impl<T> DerefMut for YoloCell<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self._inner.get_mut()
     }
 }

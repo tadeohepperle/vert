@@ -8,20 +8,21 @@ use crate::{
 };
 
 use super::{
-    billboard::{Billboard, Div, DivText},
+    board::{Board, CachedTextLayout, Div, DivContent, Text, TextContent},
     font_cache::RasterizedFont,
 };
 
 /// Warning: call only after layout has been performed on the billboard (for all rects and the text in them)
-pub fn get_batches(billboard: &Billboard) -> BatchingResult {
+pub fn get_batches(board: &Board) -> BatchingResult {
     // fill a vec of sort primitives
     // todo! reuse allocated vec next frame!
     let mut sort_primitives: Vec<SortPrimitive> = vec![];
-    for div in billboard.iter_divs() {
+    for div in board.iter_divs() {
         sort_primitives.push(SortPrimitive::Rect { div });
         // add the div itself as a primitive.
-        if let Some(div_text) = &div.text {
-            sort_primitives.push(SortPrimitive::Text { div, div_text });
+
+        if let DivContent::Text(text) = &div.content {
+            sort_primitives.push(SortPrimitive::Text { div, text });
             // add the text glyphs as primitives.
         }
     }
@@ -34,13 +35,12 @@ pub fn get_batches(billboard: &Billboard) -> BatchingResult {
     let mut glyphs: Vec<GlyphRaw> = vec![];
     let mut batches: Vec<BatchRegion> = vec![];
 
-    // this is the count of rects or glyphs that got added since last batch switch
-    let text_cache = billboard.text_layout_cache();
-
     if let Some(first) = sort_primitives.first() {
         let batch = match first {
             SortPrimitive::Rect { .. } => BatchRegion::Rect(0..0),
-            SortPrimitive::Text { div_text, .. } => BatchRegion::Text(0..0, div_text.font),
+            SortPrimitive::Text { text: div_text, .. } => {
+                BatchRegion::Text(0..0, div_text.text().font)
+            }
         };
         batches.push(batch);
     }
@@ -58,7 +58,9 @@ pub fn get_batches(billboard: &Billboard) -> BatchingResult {
             // create a new batch:
             let new_batch = match prim {
                 SortPrimitive::Rect { .. } => BatchRegion::Rect(0..0),
-                SortPrimitive::Text { div_text, .. } => BatchRegion::Text(0..0, div_text.font),
+                SortPrimitive::Text { text: div_text, .. } => {
+                    BatchRegion::Text(0..0, div_text.text().font)
+                }
             };
             batches.push(new_batch);
         }
@@ -66,21 +68,21 @@ pub fn get_batches(billboard: &Billboard) -> BatchingResult {
         // add the rect / the glyphs to the buffers.
         match prim {
             SortPrimitive::Rect { div } => {
-                let rect = div.rect.get().expect("layout should have been performed");
                 let rect_raw = RectRaw {
-                    pos: rect.into(),
-                    color: div.props.color,
+                    pos: div.computed_aabb(),
+                    color: div.style.color,
                 };
                 rects.push(rect_raw);
             }
-            SortPrimitive::Text { div, div_text } => {
+            SortPrimitive::Text { div, text } => {
                 // todo! this lookup is bad for performance! a simple pointer to the layout result would be better.
-                let layout_res = text_cache
-                    .get(div_text)
-                    .expect("text layout should have been performed");
-                let color = div.props.text_color;
+                let layout_res = text.get_cached_layout();
                 for (pos, uv) in layout_res.glyph_pos_and_atlas_uv.iter().copied() {
-                    glyphs.push(GlyphRaw { pos, color, uv });
+                    glyphs.push(GlyphRaw {
+                        pos,
+                        color: text.text().color,
+                        uv,
+                    });
                 }
             }
         }
@@ -105,7 +107,7 @@ pub fn get_batches(billboard: &Billboard) -> BatchingResult {
 #[derive(Debug, Clone, Copy)]
 enum SortPrimitive<'a> {
     Rect { div: &'a Div },
-    Text { div: &'a Div, div_text: &'a DivText },
+    Text { div: &'a Div, text: &'a TextContent },
 }
 
 impl<'a> SortPrimitive<'a> {
@@ -122,7 +124,7 @@ impl<'a> SortPrimitive<'a> {
     fn batch_key(&self) -> u64 {
         match self {
             SortPrimitive::Rect { .. } => u64::MAX,
-            SortPrimitive::Text { div_text, .. } => div_text.font.as_u64(),
+            SortPrimitive::Text { text: div_text, .. } => div_text.text().font.as_u64(),
         }
     }
 }

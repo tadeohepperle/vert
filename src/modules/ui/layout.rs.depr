@@ -1,0 +1,167 @@
+use std::{borrow::Cow, cell::Cell, collections::HashMap};
+
+use glam::Vec2;
+
+use crate::{
+    elements::{rect::Aabb, Color, Rect},
+    modules::arenas::Key,
+};
+
+use super::font_cache::{self, FontCache, LayoutTextResult, RasterizedFont};
+
+pub struct LayoutProps {
+    // Determines width of Self
+    width: Size,
+    /// Determines height of Self
+    height: Size,
+    /// Determines how children are layed out.
+    axis: Axis,
+}
+
+pub enum Axis {
+    X,
+    Y,
+}
+
+pub enum Size {
+    Px(f32),
+    FractionOfParent(f32),
+    HugContent,
+}
+
+// pub enum Alignment{
+//     Start,
+//     Center,
+//     End,
+//     Stretch,
+// }
+
+pub struct Board {
+    divs: HashMap<DivId, Div>,
+}
+
+type DivId = u32;
+
+pub struct Div {
+    id: DivId,
+    color: Color,
+    content: DivContent,
+    props: LayoutProps,
+}
+
+pub enum DivContent {
+    Text(TextContent),
+    Children(Vec<DivId>),
+}
+
+struct TextContent {
+    pub text: Cow<'static, str>,
+    pub color: Color,
+    pub font: Key<RasterizedFont>,
+}
+
+pub enum LayoutResult {
+    Undetermined,
+    Px(f32),
+}
+
+/// returns the size.
+pub fn determine_sizes<'a>(
+    node: &'a Div,
+    all_divs: &'a HashMap<DivId, Div>,
+    font_cache: &FontCache,
+    parent_size: Size,
+) {
+    // determine the size of all children, from the button up:
+    match &node.content {
+        DivContent::Text(text) => {}
+        DivContent::Children(children) => {}
+    }
+
+    for child in node.children(ctx) {}
+
+    let props = node.props(ctx);
+    todo!()
+}
+
+// there should be two different kind of divs:
+
+/*
+
+Layout Algorithm:
+
+walk down the tree in a depth first way, trying to determine the size of all widgets.
+The size can be:
+- pub enum Size {
+    Px(f32),
+    FillFraction(f32),
+    HugContent,
+}
+
+
+
+pub struct DivChildIter<'a> {
+    i: usize,
+    div: &'a Div,
+    divs: &'a HashMap<DivId, Div>,
+}
+
+impl<'a> Iterator for DivChildIter<'a> {
+    type Item = &'a Div;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match &self.div.content {
+            DivContent::Text(_) => None,
+            DivContent::Children(children) => {
+                if self.i == children.len() {
+                    None
+                } else {
+                    let child = self.divs.get(&children[self.i]).expect("Node not found");
+                    self.i += 1;
+                    Some(child)
+                }
+            }
+        }
+    }
+}
+
+impl Node for Div {
+    type Context = Board;
+
+    type Iter<'a> = DivChildIter<'a>;
+
+    fn props(&self, ctx: &Self::Context) -> &LayoutProps {
+        &self.props
+    }
+
+    fn children<'a>(&'a self, ctx: &'a Self::Context) -> Self::Iter<'a> {
+        DivChildIter {
+            i: 0,
+            div: self,
+            divs: &ctx.divs,
+        }
+    }
+
+    fn store_computed_rect(&self, ctx: &Self::Context, rect: Rect) {
+        self.computed_rect.set(rect);
+    }
+}
+
+
+pub trait Node {
+    type Context;
+    type Iter<'a>: Iterator<Item = &'a Self>
+    where
+        Self: 'a;
+
+    fn props(&self, ctx: &Self::Context) -> &LayoutProps;
+
+    fn children<'a>(&'a self, ctx: &'a Self::Context) -> Self::Iter<'a>;
+
+    fn store_computed_rect(&self, ctx: &Self::Context, rect: Rect);
+
+    // fn store_rect(&self, ctx: &Self::Context, rect: Rect);
+}
+
+
+*/

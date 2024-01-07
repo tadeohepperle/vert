@@ -3,7 +3,7 @@ use crate::{Dependencies, Handle, Plugin};
 use self::{font_cache::FontCache, ui_renderer::UiRenderer};
 
 pub mod batching;
-pub mod billboard;
+pub mod board;
 pub mod font_cache;
 pub mod ui_renderer;
 

@@ -11,6 +11,20 @@ pub struct Rect {
 }
 
 impl Rect {
+    pub const UNIT: Self = Self {
+        min_x: 0.0,
+        min_y: 0.0,
+        width: 1.0,
+        height: 1.0,
+    };
+
+    pub const ZERO: Self = Self {
+        min_x: 0.0,
+        min_y: 0.0,
+        width: 0.0,
+        height: 0.0,
+    };
+
     pub const fn new(min_x: f32, min_y: f32, width: f32, height: f32) -> Self {
         Self {
             min_x,
@@ -25,15 +39,6 @@ impl Rect {
             && pos.y >= self.min_y
             && pos.x <= self.min_x + self.width
             && pos.y <= self.min_y + self.height
-    }
-
-    pub fn unit() -> Self {
-        Self {
-            min_x: 0.0,
-            min_y: 0.0,
-            width: 1.0,
-            height: 1.0,
-        }
     }
 }
 

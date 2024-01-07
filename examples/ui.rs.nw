@@ -7,7 +7,7 @@ use vert::{
         batteries::{FlyCam, GraphicsSettingsController},
         renderer::main_pass_renderer::{text_renderer::DrawText, ui_rect::UiRect},
         ui::{
-            billboard::{Billboard, BillboardInput, DivId, DivProps, DivText},
+            board::{Board, BoardInput, DivId, DivProps, DivText},
             font_cache::RasterizedFont,
         },
         DefaultDependencies, DefaultModules, MainPassRenderer, Schedule,
