@@ -2,6 +2,7 @@
 #![feature(lazy_cell)]
 #![feature(try_blocks)]
 #![feature(associated_type_defaults)]
+#![feature(entry_insert)]
 
 pub mod app;
 pub mod elements;

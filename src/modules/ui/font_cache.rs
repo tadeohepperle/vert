@@ -165,9 +165,6 @@ impl FontCache {
         }
 
         // create a texture that contains the atlas image.
-
-        atlas_image.save("atlas.png");
-
         let texture = Texture::from_image(&self.ctx.device, &self.ctx.queue, &atlas_image);
         let texture = BindableTexture::new(&self.ctx.device, texture);
 

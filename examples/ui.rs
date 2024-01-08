@@ -66,21 +66,24 @@ impl MyApp {
 
         self.ui
             .start_frame(BoardInput::from_input_module(&self.deps.input));
-        let (d1, _) = self.ui.add_non_text_div(
-            DivProps {
-                width: Size::Px(700.0),
-                height: Size::Px(700.0),
-                axis: Axis::X,
-                main_align: MainAlign::Start,
-                cross_align: CrossAlign::Start,
-            },
-            DivStyle {
-                color: Color::RED,
-                z_bias: 0,
-            },
-            DivId::from(11),
-            None,
-        );
+        let d1 = self
+            .ui
+            .add_non_text_div(
+                DivProps {
+                    width: Size::Px(700.0),
+                    height: Size::Px(700.0),
+                    axis: Axis::X,
+                    main_align: MainAlign::Start,
+                    cross_align: CrossAlign::Start,
+                },
+                DivStyle {
+                    color: Color::RED,
+                    z_bias: 0,
+                },
+                DivId::from(11),
+                None,
+            )
+            .id;
 
         self.ui.add_non_text_div(
             DivProps {
@@ -114,7 +117,7 @@ impl MyApp {
             Some(d1),
         );
 
-        let text_div_comm = self.ui.add_text_div(
+        let mut text_div_comm = self.ui.add_text_div(
             DivProps {
                 width: Size::Px(300.0),
                 height: Size::Px(300.0),
@@ -135,24 +138,29 @@ impl MyApp {
             Some(d1),
         );
 
-        if let Some(comm) = text_div_comm {
-            if comm.hovered {
-                self.ui.add_non_text_div(
-                    DivProps {
-                        width: Size::Px(40.0),
-                        height: Size::Px(40.0),
-                        axis: Axis::Y,
-                        main_align: MainAlign::Start,
-                        cross_align: CrossAlign::Start,
-                    },
-                    DivStyle {
-                        color: Color::GREEN,
-                        z_bias: 0,
-                    },
-                    DivId::from(2112213232),
-                    Some(d1),
-                );
-            }
+        // can immediately edit the style and text without a 1-frame lag:
+        // 1 frame lag only applies to the layout rect (DivProps) itself.
+        if text_div_comm.is_hovered() {
+            text_div_comm.style_mut().color = Color::RED;
+            text_div_comm.text_mut().color = Color::BLACK;
+        }
+
+        if text_div_comm.is_hovered() {
+            self.ui.add_non_text_div(
+                DivProps {
+                    width: Size::Px(40.0),
+                    height: Size::Px(40.0),
+                    axis: Axis::Y,
+                    main_align: MainAlign::Start,
+                    cross_align: CrossAlign::Start,
+                },
+                DivStyle {
+                    color: Color::GREEN,
+                    z_bias: 0,
+                },
+                DivId::from(2112213232),
+                Some(d1),
+            );
         }
 
         self.ui.end_frame(&self.deps.ui.fonts);

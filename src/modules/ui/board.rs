@@ -1,9 +1,14 @@
 use std::{
     borrow::{Borrow, Cow},
     cell::{Cell, RefCell, UnsafeCell},
-    collections::{hash_map::Entry, HashMap},
+    collections::{
+        hash_map::{Entry, OccupiedEntry},
+        HashMap,
+    },
     hash::Hash,
     iter::Map,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
 };
 
 use crate::{
@@ -23,8 +28,10 @@ use super::{
     font_cache::{FontCache, RasterizedFont, TextLayoutResult},
 };
 
+/// A wrapper around a non-text div that can be used as a parent key when inserting a child div.
+/// (text divs cannot have children).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ParentDivId {
+pub struct NonTextDivId {
     /// you cannot set this manually, to ensure only DivIds that belong to a Div with DivContent::Children.
     _priv: DivId,
 }
@@ -96,37 +103,43 @@ impl Board {
         }
     }
 
-    pub fn add_non_text_div(
-        &mut self,
+    pub fn add_non_text_div<'a>(
+        &'a mut self,
         props: DivProps,
         style: DivStyle,
         id: DivId,
-        parent: Option<ParentDivId>,
-    ) -> (ParentDivId, Option<Comm>) {
-        let comm = self._add_div(props, style, id, DivContent::Children(vec![]), parent);
-        (ParentDivId { _priv: id }, comm)
+        parent: Option<NonTextDivId>,
+    ) -> NonTextResponse<'a> {
+        let (comm, entry) = self._add_div(props, style, id, DivContent::Children(vec![]), parent);
+        let div_id = NonTextDivId { _priv: id };
+        NonTextResponse {
+            id: div_id,
+            comm,
+            entry,
+        }
     }
 
-    pub fn add_text_div(
-        &mut self,
+    pub fn add_text_div<'a>(
+        &'a mut self,
         props: DivProps,
         style: DivStyle,
         text: Text,
         id: DivId,
-        parent: Option<ParentDivId>,
-    ) -> Option<Comm> {
-        let comm = self._add_div(props, style, id, DivContent::Text(text), parent);
-        comm
+        parent: Option<NonTextDivId>,
+    ) -> TextResponse<'a> {
+        let (comm, entry): (Option<Comm>, OccupiedEntry<'_, DivId, Div>) =
+            self._add_div(props, style, id, DivContent::Text(text), parent);
+        TextResponse { comm, entry }
     }
 
-    fn _add_div(
-        &mut self,
+    fn _add_div<'a>(
+        &'a mut self,
         props: DivProps,
         style: DivStyle,
         id: DivId,
         content: DivContent,
-        parent: Option<ParentDivId>,
-    ) -> Option<Comm> {
+        parent: Option<NonTextDivId>,
+    ) -> (Option<Comm>, OccupiedEntry<'a, DivId, Div>) {
         // go into the parent and register the child:
         let parent_z_index = if let Some(parent) = parent {
             let parent = self.divs.get_mut(&parent._priv).expect("Invalid Parent...");
@@ -143,6 +156,7 @@ impl Board {
         // insert child entry. z_index is always 1 more than parent to render on top.
         let z_index = parent_z_index + 1 + style.z_bias * 1024;
         let rect: Option<Rect>;
+        let entry: OccupiedEntry<'a, DivId, Div>;
         match self.divs.entry(id) {
             Entry::Occupied(mut e) => {
                 let div = e.get_mut();
@@ -155,7 +169,6 @@ impl Board {
                 div.z_index = parent_z_index + 1;
                 div.last_frame = self.last_frame;
                 div.style = style;
-                div.i_id.set(usize::MAX);
                 div.content = content;
                 // technically we could also invalidate the font cache here, if the content is children and not text. But doe not matter much.
 
@@ -168,16 +181,16 @@ impl Board {
                     width: size.x as f32,
                     height: size.y as f32,
                 });
+                entry = e;
             }
             Entry::Vacant(vacant) => {
-                vacant.insert(Div {
+                entry = vacant.insert_entry(Div {
                     id,
                     props,
                     z_index,
                     last_frame: self.last_frame,
                     style,
                     content,
-                    i_id: Cell::new(usize::MAX),
                     c_size: Cell::new(DVec2::ZERO),
                     c_pos: Cell::new(DVec2::ZERO),
                     c_content_size: Cell::new(DVec2::ZERO),
@@ -208,7 +221,7 @@ impl Board {
         } else {
             None
         };
-        comm
+        (comm, entry)
     }
 
     /// call to transition from  BoardPhase::AddDivs -> BoardPhase::LayoutDone
@@ -223,6 +236,67 @@ impl Board {
         // Perform Layout (set sizes and positions for all divs in the tree)
         let layouter = Layouter::new(&self.divs, fonts);
         layouter.perform_layout(&self.top_level_children, self.top_level_size);
+    }
+}
+
+pub struct NonTextResponse<'a> {
+    /// to be used as a parent for another div
+    pub id: NonTextDivId,
+    comm: Option<Comm>,
+    pub entry: OccupiedEntry<'a, DivId, Div>,
+}
+
+impl<'a> Deref for NonTextResponse<'a> {
+    type Target = DivStyle;
+
+    fn deref(&self) -> &Self::Target {
+        &self.entry.get().style
+    }
+}
+
+impl<'a> DerefMut for NonTextResponse<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.entry.get_mut().style
+    }
+}
+
+impl<'a> NonTextResponse<'a> {
+    pub fn is_hovered(&self) -> bool {
+        if let Some(comm) = &self.comm {
+            comm.hovered
+        } else {
+            false
+        }
+    }
+
+    pub fn style_mut(&mut self) -> &mut DivStyle {
+        &mut self.entry.get_mut().style
+    }
+}
+
+pub struct TextResponse<'a> {
+    comm: Option<Comm>,
+    pub entry: OccupiedEntry<'a, DivId, Div>,
+}
+
+impl<'a> TextResponse<'a> {
+    pub fn is_hovered(&self) -> bool {
+        if let Some(comm) = &self.comm {
+            comm.hovered
+        } else {
+            false
+        }
+    }
+
+    pub fn style_mut(&mut self) -> &mut DivStyle {
+        &mut self.entry.get_mut().style
+    }
+
+    pub fn text_mut(&mut self) -> &mut Text {
+        match &mut self.entry.get_mut().content {
+            DivContent::Text(text) => text,
+            DivContent::Children(_) => panic!("This should always be text on a text div"),
+        }
     }
 }
 
@@ -263,9 +337,8 @@ pub struct Div {
     pub(crate) content: DivContent,
     pub(crate) props: DivProps,
     pub(crate) style: DivStyle,
-    // last_frame and i_id are reset every frame.
+    // last_frame is reset every frame.
     last_frame: u64,
-    i_id: Cell<usize>,
     // calculated as parent.z_index + 1, important for sorting in batching.
     pub(crate) z_index: i32,
 
