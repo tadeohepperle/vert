@@ -38,10 +38,6 @@ impl From<u64> for DivId {
     }
 }
 
-impl DivId {
-    const TOP_LEVEL: DivId = DivId(u64::MAX);
-}
-
 /// A Board represents a screen, that contains UI-elements.
 /// The Board could just represent the window screen directly, or be somewhere in the 3d space.
 /// If a Board is in 3d space in the world, we just need to render it differently
@@ -102,7 +98,7 @@ impl Board {
 
     pub fn add_non_text_div(
         &mut self,
-        props: LayoutProps,
+        props: DivProps,
         style: DivStyle,
         id: DivId,
         parent: Option<ParentDivId>,
@@ -113,7 +109,7 @@ impl Board {
 
     pub fn add_text_div(
         &mut self,
-        props: LayoutProps,
+        props: DivProps,
         style: DivStyle,
         text: Text,
         id: DivId,
@@ -125,7 +121,7 @@ impl Board {
 
     fn _add_div(
         &mut self,
-        props: LayoutProps,
+        props: DivProps,
         style: DivStyle,
         id: DivId,
         content: DivContent,
@@ -222,11 +218,11 @@ impl Board {
 
         // Remove Nodes that have not been added/updated this frame
         self.divs.retain(|_, v| v.last_frame == self.last_frame);
+        self.last_frame += 1;
 
-        // Perform Layout
-
+        // Perform Layout (set sizes and positions for all divs in the tree)
         let layouter = Layouter::new(&self.divs, fonts);
-        layouter.perform_full_layout(&self.top_level_children, self.top_level_size);
+        layouter.perform_layout(&self.top_level_children, self.top_level_size);
     }
 }
 
@@ -255,17 +251,17 @@ impl BoardInput {
 }
 
 pub struct Comm {
-    rect: Rect,
+    pub rect: Rect,
     // Some, if the mouse is hovering, clicking or releasing?
-    hovered: bool,
-    clicked: bool,
+    pub hovered: bool,
+    pub clicked: bool,
 }
 
 #[derive(Debug)]
 pub struct Div {
     id: DivId,
     pub(crate) content: DivContent,
-    pub(crate) props: LayoutProps,
+    pub(crate) props: DivProps,
     pub(crate) style: DivStyle,
     // last_frame and i_id are reset every frame.
     last_frame: u64,
@@ -338,12 +334,135 @@ impl<'a> Layouter<'a> {
     ///    - Parent MainAxisAlignment (Start, Center, End, SpaceBetween, SpaceAround)
     ///    - Parent CrossAxisAlignment (Start, Center, End)
     ///
-    fn perform_full_layout(&self, top_level_children: &[DivId], top_level_size: DVec2) {
+    fn perform_layout(&self, top_level_children: &[DivId], top_level_size: DVec2) {
+        // Note: Right now top level divs have no relationship to each other, they are all individually positioned on the screen.
+        // That means: adding another top level div never changes the position of other top level divs.
         for id in top_level_children.iter() {
             let top_div = self.divs.get(id).unwrap();
-            self.get_and_set_size(top_div, top_level_size);
+            // set the size of each div in the tree:
+            _ = self.get_and_set_size(top_div, top_level_size);
+            top_div.c_pos.set(DVec2::ZERO);
+            // set the position of each div in the tree:
+            self.set_child_positions(top_div);
         }
     }
+
+    /// sets the position of this div.
+    ///
+    /// Expects that sizes and child_sizes of all divs have already been computed.
+    fn set_child_positions(&self, div: &Div) {
+        match div.props.axis {
+            Axis::X => _monomorphized_set_child_positions::<XMain>(self, div),
+            Axis::Y => _monomorphized_set_child_positions::<YMain>(self, div),
+        }
+
+        pub trait AssembleDisassemble {
+            /// returns (main_axis, cross_axis)
+            fn disassemble(v: DVec2) -> (f64, f64);
+            fn assemble(main: f64, cross: f64) -> DVec2;
+        }
+
+        struct XMain;
+        struct YMain;
+
+        impl AssembleDisassemble for XMain {
+            #[inline(always)]
+            fn disassemble(v: DVec2) -> (f64, f64) {
+                // (main_axis, cross_axis)
+                (v.x, v.y)
+            }
+            #[inline(always)]
+            fn assemble(main: f64, cross: f64) -> DVec2 {
+                DVec2 { x: main, y: cross }
+            }
+        }
+
+        impl AssembleDisassemble for YMain {
+            #[inline(always)]
+            fn disassemble(v: DVec2) -> (f64, f64) {
+                // (main_axis, cross_axis)
+                (v.y, v.x)
+            }
+            #[inline(always)]
+            fn assemble(main: f64, cross: f64) -> DVec2 {
+                DVec2 { x: cross, y: main }
+            }
+        }
+
+        #[inline(always)]
+        fn _monomorphized_set_child_positions<A: AssembleDisassemble>(
+            sel: &Layouter<'_>,
+            div: &Div,
+        ) {
+            match &div.content {
+                DivContent::Text(text) => {
+                    // todo!() maybe in future store offset of text or something, in case the parent pos is the same?
+                    // right now, we just store the glyphs as a layout result independent of the divs pos in here,
+                    // every frame we build up a glyoh buffer adding the position of the div to each glyph individually.
+                }
+                DivContent::Children(children) => {
+                    let n_children = children.len();
+                    if n_children == 0 {
+                        return;
+                    }
+
+                    let my_pos = div.c_pos.get();
+                    let my_size = div.c_size.get();
+                    let my_content_size = div.c_content_size.get();
+
+                    let (main_pos, cross_pos) = A::disassemble(div.c_pos.get());
+                    let (main_size, cross_size) = A::disassemble(div.c_size.get());
+                    let (main_content_size, cross_content_size) =
+                        A::disassemble(div.c_content_size.get());
+
+                    let main_axis_offset: f64; // initial offset on main axis for the first child
+                    let main_axis_step: f64; // step that gets added for each child on main axis after its own size on main axis.
+
+                    match div.props.main_align {
+                        MainAlign::Start => {
+                            main_axis_offset = 0.0;
+                            main_axis_step = 0.0;
+                        }
+                        MainAlign::Center => {
+                            main_axis_offset = (main_size - main_content_size) * 0.5;
+                            main_axis_step = 0.0;
+                        }
+                        MainAlign::End => {
+                            main_axis_offset = main_size - main_content_size;
+                            main_axis_step = 0.0;
+                        }
+                        MainAlign::SpaceBetween => {
+                            main_axis_offset = 0.0;
+
+                            if n_children == 1 {
+                                main_axis_step = 0.0;
+                            } else {
+                                main_axis_step =
+                                    (main_size - main_content_size) / (children.len() - 1) as f64;
+                            }
+                        }
+                        MainAlign::SpaceAround => {
+                            main_axis_step =
+                                (main_size - main_content_size) / children.len() as f64;
+                            main_axis_offset = main_axis_step / 2.0;
+                        }
+                    }
+
+                    let children = children.iter().map(|e| sel.divs.get(e).unwrap());
+
+                    let mut main_v = main_axis_offset;
+                    for ch in children {
+                        let (ch_main_size, ch_cross_size) = A::disassemble(ch.c_size.get());
+                        let ch_pos = A::assemble(main_v, 0.0); // 0.0 if we always assume crossaxis align start.
+                        ch.c_pos.set(ch_pos);
+                        main_v += ch_main_size + main_axis_step;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Gets monomorphized into two functions: One for Y being the Main Axis and one for X being the Main Axis.
 
     /// Calculates and sets the sizes of the given div and all of its children recursively.
     ///
@@ -353,7 +472,7 @@ impl<'a> Layouter<'a> {
     /// 3. sache own size and content size in the div, then return own size.
     fn get_and_set_size(&self, div: &Div, parent_max_size: DVec2) -> DVec2 {
         let fixed_w = div.props.width.px_value(parent_max_size.x);
-        let fixed_h = div.props.width.px_value(parent_max_size.y);
+        let fixed_h = div.props.height.px_value(parent_max_size.y);
 
         let own_size: DVec2;
         let content_size: DVec2;
@@ -453,7 +572,7 @@ impl<'a> Layouter<'a> {
     ) -> DVec2 {
         let i_max_size = max_size.as_ivec2();
         // look for cached value and return it:
-        let mut cached = c_text_layout.get_mut();
+        let cached = c_text_layout.get_mut();
         if let Some(cached) = cached {
             if cached.max_size == i_max_size {
                 return cached.result.total_rect.d_size();
@@ -528,15 +647,15 @@ pub struct CachedTextLayout {
 }
 
 #[derive(Debug)]
-pub struct LayoutProps {
+pub struct DivProps {
     // Determines width of Self
-    width: Size,
+    pub width: Size,
     /// Determines height of Self
-    height: Size,
+    pub height: Size,
     /// Determines how children are layed out.
-    axis: Axis,
-    main_align: MainAlign,
-    cross_align: CrossAlign,
+    pub axis: Axis,
+    pub main_align: MainAlign,
+    pub cross_align: CrossAlign,
     // todo! translation, absolute
 }
 

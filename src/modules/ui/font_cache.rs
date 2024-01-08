@@ -248,6 +248,7 @@ impl FontCache {
 #[derive(Debug)]
 pub struct TextLayoutResult {
     /// glyph position and their uv position in the texture atlas
+    /// Todo! make pos a rect instead, because it is easier to add to it.
     pub glyph_pos_and_atlas_uv: Vec<(Aabb, Aabb)>,
     // total bounding rect of the text. Can be used e.g. for centering all of the glyphs by shifting them by half the size or so.
     pub total_rect: Rect,

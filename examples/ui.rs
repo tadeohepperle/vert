@@ -1,5 +1,4 @@
-use glam::{vec2, vec3, Vec2};
-use morphorm::Units;
+use glam::{dvec2, vec2, vec3, Vec2};
 use vert::{
     elements::{Color, Rect, Transform},
     modules::{
@@ -7,7 +6,9 @@ use vert::{
         batteries::{FlyCam, GraphicsSettingsController},
         renderer::main_pass_renderer::{text_renderer::DrawText, ui_rect::UiRect},
         ui::{
-            board::{Board, BoardInput, DivId, DivProps, DivText},
+            board::{
+                Axis, Board, BoardInput, CrossAlign, DivId, DivProps, DivStyle, MainAlign, Size,
+            },
             font_cache::RasterizedFont,
         },
         DefaultDependencies, DefaultModules, MainPassRenderer, Schedule,
@@ -27,7 +28,7 @@ fn main() {
 
 struct MyApp {
     deps: DefaultDependencies,
-    ui: Billboard,
+    ui: Board,
     font_key: Key<RasterizedFont>,
 }
 
@@ -42,7 +43,7 @@ impl Module for MyApp {
 
         Ok(MyApp {
             deps,
-            ui: Billboard::new(600.0, 600.0, morphorm::LayoutType::Row),
+            ui: Board::new(dvec2(600.0, 600.0)),
             font_key,
         })
     }
@@ -63,22 +64,53 @@ impl MyApp {
             .draw_cubes(&[Transform::new(1.0, 1.0, 1.0)], None);
 
         self.ui
-            .start_frame(BillboardInput::from_input_module(&self.deps.input));
-        self.ui.add_div(
-            // Some(DivText {
-            //     string: "Hello World".into(),
-            //     font: self.font_key,
-            // }),
-            None,
+            .start_frame(BoardInput::from_input_module(&self.deps.input));
+        let (d1, _) = self.ui.add_non_text_div(
             DivProps {
-                width: Some(Units::Pixels(300.0)),
-                height: Some(Units::Pixels(200.0)),
+                width: Size::Px(300.0),
+                height: Size::Px(300.0),
+                axis: Axis::X,
+                main_align: MainAlign::Start,
+                cross_align: CrossAlign::Start,
+            },
+            DivStyle {
                 color: Color::RED,
-                ..Default::default()
+                z_bias: 0,
             },
             DivId::from(11),
             None,
-            0,
+        );
+
+        self.ui.add_non_text_div(
+            DivProps {
+                width: Size::Px(100.0),
+                height: Size::Px(50.0),
+                axis: Axis::Y,
+                main_align: MainAlign::Start,
+                cross_align: CrossAlign::Start,
+            },
+            DivStyle {
+                color: Color::BLUE,
+                z_bias: 0,
+            },
+            DivId::from(12),
+            Some(d1),
+        );
+
+        self.ui.add_non_text_div(
+            DivProps {
+                width: Size::Px(100.0),
+                height: Size::Px(20.0),
+                axis: Axis::Y,
+                main_align: MainAlign::Start,
+                cross_align: CrossAlign::Start,
+            },
+            DivStyle {
+                color: Color::BLACK,
+                z_bias: 0,
+            },
+            DivId::from(13),
+            Some(d1),
         );
 
         self.ui.end_frame(&self.deps.ui.fonts);

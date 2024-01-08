@@ -77,6 +77,7 @@ pub fn get_batches(board: &Board) -> BatchingResult {
                 rects.push(rect_raw);
             }
             SortPrimitive::Text { div, text, layout } => {
+                // todo! add text pos to glyphs
                 for (pos, uv) in layout.glyph_pos_and_atlas_uv.iter().copied() {
                     glyphs.push(GlyphRaw {
                         pos,
