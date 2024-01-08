@@ -73,6 +73,8 @@ impl FileChangeWatcher {
     }
 }
 
+/// Watches a wgsl file and can be polled for changes in this file by [`ShaderFileWatcher::check_for_changes`].
+/// Only valid wgsl is returned as a change. If invalid, you are not notified. But still wgsl can cause panics if not lining up with your pipeline.
 #[derive(Debug)]
 pub struct ShaderFileWatcher {
     wgsl_file: PathBuf,
@@ -96,11 +98,20 @@ impl ShaderFileWatcher {
     /// Returns the new wgsl content of the file in case a change was detected
     pub fn check_for_changes(&self) -> Option<String> {
         if let Some(e) = self.watcher.check_for_changes() {
+            if !e.contains(&&self.wgsl_file) {
+                return None;
+            }
             let wgsl = std::fs::read_to_string(&self.wgsl_file).unwrap();
+            if wgsl.trim().is_empty() {
+                // Note: There is currently some bug that causes empty strings to be returned here. Need to be hunted down.
+                // But not so important to figure out right now.
+                return None;
+            }
             if let Err(err) = wgpu::naga::front::wgsl::parse_str(&wgsl) {
                 error!("WGSL at {:?} is invalid: {err}", self.wgsl_file);
             } else {
-                info!("Hot reloaded WGSL from {:?}", self.wgsl_file);
+                println!("Hot reloaded WGSL from {:?}", self.wgsl_file);
+
                 return Some(wgsl);
             }
         }

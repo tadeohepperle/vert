@@ -698,8 +698,57 @@ impl<'a> Iterator for DivChildIter<'a> {
 #[derive(Debug)]
 pub struct DivStyle {
     pub color: Color,
+    pub border_color: Color,
+    pub border_radius: BorderRadius,
+    pub border_thickness: f32,
+    // set to 0.0 for very crisp inner border. set to 20.0 for like an inset shadow effect.
+    pub border_softness: f32,
+    // todo: margin and padding
     /// Note: z_bias is multiplied with 1024 when determining the final z_index and should be a rather small number.
     pub z_bias: i32,
+}
+
+impl Default for DivStyle {
+    fn default() -> Self {
+        Self {
+            color: Color::BLACK,
+            border_radius: BorderRadius::default(),
+            z_bias: 0,
+            border_thickness: 0.0,
+            border_softness: 1.0,
+            border_color: Color::TRANSPARENT,
+        }
+    }
+}
+
+/// todo! make BorderRadius have not only f32 pixels but also PercentOfParent(f32).
+#[repr(C)]
+#[derive(Debug, Clone, bytemuck::Pod, bytemuck::Zeroable, Copy, Default)]
+pub struct BorderRadius {
+    top_left: f32,
+    top_right: f32,
+    bottom_right: f32,
+    bottom_left: f32,
+}
+
+impl BorderRadius {
+    pub const fn all(value: f32) -> Self {
+        Self {
+            top_left: value,
+            top_right: value,
+            bottom_right: value,
+            bottom_left: value,
+        }
+    }
+
+    pub const fn new(top_left: f32, top_right: f32, bottom_right: f32, bottom_left: f32) -> Self {
+        Self {
+            top_left,
+            top_right,
+            bottom_right,
+            bottom_left,
+        }
+    }
 }
 
 #[derive(Debug)]

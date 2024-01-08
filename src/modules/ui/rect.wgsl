@@ -11,6 +11,10 @@ var<uniform> screen: ScreenSize;
 struct Instance {
     @location(0) pos: vec4<f32>, // pos aabb for the glyph
     @location(1) color: vec4<f32>,
+    @location(2) border_radius: vec4<f32>,
+    @location(3) border_color: vec4<f32>,
+    // border_thickness, border_softness, _unused, _unused
+    @location(4) others: vec4<f32>,
 }
 
 // we calculate the vertices here in the shader instead of passing a vertex buffer
@@ -20,9 +24,13 @@ struct Vertex {
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
-    @location(0) color: vec4<f32>,
-    @location(1) offset: vec2<f32>, // offset from center
-    @location(2) size: vec2<f32>,
+    @location(0) offset: vec2<f32>, // offset from center
+    @location(1) size: vec2<f32>,
+    @location(2) color: vec4<f32>,
+    @location(3) border_radius: vec4<f32>,
+    @location(4) border_color: vec4<f32>,
+     // border_thickness, _unused, _unused, _unused
+    @location(5) others: vec4<f32>,
 };
 
 @vertex
@@ -36,15 +44,24 @@ fn vs_main(
 
     var out: VertexOutput;
     out.clip_position = vec4<f32>(device_pos, 0.0, 1.0);
-    out.color = instance.color;
     out.offset = vertex.pos - center;
     out.size = instance.pos.zw;
+
+    out.color = instance.color;
+    out.border_radius = instance.border_radius;
+    out.border_color = instance.border_color;
+    out.others = instance.others;
     return out;
 }
  
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return in.color;
+    let sdf = rounded_box_sdf(in.offset, in.size, in.border_radius);
+    let color: vec4<f32> = mix(in.color, in.border_color, smoothstep(0.0, 1.0, ((sdf + in.others[0]) / in.others[1]) ));
+
+    let alpha = min(color.a, smoothstep(1.0, 0.0, sdf + 0.5)); // the + 0.5 makes the edge a bit smoother
+    // return vec4(in.color.rgb, alpha);
+    return vec4(color.rgb, alpha);
 }
 
 // given some bounding box aabb [f32;4] being min x, min y, max x, max y,
@@ -73,3 +90,14 @@ fn rect_vertex(idx: u32, pos: vec4<f32>) -> Vertex {
     return out;
 }
 
+
+fn rounded_box_sdf(offset: vec2<f32>, size: vec2<f32>, border_radius: vec4<f32>) -> f32 {
+    let r = select(border_radius.xw, border_radius.yz, offset.x > 0.0);
+    let r2 = select(r.x, r.y, offset.y > 0.0);
+
+    let q: vec2<f32> = abs(offset) - size / 2.0 + vec2<f32>(r2);
+    let q2: f32 = min(max(q.x, q.y), 0.0);
+
+    let l = length(max(q, vec2(0.0)));
+    return q2 + l - r2;
+}

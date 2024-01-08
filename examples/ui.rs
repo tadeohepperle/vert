@@ -7,8 +7,8 @@ use vert::{
         renderer::main_pass_renderer::{text_renderer::DrawText, ui_rect::UiRect},
         ui::{
             board::{
-                Axis, Board, BoardInput, CrossAlign, DivId, DivProps, DivStyle, MainAlign, Size,
-                Text,
+                Axis, Board, BoardInput, BorderRadius, CrossAlign, DivId, DivProps, DivStyle,
+                MainAlign, Size, Text,
             },
             font_cache::RasterizedFont,
         },
@@ -22,7 +22,7 @@ fn main() {
     let mut app = AppBuilder::new();
     app.add_plugin(DefaultModules);
     app.add::<FlyCam>();
-    app.add::<GraphicsSettingsController>();
+    // app.add::<GraphicsSettingsController>();
     app.add::<MyApp>();
     app.run().unwrap();
 }
@@ -38,9 +38,14 @@ impl Module for MyApp {
 
     type Dependencies = DefaultDependencies;
 
-    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
         let mut fonts = deps.ui.fonts;
         let font_key = fonts.rasterize_default_font(40.0).unwrap();
+
+        deps.bloom.settings_mut().activated = false;
+        deps.ui
+            .ui_renderer
+            .watch_rect_shader_file("./src/modules/ui/rect.wgsl");
 
         Ok(MyApp {
             deps,
@@ -78,7 +83,7 @@ impl MyApp {
                 },
                 DivStyle {
                     color: Color::RED,
-                    z_bias: 0,
+                    ..Default::default()
                 },
                 DivId::from(11),
                 None,
@@ -88,14 +93,18 @@ impl MyApp {
         self.ui.add_non_text_div(
             DivProps {
                 width: Size::Px(100.0),
-                height: Size::Px(50.0),
+                height: Size::Px(200.0),
                 axis: Axis::Y,
                 main_align: MainAlign::Start,
                 cross_align: CrossAlign::Start,
             },
             DivStyle {
-                color: Color::BLUE,
-                z_bias: 0,
+                color: Color::BLUE.alpha(0.4),
+                border_radius: BorderRadius::all(20.0),
+                border_color: Color::BLACK,
+                border_thickness: 6.0,
+                border_softness: 1.0,
+                ..Default::default()
             },
             DivId::from(12),
             Some(d1),
@@ -111,7 +120,7 @@ impl MyApp {
             },
             DivStyle {
                 color: Color::BLACK,
-                z_bias: 0,
+                ..Default::default()
             },
             DivId::from(13),
             Some(d1),
@@ -126,8 +135,8 @@ impl MyApp {
                 cross_align: CrossAlign::Start,
             },
             DivStyle {
-                color: Color::BLACK,
-                z_bias: 0,
+                color: Color::YELLOW,
+                ..Default::default()
             },
             Text {
                 color: Color::new(6.0, 2.0, 2.0),
@@ -141,7 +150,11 @@ impl MyApp {
         // can immediately edit the style and text without a 1-frame lag:
         // 1 frame lag only applies to the layout rect (DivProps) itself.
         if text_div_comm.is_hovered() {
-            text_div_comm.style_mut().color = Color::RED;
+            let style = text_div_comm.style_mut();
+            style.color = Color::BLUE;
+            style.border_color = Color::GREEN;
+            style.border_thickness = 6.0;
+            // style.border_radius = BorderRadius::new(40.0, 40.0, 40.0, 40.0);
             text_div_comm.text_mut().color = Color::BLACK;
         }
 
@@ -156,7 +169,7 @@ impl MyApp {
                 },
                 DivStyle {
                     color: Color::GREEN,
-                    z_bias: 0,
+                    ..Default::default()
                 },
                 DivId::from(2112213232),
                 Some(d1),

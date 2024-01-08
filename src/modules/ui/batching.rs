@@ -9,7 +9,7 @@ use crate::{
 };
 
 use super::{
-    board::{Board, CachedTextLayout, Div, DivContent, Text},
+    board::{Board, BorderRadius, CachedTextLayout, Div, DivContent, Text},
     font_cache::{RasterizedFont, TextLayoutResult},
 };
 
@@ -74,6 +74,12 @@ pub fn get_batches(board: &Board) -> BatchingResult {
                 let rect_raw = RectRaw {
                     pos: div.computed_aabb(),
                     color: div.style.color,
+                    border_radius: div.style.border_radius,
+                    border_color: div.style.border_color,
+                    border_thickness: div.style.border_thickness,
+                    border_softness: div.style.border_softness,
+                    _unused2: 0.0,
+                    _unused3: 0.0,
                 };
                 rects.push(rect_raw);
             }
@@ -215,13 +221,22 @@ impl BatchingResult {
 pub struct RectRaw {
     pos: Aabb,
     color: Color,
-    // border_radius: [] // todo!() needle
+    border_radius: BorderRadius,
+    border_color: Color,
+    // these are bundled together into another 16 byte chunk.
+    border_thickness: f32,
+    border_softness: f32,
+    _unused2: f32,
+    _unused3: f32,
 }
 
 impl VertexT for RectRaw {
     const ATTRIBUTES: &'static [Attribute] = &[
         Attribute::new("pos", VertexFormat::Float32x4),
         Attribute::new("color", VertexFormat::Float32x4),
+        Attribute::new("border_radius", VertexFormat::Float32x4),
+        Attribute::new("border_color", VertexFormat::Float32x4),
+        Attribute::new("others", VertexFormat::Float32x4),
     ];
 }
 

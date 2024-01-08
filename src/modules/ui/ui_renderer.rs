@@ -101,6 +101,10 @@ impl Module for UiRenderer {
 }
 
 impl UiRenderer {
+    pub fn watch_rect_shader_file(&mut self, path: &str) {
+        self.rect_shader_watcher = Some(ShaderFileWatcher::new(path));
+    }
+
     /// Warning: only call AFTER layout has been performed for this frame. (needs to be BillboardPhase::Rendering)
     /// Assumes all rects and text layouts are calculated.
     pub fn draw_billboard(&mut self, board: &Board) {
@@ -121,6 +125,17 @@ impl Prepare for UiRenderer {
         queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
     ) {
+        if let Some(s) = &self.rect_shader_watcher {
+            if let Some(new_wgsl) = s.check_for_changes() {
+                self.rect_pipeline = create_pipeline::<RectRaw>(
+                    &new_wgsl,
+                    "Rect",
+                    device,
+                    &[self.deps.main_screen.bind_group_layout()],
+                );
+            }
+        }
+
         self.rect_buffer
             .prepare(&self.collected_batches.rects, device, queue);
         self.glyph_buffer

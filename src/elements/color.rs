@@ -26,6 +26,12 @@ impl Default for Color {
 }
 
 impl Color {
+    pub const TRANSPARENT: Color = Color {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+        a: 0.0,
+    };
     pub const BLACK: Color = Color::new(0.0, 0.0, 0.0);
     pub const RED: Color = Color::new(1.0, 0.0, 0.0);
     pub const GREEN: Color = Color::new(0.0, 1.0, 0.0);
