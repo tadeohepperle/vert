@@ -8,6 +8,7 @@ use vert::{
         ui::{
             board::{
                 Axis, Board, BoardInput, CrossAlign, DivId, DivProps, DivStyle, MainAlign, Size,
+                Text,
             },
             font_cache::RasterizedFont,
         },
@@ -39,11 +40,11 @@ impl Module for MyApp {
 
     fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
         let mut fonts = deps.ui.fonts;
-        let font_key = fonts.rasterize_default_font(50.0).unwrap();
+        let font_key = fonts.rasterize_default_font(40.0).unwrap();
 
         Ok(MyApp {
             deps,
-            ui: Board::new(dvec2(600.0, 600.0)),
+            ui: Board::new(dvec2(800.0, 800.0)),
             font_key,
         })
     }
@@ -67,8 +68,8 @@ impl MyApp {
             .start_frame(BoardInput::from_input_module(&self.deps.input));
         let (d1, _) = self.ui.add_non_text_div(
             DivProps {
-                width: Size::Px(300.0),
-                height: Size::Px(300.0),
+                width: Size::Px(700.0),
+                height: Size::Px(700.0),
                 axis: Axis::X,
                 main_align: MainAlign::Start,
                 cross_align: CrossAlign::Start,
@@ -112,6 +113,47 @@ impl MyApp {
             DivId::from(13),
             Some(d1),
         );
+
+        let text_div_comm = self.ui.add_text_div(
+            DivProps {
+                width: Size::Px(300.0),
+                height: Size::Px(300.0),
+                axis: Axis::Y,
+                main_align: MainAlign::Start,
+                cross_align: CrossAlign::Start,
+            },
+            DivStyle {
+                color: Color::BLACK,
+                z_bias: 0,
+            },
+            Text {
+                color: Color::new(6.0, 2.0, 2.0),
+                string: "Hello World I really like it here!".into(),
+                font: self.font_key,
+            },
+            DivId::from(2772),
+            Some(d1),
+        );
+
+        if let Some(comm) = text_div_comm {
+            if comm.hovered {
+                self.ui.add_non_text_div(
+                    DivProps {
+                        width: Size::Px(40.0),
+                        height: Size::Px(40.0),
+                        axis: Axis::Y,
+                        main_align: MainAlign::Start,
+                        cross_align: CrossAlign::Start,
+                    },
+                    DivStyle {
+                        color: Color::GREEN,
+                        z_bias: 0,
+                    },
+                    DivId::from(2112213232),
+                    Some(d1),
+                );
+            }
+        }
 
         self.ui.end_frame(&self.deps.ui.fonts);
         self.deps.ui.ui_renderer.draw_billboard(&self.ui);

@@ -1,3 +1,5 @@
+use std::ops::Add;
+
 use glam::{dvec2, vec2, DVec2, Vec2};
 
 ///  min_x, min_y form the top left corner.
@@ -57,6 +59,19 @@ pub struct Aabb {
     pub min_y: f32,
     pub max_x: f32,
     pub max_y: f32,
+}
+
+impl Add<Vec2> for Aabb {
+    type Output = Aabb;
+
+    fn add(self, rhs: Vec2) -> Self::Output {
+        Aabb {
+            min_x: self.min_x + rhs.x,
+            min_y: self.min_y + rhs.y,
+            max_x: self.max_x + rhs.x,
+            max_y: self.max_y + rhs.y,
+        }
+    }
 }
 
 impl Aabb {

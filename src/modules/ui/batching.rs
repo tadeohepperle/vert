@@ -1,5 +1,6 @@
 use std::ops::Range;
 
+use glam::vec2;
 use wgpu::VertexFormat;
 
 use crate::{
@@ -78,9 +79,13 @@ pub fn get_batches(board: &Board) -> BatchingResult {
             }
             SortPrimitive::Text { div, text, layout } => {
                 // todo! add text pos to glyphs
+                let div_pos = div.c_pos.get().as_vec2();
+
                 for (pos, uv) in layout.glyph_pos_and_atlas_uv.iter().copied() {
+                    // dbg!(pos);
+                    // dbg!(div_pos);
                     glyphs.push(GlyphRaw {
-                        pos,
+                        pos: pos + div_pos,
                         color: text.color,
                         uv,
                     });

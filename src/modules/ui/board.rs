@@ -14,7 +14,7 @@ use crate::{
 };
 use egui::ahash::HashSet;
 use etagere::euclid::default;
-use fontdue::layout::Layout;
+use fontdue::layout::{HorizontalAlign, Layout, VerticalAlign};
 use glam::{dvec2, vec2, DVec2, IVec2};
 use smallvec::{smallvec, SmallVec};
 
@@ -585,7 +585,11 @@ impl<'a> Layouter<'a> {
             y: 0.0,
             max_width: Some(max_size.x as f32),
             max_height: Some(max_size.y as f32),
-            ..Default::default() //  todo!() add more of these options to the Text struct.
+            horizontal_align: HorizontalAlign::Left,
+            vertical_align: VerticalAlign::Top,
+            line_height: 1.0,
+            wrap_style: fontdue::layout::WrapStyle::Word,
+            wrap_hard_breaks: true, // todo!() needle expose these functions
         };
         let result =
             self.fonts
