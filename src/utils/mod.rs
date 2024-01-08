@@ -35,17 +35,17 @@ pub fn next_pow2_number(mut n: usize) -> usize {
     }
 }
 
-/// Thin wrapper around UnsafeCell to make it less annoying.
+/// Thin wrapper around UnsafeCell to make it less annoying and more chill.
 ///
 /// Like RefCell but we don't keep count of borrowing, so it is a bit more unsafe, but free.
 #[derive(Debug)]
-pub struct YoloCell<T> {
+pub struct ChillCell<T> {
     _inner: UnsafeCell<T>,
 }
 
-impl<T> YoloCell<T> {
+impl<T> ChillCell<T> {
     pub const fn new(value: T) -> Self {
-        YoloCell {
+        ChillCell {
             _inner: UnsafeCell::new(value),
         }
     }
@@ -59,7 +59,7 @@ impl<T> YoloCell<T> {
     }
 }
 
-impl<T> Deref for YoloCell<T> {
+impl<T> Deref for ChillCell<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -67,7 +67,7 @@ impl<T> Deref for YoloCell<T> {
     }
 }
 
-impl<T> DerefMut for YoloCell<T> {
+impl<T> DerefMut for ChillCell<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self._inner.get_mut()
     }

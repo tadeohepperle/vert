@@ -1,4 +1,4 @@
-use glam::Vec2;
+use glam::{dvec2, vec2, DVec2, Vec2};
 
 ///  min_x, min_y form the top left corner.
 #[repr(C)]
@@ -39,6 +39,14 @@ impl Rect {
             && pos.y >= self.min_y
             && pos.x <= self.min_x + self.width
             && pos.y <= self.min_y + self.height
+    }
+
+    pub fn d_size(&self) -> DVec2 {
+        dvec2(self.width as f64, self.height as f64)
+    }
+
+    pub fn size(&self) -> Vec2 {
+        vec2(self.width, self.height)
     }
 }
 

@@ -10,12 +10,12 @@ use crate::{
     elements::{rect::Aabb, Color, Rect},
     modules::{arenas::Key, input::PressState, Input},
     prelude::{glam::Vec2, winit::event::MouseButton},
-    utils::YoloCell,
+    utils::ChillCell,
 };
 use egui::ahash::HashSet;
 use etagere::euclid::default;
 use fontdue::layout::Layout;
-use glam::{dvec2, vec2, DVec2};
+use glam::{dvec2, vec2, DVec2, IVec2};
 use smallvec::{smallvec, SmallVec};
 
 use super::{
@@ -107,7 +107,7 @@ impl Board {
         id: DivId,
         parent: Option<ParentDivId>,
     ) -> (ParentDivId, Option<Comm>) {
-        let comm = self._add_div(props, style, id, parent);
+        let comm = self._add_div(props, style, id, DivContent::Children(vec![]), parent);
         (ParentDivId { _priv: id }, comm)
     }
 
@@ -119,7 +119,7 @@ impl Board {
         id: DivId,
         parent: Option<ParentDivId>,
     ) -> Option<Comm> {
-        let comm = self._add_div(props, style, id, parent);
+        let comm = self._add_div(props, style, id, DivContent::Text(text), parent);
         comm
     }
 
@@ -128,6 +128,7 @@ impl Board {
         props: LayoutProps,
         style: DivStyle,
         id: DivId,
+        content: DivContent,
         parent: Option<ParentDivId>,
     ) -> Option<Comm> {
         // go into the parent and register the child:
@@ -159,11 +160,12 @@ impl Board {
                 div.last_frame = self.last_frame;
                 div.style = style;
                 div.i_id.set(usize::MAX);
-                div.content = DivContent::Children(vec![]);
+                div.content = content;
+                // technically we could also invalidate the font cache here, if the content is children and not text. But doe not matter much.
 
                 // return the Rect. (must be set, because the node was already inserted at a previous frame.)
-                let size = div.computed_size.get();
-                let pos = div.computed_pos.get();
+                let size = div.c_size.get();
+                let pos = div.c_pos.get();
                 rect = Some(Rect {
                     min_x: pos.x as f32,
                     min_y: pos.y as f32,
@@ -174,15 +176,19 @@ impl Board {
             Entry::Vacant(vacant) => {
                 vacant.insert(Div {
                     id,
-                    z_index,
                     props,
+                    z_index,
                     last_frame: self.last_frame,
                     style,
+                    content,
                     i_id: Cell::new(usize::MAX),
-                    computed_size: Cell::new(DVec2::ZERO),
-                    computed_pos: Cell::new(DVec2::ZERO),
-                    content: DivContent::Children(vec![]),
+                    c_size: Cell::new(DVec2::ZERO),
+                    c_pos: Cell::new(DVec2::ZERO),
+                    c_content_size: Cell::new(DVec2::ZERO),
+                    c_text_layout: ChillCell::new(None),
                 });
+
+                // rect not known yet.
                 rect = None;
             }
         };
@@ -210,201 +216,17 @@ impl Board {
     }
 
     /// call to transition from  BoardPhase::AddDivs -> BoardPhase::LayoutDone
-    pub fn end_frame(&mut self, font_cache: &FontCache) {
+    pub fn end_frame(&mut self, fonts: &FontCache) {
         assert_eq!(self.phase, BoardPhase::AddDivs);
         self.phase = BoardPhase::Rendering;
-        // /////////////////////////////////////////////////////////////////////////////
-        // Remove Nodes that have not been added/updated this frame
-        // /////////////////////////////////////////////////////////////////////////////
 
+        // Remove Nodes that have not been added/updated this frame
         self.divs.retain(|_, v| v.last_frame == self.last_frame);
 
-        // /////////////////////////////////////////////////////////////////////////////
         // Perform Layout
-        // /////////////////////////////////////////////////////////////////////////////
 
-        // Do text layout on all divs that have text in them:
-
-        todo!();
-
-        // for div in self.divs.values() {
-        //     if let Some(text) = &div.text {
-        //         if self.text_cache.get(text).is_none() {
-        //             println!("performed text layout for {text:?}");
-        //             let layout_settings = text.layout_settings(div);
-        //             let result = font_cache.perform_text_layout(
-        //                 &text.string,
-        //                 None,
-        //                 &layout_settings,
-        //                 text.font,
-        //             );
-        //             self.text_cache.insert(text.clone(), result);
-        //         }
-        //     }
-        // }
-    }
-
-    // determine the Rect of each div on this board.
-    fn perform_layout(&mut self, font_cache: &FontCache) {
-        // todo!() insert divs again later! or chang this.
-        let divs = std::mem::take(&mut self.divs);
-
-        // let mut divs: Vec<&Div> = vec![];
-        // for (i, d) in self.divs.values().enumerate() {
-        //     d.i_id.set(i);
-        //     divs.push(d);
-        // }
-
-        // go divs down, to compute the sizes:
-
-        // calculates and sets the sizes of the given div and all of its children recursively.
-        fn set_sizes(div: &Div, divs: &HashMap<DivId, Div>, mut parent_max_size: DVec2) -> DVec2 {
-            let w = div.props.width.px_value(parent_max_size.x);
-            let h = div.props.width.px_value(parent_max_size.y);
-            // None values indicate, that the size value is not known yet.
-            match (w, h) {
-                (Some(x), Some(y)) => {
-                    let own_size = dvec2(x, y);
-                    div.computed_size.set(own_size);
-
-                    match div.text_or_child_iter(divs) {
-                        TextOrChildIter::Text(content) => {
-                            todo!()
-                        }
-                        TextOrChildIter::Children(children) => {
-                            for child in children {
-                                set_sizes(child, divs, own_size);
-                            }
-                        }
-                    }
-                    return own_size;
-                }
-                (Some(x), None) => {
-                    // x is fixed, for y height, sum up the heights of all children.
-                    let max_size = dvec2(x, parent_max_size.y);
-                    let mut children_height = 0.0;
-
-                    match div.text_or_child_iter(divs) {
-                        TextOrChildIter::Text(content) => todo!(),
-                        TextOrChildIter::Children(children) => {
-                            for child in children {
-                                let child_size = set_sizes(child, divs, max_size);
-                                children_height += child_size.y;
-                            }
-                        }
-                    }
-
-                    let own_size = dvec2(x, children_height);
-                    div.computed_size.set(own_size);
-                    return own_size;
-                }
-                (None, Some(y)) => {
-                    // y is fixed, for x height, sum up the widths of all children.
-                    let max_size = dvec2(parent_max_size.x, y);
-                    let mut children_width = 0.0;
-
-                    match div.text_or_child_iter(divs) {
-                        TextOrChildIter::Text(content) => todo!(),
-                        TextOrChildIter::Children(children) => {
-                            for child in children {
-                                let child_size = set_sizes(child, divs, max_size);
-                                children_width += child_size.x;
-                            }
-                        }
-                    }
-
-                    let own_size = dvec2(children_width, y);
-                    div.computed_size.set(own_size);
-                    return own_size;
-                }
-                (None, None) => {
-                    // nothing is fixed, sum up the widths and heights of all children.
-                    let mut children_size = DVec2::ZERO;
-
-                    match div.text_or_child_iter(divs) {
-                        TextOrChildIter::Text(content) => todo!(),
-                        TextOrChildIter::Children(children) => {
-                            for child in children {
-                                let child_size = set_sizes(child, divs, parent_max_size);
-                                children_size += child_size;
-                            }
-                        }
-                    }
-
-                    let own_size = children_size;
-                    div.computed_size.set(own_size);
-                    return own_size;
-                }
-            }
-
-            // // combinations of fixed sizes:
-            // (Size::Px(x), Size::Px(y)) => {
-            //     let own_size = vec2(x, y);
-            //     div.computed_size.set(own_size);
-            //     for child in div.children(&divs) {
-            //         set_sizes(child, divs, own_size);
-            //     }
-            //     return own_size;
-            // }
-            // (Size::Px(x), Size::FractionOfParent(fry)) => {
-            //     let own_size = vec2(x, fry * parent_max_size.y);
-            //     div.computed_size.set(own_size);
-            //     for child in div.children(&divs) {
-            //         set_sizes(child, divs, own_size);
-            //     }
-            //     return own_size;
-            // }
-            // (Size::FractionOfParent(frx), Size::Px(y)) => {
-            //     let own_size = vec2(frx * parent_max_size.x, y);
-            //     div.computed_size.set(own_size);
-            //     for child in div.children(&divs) {
-            //         set_sizes(child, divs, own_size);
-            //     }
-            //     return own_size;
-            // }
-            // (Size::FractionOfParent(frx), Size::FractionOfParent(fry)) => {
-            //     let own_size = vec2(frx * parent_max_size.x, fry * parent_max_size.y);
-            //     div.computed_size.set(own_size);
-            //     for child in div.children(&divs) {
-            //         set_sizes(child, divs, own_size);
-            //     }
-            //     return own_size;
-            // }
-            // // now it gets more interesting:
-            // (Size::Px(x), Size::HugContent) => {
-            //     let max_size = vec2(x, parent_max_size.y);
-            //     let mut children_height: f32 = 0.0;
-            //     for child in div.children(&divs) {
-            //         let child_size = set_sizes(child, divs, max_size);
-            //         children_height += child_size.y;
-            //     }
-            //     let own_size = vec2(x, children_height);
-            //     div.computed_size.set(own_size);
-            //     return own_size;
-            // }
-            // (Size::HugContent, Size::Px(_)) => todo!(),
-            // (Size::FractionOfParent(_), Size::HugContent) => todo!(),
-            // (Size::HugContent, Size::FractionOfParent(_)) => todo!(),
-            // (Size::HugContent, Size::HugContent) => todo!(),
-
-            // if text, calculate layout and cache it.
-            // let size: Option<Vec2> = match &div.content {
-            //     DivContent::Text(text) => {
-            //         if let Some(cached) = text_cache.get(&text.text_and_font) {
-            //             Some(cached.total_rect)
-            //         } else {
-            //         }
-            //     }
-            //     DivContent::Children(_) => todo!(),
-            // };
-
-            // set the size
-        }
-
-        for id in self.top_level_children.iter() {
-            let top_div = self.divs.get(id).unwrap();
-            set_sizes(top_div, &divs, self.top_level_size);
-        }
+        let layouter = Layouter::new(&self.divs, fonts);
+        layouter.perform_full_layout(&self.top_level_children, self.top_level_size);
     }
 }
 
@@ -450,16 +272,19 @@ pub struct Div {
     i_id: Cell<usize>,
     // calculated as parent.z_index + 1, important for sorting in batching.
     pub(crate) z_index: i32,
-    // upon insertion, this is just a zero Rect.
-    pub(crate) computed_size: Cell<DVec2>,
-    pub(crate) computed_pos: Cell<DVec2>,
+
+    // computed sizes and position
+    pub(crate) c_size: Cell<DVec2>,
+    pub(crate) c_content_size: Cell<DVec2>,
+    pub(crate) c_pos: Cell<DVec2>,
+    pub(crate) c_text_layout: ChillCell<Option<CachedTextLayout>>,
 }
 
 impl Div {
     #[inline(always)]
     pub fn computed_aabb(&self) -> Aabb {
-        let size = self.computed_size.get();
-        let pos = self.computed_pos.get();
+        let size = self.c_size.get();
+        let pos = self.c_pos.get();
 
         Aabb {
             min_x: pos.x as f32,
@@ -469,50 +294,199 @@ impl Div {
         }
     }
 
-    fn text_or_child_iter<'a>(&'a self, divs: &'a HashMap<DivId, Div>) -> TextOrChildIter<'a> {
-        match &self.content {
-            DivContent::Text(t) => TextOrChildIter::Text(t),
-            DivContent::Children(children) => TextOrChildIter::Children(DivChildIter {
-                i: 0,
-                children_ids: children,
-                divs,
-            }),
+    #[inline(always)]
+    pub fn computed_rect(&self) -> Rect {
+        let size = self.c_size.get();
+        let pos = self.c_pos.get();
+
+        Rect {
+            min_x: pos.x as f32,
+            min_y: pos.y as f32,
+            width: size.x as f32,
+            height: size.y as f32,
         }
     }
 }
 
-enum TextOrChildIter<'a> {
-    Text(&'a TextContent),
-    Children(DivChildIter<'a>),
+struct Layouter<'a> {
+    divs: &'a HashMap<DivId, Div>,
+    fonts: &'a FontCache,
 }
 
-// pub struct DivChildIter<'a> {
-//     i: usize,
-//     div: &'a Div,
-//     divs: &'a HashMap<DivId, Div>,
-// }
+impl<'a> Layouter<'a> {
+    fn new(divs: &'a HashMap<DivId, Div>, fonts: &'a FontCache) -> Self {
+        Self { divs, fonts }
+    }
 
-// impl<'a> Iterator for DivChildIter<'a> {
-//     type Item = &'a Div;
+    /// determine the Rect of each div on this board.
+    /// ### Step 1: Determine Sizes of all Rects.
+    /// - go down from top level (known px size) recursively and set a size for each div.
+    ///   - if a div has a fixed size (px or percent of parent), use this size.
+    ///   - if a div has a hugchildren size:
+    ///     - if it has children: use sum of sizes of children in the axis direction.
+    ///     - if it has text: layout the text and use the size of the text
+    ///
+    /// So: determine own size + determine size of children (order depends on fixed vs. hug)
+    /// If Children: children_size = sum of all children, (0,0) if no children
+    /// If Text: text size.
+    ///
+    /// Children with Absolute Positioning: just ignore during determining own size?
+    ///
+    /// ### Step 2: Determine Positioning:
+    /// - Positioning depends on:
+    ///    - Parent Axis (X or Y)
+    ///    - Parent MainAxisAlignment (Start, Center, End, SpaceBetween, SpaceAround)
+    ///    - Parent CrossAxisAlignment (Start, Center, End)
+    ///
+    fn perform_full_layout(&self, top_level_children: &[DivId], top_level_size: DVec2) {
+        for id in top_level_children.iter() {
+            let top_div = self.divs.get(id).unwrap();
+            self.get_and_set_size(top_div, top_level_size);
+        }
+    }
 
-//     fn next(&mut self) -> Option<Self::Item> {
-//         match &self.div.content {
-//             DivContent::Text(_) => None,
-//             DivContent::Children(children) => {
-//                 let child_id = children.get(self.i)?;
-//                 let child = self.divs.get(child_id).unwrap();
-//                 self.i += 1;
-//                 Some(child)
-//             }
-//         }
-//     }
-// }
+    /// Calculates and sets the sizes of the given div and all of its children recursively.
+    ///
+    /// This follows 3 simple steps:
+    /// 1. find out if width or height are contrained to a fixed size, or if they should hug the content.
+    /// 2. figure out own size and content size
+    /// 3. sache own size and content size in the div, then return own size.
+    fn get_and_set_size(&self, div: &Div, parent_max_size: DVec2) -> DVec2 {
+        let fixed_w = div.props.width.px_value(parent_max_size.x);
+        let fixed_h = div.props.width.px_value(parent_max_size.y);
+
+        let own_size: DVec2;
+        let content_size: DVec2;
+        // None values indicate, that the size value is not known yet.
+        match (fixed_w, fixed_h) {
+            (Some(x), Some(y)) => {
+                own_size = dvec2(x, y);
+                content_size = self.get_and_set_content_size(div, own_size);
+            }
+            (Some(x), None) => {
+                // x is fixed, y height is the sum/max of children height (depending on axis y/x)
+                let max_size = dvec2(x, parent_max_size.y);
+
+                content_size = self.get_and_set_content_size(div, max_size);
+                own_size = dvec2(x, content_size.y);
+            }
+            (None, Some(y)) => {
+                // y is fixed, x width is the sum/max of children width (depending on axis y/x)
+                let max_size = dvec2(parent_max_size.x, y);
+
+                content_size = self.get_and_set_content_size(div, max_size);
+                own_size = dvec2(content_size.x, y);
+            }
+            (None, None) => {
+                // nothing is fixed, x width and y height are the sum/max of children widths and heights (depending on axis y/x)
+                content_size = self.get_and_set_content_size(div, parent_max_size);
+                own_size = content_size;
+            }
+        }
+
+        div.c_size.set(own_size);
+        div.c_content_size.set(content_size);
+
+        own_size
+    }
+
+    /// Returns the size of the content of this div.
+    ///   - if content is text, that is the size of the layouted text
+    ///   - if content is other divs, sum up their
+    ///
+    /// This function caches the content size in `c_content_size` and then returns `c_content_size`.
+    /// `content_max_size` is the max size the content (text or all children together) is allowed to take.
+    fn get_and_set_content_size(&self, div: &Div, content_max_size: DVec2) -> DVec2 {
+        let content_size: DVec2;
+        match &div.content {
+            DivContent::Text(text) => {
+                content_size = self.get_text_size_or_layout_and_set(
+                    text,
+                    &div.c_text_layout,
+                    content_max_size,
+                );
+            }
+            DivContent::Children(children) => {
+                content_size =
+                    self.get_and_set_child_sizes(children, content_max_size, div.props.axis);
+            }
+        }
+        div.c_content_size.set(content_size);
+        content_size
+    }
+
+    /// Returns the size the children take all together.
+    fn get_and_set_child_sizes(
+        &self,
+        children: &[DivId],
+        parent_max_size: DVec2,
+        parent_axis: Axis,
+    ) -> DVec2 {
+        let children = children.iter().map(|id| self.divs.get(id).unwrap());
+
+        let mut all_children_size = DVec2::ZERO;
+        match parent_axis {
+            Axis::X => {
+                for c in children {
+                    let child_size = self.get_and_set_size(c, parent_max_size);
+                    all_children_size.x += child_size.x;
+                    all_children_size.y = all_children_size.y.max(child_size.y);
+                }
+            }
+            Axis::Y => {
+                for c in children {
+                    let child_size = self.get_and_set_size(c, parent_max_size);
+                    all_children_size.x = all_children_size.x.max(child_size.x);
+                    all_children_size.y += child_size.y;
+                }
+            }
+        }
+        all_children_size
+    }
+
+    /// Returns the size of the layouted text.
+    fn get_text_size_or_layout_and_set(
+        &self,
+        text: &Text,
+        c_text_layout: &ChillCell<Option<CachedTextLayout>>,
+        max_size: DVec2,
+    ) -> DVec2 {
+        let i_max_size = max_size.as_ivec2();
+        // look for cached value and return it:
+        let mut cached = c_text_layout.get_mut();
+        if let Some(cached) = cached {
+            if cached.max_size == i_max_size {
+                return cached.result.total_rect.d_size();
+            }
+        }
+
+        // otherwise layout the text:
+        let layout_settings = fontdue::layout::LayoutSettings {
+            x: 0.0,
+            y: 0.0,
+            max_width: Some(max_size.x as f32),
+            max_height: Some(max_size.y as f32),
+            ..Default::default() //  todo!() add more of these options to the Text struct.
+        };
+        let result =
+            self.fonts
+                .perform_text_layout(&text.string, None, &layout_settings, text.font);
+        let text_size = result.total_rect.d_size();
+        *cached = Some(CachedTextLayout {
+            max_size: i_max_size,
+            result,
+        });
+        text_size
+    }
+}
 
 pub struct DivChildIter<'a> {
     i: usize,
     children_ids: &'a [DivId],
     divs: &'a HashMap<DivId, Div>,
 }
+
+impl<'a> DivChildIter<'a> {}
 
 impl<'a> Iterator for DivChildIter<'a> {
     type Item = &'a Div;
@@ -534,82 +508,8 @@ pub struct DivStyle {
 
 #[derive(Debug)]
 pub enum DivContent {
-    Text(TextContent),
+    Text(Text),
     Children(Vec<DivId>),
-}
-
-#[derive(Debug)]
-pub struct TextContent {
-    text: Text,
-    /// None means text layout has not been computed yet or was since invalidated
-    cached: YoloCell<Option<CachedTextLayout>>,
-}
-
-impl TextContent {
-    /// invalidates the text layout cache if it differs from old cache
-    pub fn set(&mut self, text: Text) {
-        // invalidate cache if the text we want to set differs.
-        if self.text.font != text.font || self.text.string != text.string {
-            self.cached = YoloCell::new(None);
-        }
-        self.text = text;
-    }
-
-    pub fn new(text: Text) -> Self {
-        TextContent {
-            text,
-            cached: YoloCell::new(None),
-        }
-    }
-
-    #[inline(always)]
-    pub fn text(&self) -> &Text {
-        &self.text
-    }
-
-    // returns a Rect that covers the text
-    pub fn get_cached_or_compute_layout(
-        &self,
-        fonts: &FontCache,
-        max_width: Option<f32>,
-        max_height: Option<f32>,
-    ) -> Rect {
-        let i_max_width = max_width.map(|e| e as i32);
-        let i_max_height = max_height.map(|e| e as i32);
-
-        // look for cached value and return it:
-        let cached = self.cached.get_mut();
-        if let Some(cached) = cached {
-            if cached.max_width == i_max_width && cached.max_height == i_max_height {
-                return cached.result.total_rect;
-            }
-        }
-
-        // otherwise layout the text:
-        let layout_settings = fontdue::layout::LayoutSettings {
-            x: 0.0,
-            y: 0.0,
-            max_width,
-            max_height,
-            ..Default::default() //  todo!() add more of these options to the Text struct.
-        };
-        let result =
-            fonts.perform_text_layout(&self.text.string, None, &layout_settings, self.text.font);
-        let total_rect = result.total_rect;
-        *cached = Some(CachedTextLayout {
-            max_width: i_max_width,
-            max_height: i_max_height,
-            result,
-        });
-        total_rect
-    }
-
-    /// # Panics
-    ///
-    /// Expects that the text layout has been computed before. Panics if it is None
-    pub fn get_cached_layout(&self) -> &TextLayoutResult {
-        &self.cached.get().as_ref().unwrap().result
-    }
 }
 
 #[derive(Debug)]
@@ -621,8 +521,9 @@ pub struct Text {
 
 #[derive(Debug)]
 pub struct CachedTextLayout {
-    pub max_width: Option<i32>,
-    pub max_height: Option<i32>,
+    /// Width and Height that the text can take at Max. Right now the assumption is that the text is always bounded by some way (e.g. the entire screen).
+    /// These can be integers, so that minor float differences do not cause a new layout.
+    pub max_size: IVec2,
     pub result: TextLayoutResult,
 }
 
@@ -634,16 +535,37 @@ pub struct LayoutProps {
     height: Size,
     /// Determines how children are layed out.
     axis: Axis,
+    main_align: MainAlign,
+    cross_align: CrossAlign,
+    // todo! translation, absolute
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum Axis {
     X,
     #[default]
     Y,
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum MainAlign {
+    #[default]
+    Start,
+    Center,
+    End,
+    SpaceBetween,
+    SpaceAround,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum CrossAlign {
+    #[default]
+    Start,
+    Center,
+    End,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub enum Size {
     Px(f64),
     FractionOfParent(f64),

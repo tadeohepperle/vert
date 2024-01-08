@@ -8,8 +8,8 @@ use crate::{
 };
 
 use super::{
-    board::{Board, CachedTextLayout, Div, DivContent, Text, TextContent},
-    font_cache::RasterizedFont,
+    board::{Board, CachedTextLayout, Div, DivContent, Text},
+    font_cache::{RasterizedFont, TextLayoutResult},
 };
 
 /// Warning: call only after layout has been performed on the billboard (for all rects and the text in them)
@@ -22,7 +22,13 @@ pub fn get_batches(board: &Board) -> BatchingResult {
         // add the div itself as a primitive.
 
         if let DivContent::Text(text) = &div.content {
-            sort_primitives.push(SortPrimitive::Text { div, text });
+            let layout = &div
+                .c_text_layout
+                .get()
+                .as_ref()
+                .expect("Text layout mush have been computed before")
+                .result;
+            sort_primitives.push(SortPrimitive::Text { div, text, layout });
             // add the text glyphs as primitives.
         }
     }
@@ -38,9 +44,7 @@ pub fn get_batches(board: &Board) -> BatchingResult {
     if let Some(first) = sort_primitives.first() {
         let batch = match first {
             SortPrimitive::Rect { .. } => BatchRegion::Rect(0..0),
-            SortPrimitive::Text { text: div_text, .. } => {
-                BatchRegion::Text(0..0, div_text.text().font)
-            }
+            SortPrimitive::Text { text, .. } => BatchRegion::Text(0..0, text.font),
         };
         batches.push(batch);
     }
@@ -58,9 +62,7 @@ pub fn get_batches(board: &Board) -> BatchingResult {
             // create a new batch:
             let new_batch = match prim {
                 SortPrimitive::Rect { .. } => BatchRegion::Rect(0..0),
-                SortPrimitive::Text { text: div_text, .. } => {
-                    BatchRegion::Text(0..0, div_text.text().font)
-                }
+                SortPrimitive::Text { text, .. } => BatchRegion::Text(0..0, text.font),
             };
             batches.push(new_batch);
         }
@@ -74,13 +76,11 @@ pub fn get_batches(board: &Board) -> BatchingResult {
                 };
                 rects.push(rect_raw);
             }
-            SortPrimitive::Text { div, text } => {
-                // todo! this lookup is bad for performance! a simple pointer to the layout result would be better.
-                let layout_res = text.get_cached_layout();
-                for (pos, uv) in layout_res.glyph_pos_and_atlas_uv.iter().copied() {
+            SortPrimitive::Text { div, text, layout } => {
+                for (pos, uv) in layout.glyph_pos_and_atlas_uv.iter().copied() {
                     glyphs.push(GlyphRaw {
                         pos,
-                        color: text.text().color,
+                        color: text.color,
                         uv,
                     });
                 }
@@ -106,8 +106,14 @@ pub fn get_batches(board: &Board) -> BatchingResult {
 
 #[derive(Debug, Clone, Copy)]
 enum SortPrimitive<'a> {
-    Rect { div: &'a Div },
-    Text { div: &'a Div, text: &'a TextContent },
+    Rect {
+        div: &'a Div,
+    },
+    Text {
+        div: &'a Div,
+        text: &'a Text,
+        layout: &'a TextLayoutResult,
+    },
 }
 
 impl<'a> SortPrimitive<'a> {
@@ -124,7 +130,7 @@ impl<'a> SortPrimitive<'a> {
     fn batch_key(&self) -> u64 {
         match self {
             SortPrimitive::Rect { .. } => u64::MAX,
-            SortPrimitive::Text { text: div_text, .. } => div_text.text().font.as_u64(),
+            SortPrimitive::Text { text, .. } => text.font.as_u64(),
         }
     }
 }
