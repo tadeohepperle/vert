@@ -141,8 +141,8 @@ impl FontCache {
             let uv = Aabb::new(
                 offset_in_atlas.x as f32 / atlas_width as f32,
                 offset_in_atlas.y as f32 / atlas_height as f32,
-                (allocation.rectangle.max.x + PAD_PX as i32) as f32 / atlas_width as f32,
-                (allocation.rectangle.max.y + PAD_PX as i32) as f32 / atlas_height as f32,
+                (offset_in_atlas.x + metrics.width as i32) as f32 / atlas_width as f32,
+                (offset_in_atlas.y + metrics.height as i32) as f32 / atlas_height as f32,
             );
 
             // copy glyph image to the right region of the texture.
@@ -165,6 +165,9 @@ impl FontCache {
         }
 
         // create a texture that contains the atlas image.
+
+        atlas_image.save("atlas.png");
+
         let texture = Texture::from_image(&self.ctx.device, &self.ctx.queue, &atlas_image);
         let texture = BindableTexture::new(&self.ctx.device, texture);
 
