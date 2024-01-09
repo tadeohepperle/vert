@@ -55,7 +55,7 @@ impl Module for WinitMain {
         //     .clone()
         //     .map_or(PhysicalSize::new(800, 600), |vm| vm.size());
 
-        let size = PhysicalSize::new(400, 300);
+        let size = PhysicalSize::new(1200, 700);
 
         let window = WindowBuilder::new()
             .with_visible(true)

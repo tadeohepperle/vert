@@ -5,10 +5,10 @@ use std::{
         hash_map::{Entry, OccupiedEntry},
         HashMap,
     },
-    hash::Hash,
+    hash::{Hash, Hasher},
     iter::Map,
     marker::PhantomData,
-    ops::{Deref, DerefMut},
+    ops::{Add, Deref, DerefMut},
 };
 
 use crate::{
@@ -26,26 +26,44 @@ use smallvec::{smallvec, SmallVec};
 use super::{
     batching::{get_batches, BatchingResult},
     font_cache::{FontCache, RasterizedFont, TextLayoutResult},
+    widgets::Widget,
 };
 
 /// A wrapper around a non-text div that can be used as a parent key when inserting a child div.
 /// (text divs cannot have children).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct NonTextDivId {
+pub struct ContainerId {
     /// you cannot set this manually, to ensure only DivIds that belong to a Div with DivContent::Children.
-    _priv: DivId,
+    _priv: Id,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DivId(pub u64);
+pub struct Id(pub u64);
 
-impl From<u64> for DivId {
-    fn from(value: u64) -> Self {
-        DivId(value)
+impl Add<u64> for Id {
+    type Output = Id;
+
+    fn add(self, rhs: u64) -> Self::Output {
+        Id(self.0 + rhs)
     }
 }
 
-/// A Board represents a screen, that contains UI-elements.
+impl From<&'static str> for Id {
+    fn from(value: &'static str) -> Self {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        value.hash(&mut hasher);
+        let h = hasher.finish();
+        Self(h)
+    }
+}
+
+impl From<u64> for Id {
+    fn from(value: u64) -> Self {
+        Id(value)
+    }
+}
+
+/// A Board represents a canvas/screen, that we can add UI-elements too. It has a bounded fixed size.
 /// The Board could just represent the window screen directly, or be somewhere in the 3d space.
 /// If a Board is in 3d space in the world, we just need to render it differently
 /// and pass in the mouse pos via raycasting.
@@ -54,8 +72,8 @@ pub struct Board {
     phase: BoardPhase,
     input: BoardInput,
     top_level_size: DVec2,
-    top_level_children: Vec<DivId>,
-    divs: HashMap<DivId, Div>,
+    top_level_children: Vec<Id>,
+    divs: HashMap<Id, Div>,
 }
 
 /// The Board alternates between two phases:
@@ -103,16 +121,25 @@ impl Board {
         }
     }
 
+    pub fn add<'a, W: Widget>(
+        &'a mut self,
+        widget: W,
+        id: Id,
+        parent: Option<ContainerId>,
+    ) -> W::Response<'a> {
+        widget.add_to_board(self, id, parent)
+    }
+
     pub fn add_non_text_div<'a>(
         &'a mut self,
         props: DivProps,
         style: DivStyle,
-        id: DivId,
-        parent: Option<NonTextDivId>,
-    ) -> NonTextResponse<'a> {
+        id: Id,
+        parent: Option<ContainerId>,
+    ) -> ContainerResponse<'a> {
         let (comm, entry) = self._add_div(props, style, id, DivContent::Children(vec![]), parent);
-        let div_id = NonTextDivId { _priv: id };
-        NonTextResponse {
+        let div_id = ContainerId { _priv: id };
+        ContainerResponse {
             id: div_id,
             comm,
             entry,
@@ -124,10 +151,10 @@ impl Board {
         props: DivProps,
         style: DivStyle,
         text: Text,
-        id: DivId,
-        parent: Option<NonTextDivId>,
+        id: Id,
+        parent: Option<ContainerId>,
     ) -> TextResponse<'a> {
-        let (comm, entry): (Option<Comm>, OccupiedEntry<'_, DivId, Div>) =
+        let (comm, entry): (Option<Comm>, OccupiedEntry<'_, Id, Div>) =
             self._add_div(props, style, id, DivContent::Text(text), parent);
         TextResponse { comm, entry }
     }
@@ -136,10 +163,10 @@ impl Board {
         &'a mut self,
         props: DivProps,
         style: DivStyle,
-        id: DivId,
+        id: Id,
         content: DivContent,
-        parent: Option<NonTextDivId>,
-    ) -> (Option<Comm>, OccupiedEntry<'a, DivId, Div>) {
+        parent: Option<ContainerId>,
+    ) -> (Option<Comm>, OccupiedEntry<'a, Id, Div>) {
         // go into the parent and register the child:
         let parent_z_index = if let Some(parent) = parent {
             let parent = self.divs.get_mut(&parent._priv).expect("Invalid Parent...");
@@ -156,7 +183,7 @@ impl Board {
         // insert child entry. z_index is always 1 more than parent to render on top.
         let z_index = parent_z_index + 1 + style.z_bias * 1024;
         let rect: Option<Rect>;
-        let entry: OccupiedEntry<'a, DivId, Div>;
+        let entry: OccupiedEntry<'a, Id, Div>;
         match self.divs.entry(id) {
             Entry::Occupied(mut e) => {
                 let div = e.get_mut();
@@ -239,14 +266,14 @@ impl Board {
     }
 }
 
-pub struct NonTextResponse<'a> {
+pub struct ContainerResponse<'a> {
     /// to be used as a parent for another div
-    pub id: NonTextDivId,
+    pub id: ContainerId,
     comm: Option<Comm>,
-    pub entry: OccupiedEntry<'a, DivId, Div>,
+    pub entry: OccupiedEntry<'a, Id, Div>,
 }
 
-impl<'a> Deref for NonTextResponse<'a> {
+impl<'a> Deref for ContainerResponse<'a> {
     type Target = DivStyle;
 
     fn deref(&self) -> &Self::Target {
@@ -254,13 +281,13 @@ impl<'a> Deref for NonTextResponse<'a> {
     }
 }
 
-impl<'a> DerefMut for NonTextResponse<'a> {
+impl<'a> DerefMut for ContainerResponse<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.entry.get_mut().style
     }
 }
 
-impl<'a> NonTextResponse<'a> {
+impl<'a> ContainerResponse<'a> {
     pub fn is_hovered(&self) -> bool {
         if let Some(comm) = &self.comm {
             comm.hovered
@@ -276,7 +303,7 @@ impl<'a> NonTextResponse<'a> {
 
 pub struct TextResponse<'a> {
     comm: Option<Comm>,
-    pub entry: OccupiedEntry<'a, DivId, Div>,
+    pub entry: OccupiedEntry<'a, Id, Div>,
 }
 
 impl<'a> TextResponse<'a> {
@@ -333,7 +360,7 @@ pub struct Comm {
 
 #[derive(Debug)]
 pub struct Div {
-    id: DivId,
+    id: Id,
     pub(crate) content: DivContent,
     pub(crate) props: DivProps,
     pub(crate) style: DivStyle,
@@ -378,12 +405,12 @@ impl Div {
 }
 
 struct Layouter<'a> {
-    divs: &'a HashMap<DivId, Div>,
+    divs: &'a HashMap<Id, Div>,
     fonts: &'a FontCache,
 }
 
 impl<'a> Layouter<'a> {
-    fn new(divs: &'a HashMap<DivId, Div>, fonts: &'a FontCache) -> Self {
+    fn new(divs: &'a HashMap<Id, Div>, fonts: &'a FontCache) -> Self {
         Self { divs, fonts }
     }
 
@@ -407,7 +434,7 @@ impl<'a> Layouter<'a> {
     ///    - Parent MainAxisAlignment (Start, Center, End, SpaceBetween, SpaceAround)
     ///    - Parent CrossAxisAlignment (Start, Center, End)
     ///
-    fn perform_layout(&self, top_level_children: &[DivId], top_level_size: DVec2) {
+    fn perform_layout(&self, top_level_children: &[Id], top_level_size: DVec2) {
         // Note: Right now top level divs have no relationship to each other, they are all individually positioned on the screen.
         // That means: adding another top level div never changes the position of other top level divs.
         for id in top_level_children.iter() {
@@ -521,12 +548,23 @@ impl<'a> Layouter<'a> {
                         }
                     }
 
+                    let calc_cross_offset = match div.props.cross_align {
+                        CrossAlign::Start => |cross_parent: f64, cross_item: f64| -> f64 { 0.0 },
+                        CrossAlign::Center => |cross_parent: f64, cross_item: f64| -> f64 {
+                            (cross_parent - cross_item) * 0.5
+                        },
+                        CrossAlign::End => |cross_parent: f64, cross_item: f64| -> f64 {
+                            cross_parent - cross_item
+                        },
+                    };
+
                     let children = children.iter().map(|e| sel.divs.get(e).unwrap());
 
                     let mut main_v = main_axis_offset;
                     for ch in children {
                         let (ch_main_size, ch_cross_size) = A::disassemble(ch.c_size.get());
-                        let ch_pos = A::assemble(main_v, 0.0); // 0.0 if we always assume crossaxis align start.
+                        let cross = calc_cross_offset(cross_size, ch_cross_size);
+                        let ch_pos = A::assemble(main_v, cross); // 0.0 if we always assume crossaxis align start.
                         ch.c_pos.set(ch_pos);
                         main_v += ch_main_size + main_axis_step;
                     }
@@ -610,7 +648,7 @@ impl<'a> Layouter<'a> {
     /// Returns the size the children take all together.
     fn get_and_set_child_sizes(
         &self,
-        children: &[DivId],
+        children: &[Id],
         parent_max_size: DVec2,
         parent_axis: Axis,
     ) -> DVec2 {
@@ -678,8 +716,8 @@ impl<'a> Layouter<'a> {
 
 pub struct DivChildIter<'a> {
     i: usize,
-    children_ids: &'a [DivId],
-    divs: &'a HashMap<DivId, Div>,
+    children_ids: &'a [Id],
+    divs: &'a HashMap<Id, Div>,
 }
 
 impl<'a> DivChildIter<'a> {}
@@ -716,7 +754,7 @@ impl Default for DivStyle {
             z_bias: 0,
             border_thickness: 0.0,
             border_softness: 1.0,
-            border_color: Color::TRANSPARENT,
+            border_color: Color::BLACK,
         }
     }
 }
@@ -754,7 +792,7 @@ impl BorderRadius {
 #[derive(Debug)]
 pub enum DivContent {
     Text(Text),
-    Children(Vec<DivId>),
+    Children(Vec<Id>),
 }
 
 #[derive(Debug)]
@@ -775,14 +813,26 @@ pub struct CachedTextLayout {
 #[derive(Debug)]
 pub struct DivProps {
     // Determines width of Self
-    pub width: Size,
+    pub width: Len,
     /// Determines height of Self
-    pub height: Size,
+    pub height: Len,
     /// Determines how children are layed out.
     pub axis: Axis,
     pub main_align: MainAlign,
     pub cross_align: CrossAlign,
-    // todo! translation, absolute
+    // todo! translation, absolute, padding, margin
+}
+
+impl Default for DivProps {
+    fn default() -> Self {
+        Self {
+            width: Len::HugContent,
+            height: Len::HugContent,
+            axis: Axis::Y,
+            main_align: MainAlign::Start,
+            cross_align: CrossAlign::Start,
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -811,19 +861,19 @@ pub enum CrossAlign {
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
-pub enum Size {
+pub enum Len {
     Px(f64),
     FractionOfParent(f64),
     #[default]
     HugContent,
 }
 
-impl Size {
+impl Len {
     pub fn px_value(&self, parent_px_size: f64) -> Option<f64> {
         match self {
-            Size::Px(x) => Some(*x),
-            Size::FractionOfParent(fr) => Some(*fr * parent_px_size),
-            Size::HugContent => None,
+            Len::Px(x) => Some(*x),
+            Len::FractionOfParent(fr) => Some(*fr * parent_px_size),
+            Len::HugContent => None,
         }
     }
 }

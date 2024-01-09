@@ -6,6 +6,7 @@ pub mod batching;
 pub mod board;
 pub mod font_cache;
 pub mod ui_renderer;
+pub mod widgets;
 
 #[derive(Debug, Clone, Dependencies)]
 pub struct UiDeps {

@@ -9,7 +9,7 @@ struct ScreenSize {
 var<uniform> screen: ScreenSize;
 
 struct Instance {
-    @location(0) pos: vec4<f32>, // pos aabb for the glyph
+    @location(0) aabb: vec4<f32>, // pos aabb for the glyph
     @location(1) color: vec4<f32>,
     @location(2) border_radius: vec4<f32>,
     @location(3) border_color: vec4<f32>,
@@ -38,14 +38,14 @@ fn vs_main(
     @builtin(vertex_index) vertex_index: u32,
     instance: Instance,
 ) -> VertexOutput {
-    let vertex = rect_vertex(vertex_index, instance.pos);
+    let vertex = rect_vertex(vertex_index, instance.aabb);
     let device_pos = vec2<f32>((vertex.pos.x / screen.width) * 2.0 - 1.0, 1.0 - (vertex.pos.y / screen.height) * 2.0) ;
-    let center = instance.pos.xy + instance.pos.zw * 0.5;
+    let center = (instance.aabb.xy + instance.aabb.zw) * 0.5;
 
     var out: VertexOutput;
     out.clip_position = vec4<f32>(device_pos, 0.0, 1.0);
     out.offset = vertex.pos - center;
-    out.size = instance.pos.zw;
+    out.size = instance.aabb.zw - instance.aabb.xy;
 
     out.color = instance.color;
     out.border_radius = instance.border_radius;
@@ -71,20 +71,20 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 // |   .    |
 // |     .  |
 // 3 ------ 2  
-fn rect_vertex(idx: u32, pos: vec4<f32>) -> Vertex {
+fn rect_vertex(idx: u32, aabb: vec4<f32>) -> Vertex {
     var out: Vertex;
     switch idx {
       case 0u, 4u: {
-            out.pos = vec2<f32>(pos.x, pos.y); // min x, min y 
+            out.pos = vec2<f32>(aabb.x, aabb.y); // min x, min y 
         }
       case 1u: {
-            out.pos = vec2<f32>(pos.x, pos.w); // min x, max y 
+            out.pos = vec2<f32>(aabb.x, aabb.w); // min x, max y 
         }
       case 2u, 5u: {
-            out.pos = vec2<f32>(pos.z, pos.w); // max x, max y
+            out.pos = vec2<f32>(aabb.z, aabb.w); // max x, max y
         }
       case 3u, default: {
-            out.pos = vec2<f32>(pos.z, pos.y); // max x, min y 
+            out.pos = vec2<f32>(aabb.z, aabb.y); // max x, min y 
         }
     }
     return out;

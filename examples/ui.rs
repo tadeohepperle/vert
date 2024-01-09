@@ -7,10 +7,11 @@ use vert::{
         renderer::main_pass_renderer::{text_renderer::DrawText, ui_rect::UiRect},
         ui::{
             board::{
-                Axis, Board, BoardInput, BorderRadius, CrossAlign, DivId, DivProps, DivStyle,
-                MainAlign, Size, Text,
+                Axis, Board, BoardInput, BorderRadius, CrossAlign, DivProps, DivStyle, Id, Len,
+                MainAlign, Text,
             },
             font_cache::RasterizedFont,
+            widgets::Button,
         },
         DefaultDependencies, DefaultModules, MainPassRenderer, Schedule,
     },
@@ -71,29 +72,29 @@ impl MyApp {
 
         self.ui
             .start_frame(BoardInput::from_input_module(&self.deps.input));
-        let d1 = self
+        let parent = self
             .ui
             .add_non_text_div(
                 DivProps {
-                    width: Size::Px(700.0),
-                    height: Size::Px(700.0),
+                    width: Len::Px(700.0),
+                    height: Len::Px(700.0),
                     axis: Axis::X,
-                    main_align: MainAlign::Start,
-                    cross_align: CrossAlign::Start,
+                    main_align: MainAlign::SpaceBetween,
+                    cross_align: CrossAlign::End,
                 },
                 DivStyle {
                     color: Color::RED,
                     ..Default::default()
                 },
-                DivId::from(11),
+                Id::from(11),
                 None,
             )
             .id;
 
         self.ui.add_non_text_div(
             DivProps {
-                width: Size::Px(100.0),
-                height: Size::Px(200.0),
+                width: Len::Px(100.0),
+                height: Len::Px(200.0),
                 axis: Axis::Y,
                 main_align: MainAlign::Start,
                 cross_align: CrossAlign::Start,
@@ -106,14 +107,14 @@ impl MyApp {
                 border_softness: 1.0,
                 ..Default::default()
             },
-            DivId::from(12),
-            Some(d1),
+            Id::from(12),
+            Some(parent),
         );
 
         self.ui.add_non_text_div(
             DivProps {
-                width: Size::Px(100.0),
-                height: Size::Px(20.0),
+                width: Len::Px(100.0),
+                height: Len::Px(20.0),
                 axis: Axis::Y,
                 main_align: MainAlign::Start,
                 cross_align: CrossAlign::Start,
@@ -122,20 +123,22 @@ impl MyApp {
                 color: Color::BLACK,
                 ..Default::default()
             },
-            DivId::from(13),
-            Some(d1),
+            Id::from(13),
+            Some(parent),
         );
 
         let mut text_div_comm = self.ui.add_text_div(
             DivProps {
-                width: Size::Px(300.0),
-                height: Size::Px(300.0),
+                width: Len::Px(300.0),
+                height: Len::Px(400.0),
                 axis: Axis::Y,
                 main_align: MainAlign::Start,
                 cross_align: CrossAlign::Start,
             },
             DivStyle {
                 color: Color::YELLOW,
+                border_radius: BorderRadius::all(20.0),
+                border_thickness: 20.0,
                 ..Default::default()
             },
             Text {
@@ -143,8 +146,8 @@ impl MyApp {
                 string: "Hello World I really like it here!".into(),
                 font: self.font_key,
             },
-            DivId::from(2772),
-            Some(d1),
+            Id::from(2772),
+            Some(parent),
         );
 
         // can immediately edit the style and text without a 1-frame lag:
@@ -161,8 +164,8 @@ impl MyApp {
         if text_div_comm.is_hovered() {
             self.ui.add_non_text_div(
                 DivProps {
-                    width: Size::Px(40.0),
-                    height: Size::Px(40.0),
+                    width: Len::Px(40.0),
+                    height: Len::Px(40.0),
                     axis: Axis::Y,
                     main_align: MainAlign::Start,
                     cross_align: CrossAlign::Start,
@@ -171,10 +174,22 @@ impl MyApp {
                     color: Color::GREEN,
                     ..Default::default()
                 },
-                DivId::from(2112213232),
-                Some(d1),
+                Id::from(2112213232),
+                Some(parent),
             );
         }
+
+        self.ui.add(
+            Button {
+                text: "Hello".into(),
+                text_color: Color::BLUE,
+                color: Color::GREY,
+                hover_color: Color::LIGHTGREY,
+                font: self.font_key,
+            },
+            Id::from("my button"),
+            Some(parent),
+        );
 
         self.ui.end_frame(&self.deps.ui.fonts);
         self.deps.ui.ui_renderer.draw_billboard(&self.ui);
