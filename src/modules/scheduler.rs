@@ -46,7 +46,7 @@ impl Scheduler {
         UpdateFlow::Continue
     }
 
-    pub fn on_update<M: Module>(
+    pub fn register_update<M: Module>(
         &mut self,
         handle: Handle<M>,
         timing: Timing,

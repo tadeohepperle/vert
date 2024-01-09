@@ -43,7 +43,7 @@ impl FlyCam {
         const SPEED: f32 = 10.0;
         const ANGLE_SPEED: f32 = 1.8;
 
-        let delta_time = self.deps.time.delta_secs();
+        let delta_time = self.deps.time.delta().as_secs_f32();
         let cam = self.deps.cam.camera_mut();
         let cam_transform = &mut cam.transform;
 

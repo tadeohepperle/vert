@@ -1,5 +1,6 @@
 use std::ops::Range;
 
+use fontdue::Font;
 use glam::vec2;
 use wgpu::VertexFormat;
 
@@ -10,7 +11,7 @@ use crate::{
 
 use super::{
     board::{Board, BorderRadius, CachedTextLayout, Div, DivContent, Text},
-    font_cache::{RasterizedFont, TextLayoutResult},
+    font_cache::{FontSize, TextLayoutResult},
 };
 
 /// Warning: call only after layout has been performed on the billboard (for all rects and the text in them)
@@ -142,7 +143,7 @@ impl<'a> SortPrimitive<'a> {
     fn batch_key(&self) -> u64 {
         match self {
             SortPrimitive::Rect { .. } => u64::MAX,
-            SortPrimitive::Text { text, .. } => text.font.as_u64(),
+            SortPrimitive::Text { text, .. } => text.font.map(|e| e.as_u64()).unwrap_or(0),
         }
     }
 }
@@ -150,7 +151,7 @@ impl<'a> SortPrimitive<'a> {
 #[derive(Debug)]
 pub enum BatchRegion {
     Rect(Range<usize>),
-    Text(Range<usize>, Key<RasterizedFont>),
+    Text(Range<usize>, Option<Key<Font>>),
 }
 
 impl BatchRegion {
@@ -158,7 +159,7 @@ impl BatchRegion {
     fn batch_key(&self) -> u64 {
         match self {
             BatchRegion::Rect(_) => u64::MAX,
-            BatchRegion::Text(_, font) => font.as_u64(),
+            BatchRegion::Text(_, font) => font.map(|e| e.as_u64()).unwrap_or(0),
         }
     }
 }

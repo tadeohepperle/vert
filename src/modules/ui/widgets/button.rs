@@ -1,5 +1,7 @@
 use std::borrow::Cow;
 
+use fontdue::Font;
+
 use crate::{
     elements::Color,
     modules::{
@@ -8,7 +10,7 @@ use crate::{
             board::{
                 Board, BorderRadius, ContainerId, DivProps, DivStyle, Id, Len, MainAlign, Text,
             },
-            font_cache::RasterizedFont,
+            font_cache::FontSize,
         },
     },
 };
@@ -20,7 +22,7 @@ pub struct Button {
     pub text_color: Color,
     pub color: Color,
     pub hover_color: Color,
-    pub font: Key<RasterizedFont>,
+    pub font: Option<Key<Font>>,
 }
 
 pub struct ButtonResponse {
@@ -55,6 +57,7 @@ impl Widget for Button {
                 color: self.text_color,
                 string: self.text,
                 font: self.font,
+                size: FontSize(24),
             },
             id,
             parent,

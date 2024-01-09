@@ -19,13 +19,16 @@ use crate::{
 };
 use egui::ahash::HashSet;
 use etagere::euclid::default;
-use fontdue::layout::{HorizontalAlign, Layout, VerticalAlign};
+use fontdue::{
+    layout::{HorizontalAlign, Layout, VerticalAlign},
+    Font,
+};
 use glam::{dvec2, vec2, DVec2, IVec2};
 use smallvec::{smallvec, SmallVec};
 
 use super::{
     batching::{get_batches, BatchingResult},
-    font_cache::{FontCache, RasterizedFont, TextLayoutResult},
+    font_cache::{FontCache, FontSize, TextLayoutResult},
     widgets::Widget,
 };
 
@@ -252,7 +255,7 @@ impl Board {
     }
 
     /// call to transition from  BoardPhase::AddDivs -> BoardPhase::LayoutDone
-    pub fn end_frame(&mut self, fonts: &FontCache) {
+    pub fn end_frame(&mut self, fonts: &mut FontCache) {
         assert_eq!(self.phase, BoardPhase::AddDivs);
         self.phase = BoardPhase::Rendering;
 
@@ -261,7 +264,7 @@ impl Board {
         self.last_frame += 1;
 
         // Perform Layout (set sizes and positions for all divs in the tree)
-        let layouter = Layouter::new(&self.divs, fonts);
+        let mut layouter = Layouter::new(&self.divs, fonts);
         layouter.perform_layout(&self.top_level_children, self.top_level_size);
     }
 }
@@ -406,11 +409,11 @@ impl Div {
 
 struct Layouter<'a> {
     divs: &'a HashMap<Id, Div>,
-    fonts: &'a FontCache,
+    fonts: &'a mut FontCache,
 }
 
 impl<'a> Layouter<'a> {
-    fn new(divs: &'a HashMap<Id, Div>, fonts: &'a FontCache) -> Self {
+    fn new(divs: &'a HashMap<Id, Div>, fonts: &'a mut FontCache) -> Self {
         Self { divs, fonts }
     }
 
@@ -434,7 +437,7 @@ impl<'a> Layouter<'a> {
     ///    - Parent MainAxisAlignment (Start, Center, End, SpaceBetween, SpaceAround)
     ///    - Parent CrossAxisAlignment (Start, Center, End)
     ///
-    fn perform_layout(&self, top_level_children: &[Id], top_level_size: DVec2) {
+    fn perform_layout(&mut self, top_level_children: &[Id], top_level_size: DVec2) {
         // Note: Right now top level divs have no relationship to each other, they are all individually positioned on the screen.
         // That means: adding another top level div never changes the position of other top level divs.
         for id in top_level_children.iter() {
@@ -581,7 +584,7 @@ impl<'a> Layouter<'a> {
     /// 1. find out if width or height are contrained to a fixed size, or if they should hug the content.
     /// 2. figure out own size and content size
     /// 3. sache own size and content size in the div, then return own size.
-    fn get_and_set_size(&self, div: &Div, parent_max_size: DVec2) -> DVec2 {
+    fn get_and_set_size(&mut self, div: &Div, parent_max_size: DVec2) -> DVec2 {
         let fixed_w = div.props.width.px_value(parent_max_size.x);
         let fixed_h = div.props.height.px_value(parent_max_size.y);
 
@@ -626,7 +629,7 @@ impl<'a> Layouter<'a> {
     ///
     /// This function caches the content size in `c_content_size` and then returns `c_content_size`.
     /// `content_max_size` is the max size the content (text or all children together) is allowed to take.
-    fn get_and_set_content_size(&self, div: &Div, content_max_size: DVec2) -> DVec2 {
+    fn get_and_set_content_size(&mut self, div: &Div, content_max_size: DVec2) -> DVec2 {
         let content_size: DVec2;
         match &div.content {
             DivContent::Text(text) => {
@@ -647,7 +650,7 @@ impl<'a> Layouter<'a> {
 
     /// Returns the size the children take all together.
     fn get_and_set_child_sizes(
-        &self,
+        &mut self,
         children: &[Id],
         parent_max_size: DVec2,
         parent_axis: Axis,
@@ -676,7 +679,7 @@ impl<'a> Layouter<'a> {
 
     /// Returns the size of the layouted text.
     fn get_text_size_or_layout_and_set(
-        &self,
+        &mut self,
         text: &Text,
         c_text_layout: &ChillCell<Option<CachedTextLayout>>,
         max_size: DVec2,
@@ -702,9 +705,13 @@ impl<'a> Layouter<'a> {
             wrap_style: fontdue::layout::WrapStyle::Word,
             wrap_hard_breaks: true, // todo!() needle expose these functions
         };
-        let result =
-            self.fonts
-                .perform_text_layout(&text.string, None, &layout_settings, text.font);
+        let result = self.fonts.perform_text_layout(
+            &text.string,
+            text.size,
+            text.size.into(),
+            &layout_settings,
+            text.font,
+        );
         let text_size = result.total_rect.d_size();
         *cached = Some(CachedTextLayout {
             max_size: i_max_size,
@@ -799,7 +806,9 @@ pub enum DivContent {
 pub struct Text {
     pub color: Color,
     pub string: Cow<'static, str>,
-    pub font: Key<RasterizedFont>,
+    /// None means the default font will be used insteads
+    pub font: Option<Key<Font>>,
+    pub size: FontSize,
 }
 
 #[derive(Debug)]

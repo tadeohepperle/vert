@@ -20,11 +20,11 @@ pub struct GraphicsContext {
     pub size: PhysicalSize<u32>,
     /// todo! add scale_factor to resize event and make sure it is updated.
     pub scale_factor: f64,
-    deps: GraphicsContextDependencies,
+    deps: Deps,
 }
 
 #[derive(Debug, Dependencies)]
-pub struct GraphicsContextDependencies {
+pub struct Deps {
     tokio: Handle<TokioRuntime>,
     winit: Handle<WinitMain>,
     input: Handle<Input>,
@@ -33,7 +33,7 @@ pub struct GraphicsContextDependencies {
 impl Module for GraphicsContext {
     type Config = ();
 
-    type Dependencies = GraphicsContextDependencies;
+    type Dependencies = Deps;
 
     fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
         let tokio = deps.tokio;
@@ -86,9 +86,7 @@ impl GraphicsContext {
     }
 }
 
-async fn initialize_graphics_context(
-    deps: GraphicsContextDependencies,
-) -> anyhow::Result<GraphicsContext> {
+async fn initialize_graphics_context(deps: Deps) -> anyhow::Result<GraphicsContext> {
     let window = deps.winit.window();
 
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {

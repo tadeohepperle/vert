@@ -73,7 +73,7 @@ impl GraphicsSettingsController {
             ui.label(format!(
                 "{} fps / {:.3} ms",
                 self.deps.time.fps().round() as i32,
-                self.deps.time.delta_secs() * 1000.0
+                self.deps.time.delta().as_secs_f32() * 1000.0
             ));
             ui.label("Bloom");
             ui.add(egui::Checkbox::new(

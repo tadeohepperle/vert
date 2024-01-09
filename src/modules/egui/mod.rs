@@ -148,7 +148,7 @@ impl Egui {
     }
 
     pub fn begin_frame(&mut self) {
-        let total_elapsed_seconds = self.deps.time.total_secs_f64();
+        let total_elapsed_seconds = self.deps.time.total().as_secs_f64();
         self.platform.begin_frame(total_elapsed_seconds);
         // self.demo_windows.ui(&self.context()); // activate this to see the demo windows!
     }

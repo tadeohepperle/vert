@@ -76,20 +76,12 @@ impl Time {
         self.stats.fps.avg
     }
 
-    pub fn delta_secs(&self) -> f32 {
-        self.delta_time.as_secs_f32()
+    pub fn delta(&self) -> &Duration {
+        &self.delta_time
     }
 
-    pub fn delta_secs_f64(&self) -> f64 {
-        self.delta_time.as_secs_f64()
-    }
-
-    pub fn total_secs(&self) -> f32 {
-        self.total_time.as_secs_f32()
-    }
-
-    pub fn total_secs_f64(&self) -> f64 {
-        self.total_time.as_secs_f64()
+    pub fn total(&self) -> &Duration {
+        &self.total_time
     }
 
     pub fn frame_count(&self) -> usize {

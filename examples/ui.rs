@@ -10,7 +10,7 @@ use vert::{
                 Axis, Board, BoardInput, BorderRadius, CrossAlign, DivProps, DivStyle, Id, Len,
                 MainAlign, Text,
             },
-            font_cache::RasterizedFont,
+            font_cache::FontSize,
             widgets::Button,
         },
         DefaultDependencies, DefaultModules, MainPassRenderer, Schedule,
@@ -31,7 +31,6 @@ fn main() {
 struct MyApp {
     deps: DefaultDependencies,
     ui: Board,
-    font_key: Key<RasterizedFont>,
 }
 
 impl Module for MyApp {
@@ -40,9 +39,6 @@ impl Module for MyApp {
     type Dependencies = DefaultDependencies;
 
     fn new(config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
-        let mut fonts = deps.ui.fonts;
-        let font_key = fonts.rasterize_default_font(40.0).unwrap();
-
         deps.bloom.settings_mut().activated = false;
         deps.ui
             .ui_renderer
@@ -51,7 +47,6 @@ impl Module for MyApp {
         Ok(MyApp {
             deps,
             ui: Board::new(dvec2(800.0, 800.0)),
-            font_key,
         })
     }
 
@@ -102,7 +97,7 @@ impl MyApp {
             DivStyle {
                 color: Color::BLUE.alpha(0.4),
                 border_radius: BorderRadius::all(20.0),
-                border_color: Color::BLACK,
+                border_color: Color::GREEN,
                 border_thickness: 6.0,
                 border_softness: 1.0,
                 ..Default::default()
@@ -144,7 +139,8 @@ impl MyApp {
             Text {
                 color: Color::new(6.0, 2.0, 2.0),
                 string: "Hello World I really like it here!".into(),
-                font: self.font_key,
+                font: None,
+                size: FontSize(48),
             },
             Id::from(2772),
             Some(parent),
@@ -185,13 +181,13 @@ impl MyApp {
                 text_color: Color::BLUE,
                 color: Color::GREY,
                 hover_color: Color::LIGHTGREY,
-                font: self.font_key,
+                font: None,
             },
             Id::from("my button"),
             Some(parent),
         );
 
-        self.ui.end_frame(&self.deps.ui.fonts);
+        self.ui.end_frame(&mut self.deps.ui.fonts);
         self.deps.ui.ui_renderer.draw_billboard(&self.ui);
     }
 }

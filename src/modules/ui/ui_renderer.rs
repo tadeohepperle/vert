@@ -165,12 +165,8 @@ impl MainPassRenderer for UiRenderer {
                     render_pass.draw(0..VERTEX_COUNT, r.start as u32..r.end as u32);
                 }
                 BatchRegion::Text(r, font) => {
-                    let font_texture = self
-                        .deps
-                        .fonts
-                        .get_rasterized_font(*font)
-                        .expect("font texture not found");
-                    render_pass.set_bind_group(1, &font_texture.texture.bind_group, &[]);
+                    let atlas_texture = self.deps.fonts.atlas_texture();
+                    render_pass.set_bind_group(1, &atlas_texture.bind_group, &[]);
                     render_pass.set_pipeline(&self.glyph_pipeline);
                     // set the instance buffer (no vertex buffer used, vertex positions computed from instances)
                     render_pass.set_vertex_buffer(0, self.glyph_buffer.buffer().slice(..));
