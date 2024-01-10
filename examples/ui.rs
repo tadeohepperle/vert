@@ -72,10 +72,10 @@ impl MyApp {
             .add_non_text_div(
                 DivProps {
                     width: Len::Px(700.0),
-                    height: Len::Px(700.0),
+                    height: Len::ChildrenFraction(1.5),
                     axis: Axis::X,
                     main_align: MainAlign::SpaceBetween,
-                    cross_align: CrossAlign::End,
+                    cross_align: CrossAlign::Center,
                 },
                 DivStyle {
                     color: Color::RED,
@@ -138,7 +138,7 @@ impl MyApp {
             },
             Text {
                 color: Color::new(6.0, 2.0, 2.0),
-                string: "Hello World I really like it here!".into(),
+                string: "Hover me please, I will show you something!".into(),
                 font: None,
                 size: FontSize(48),
             },
@@ -157,6 +157,8 @@ impl MyApp {
             text_div_comm.text_mut().color = Color::BLACK;
         }
 
+        let total_time = self.deps.time.total().as_secs_f64() * 4.0;
+        let total_time2 = self.deps.time.total().as_secs_f64() * 9.7;
         if text_div_comm.is_hovered() {
             self.ui.add_non_text_div(
                 DivProps {
@@ -168,6 +170,8 @@ impl MyApp {
                 },
                 DivStyle {
                     color: Color::GREEN,
+                    offset_x: Len::Px(total_time.sin() * 20.0),
+                    offset_y: Len::Px(total_time2.cos() * 20.0),
                     ..Default::default()
                 },
                 Id::from(2112213232),

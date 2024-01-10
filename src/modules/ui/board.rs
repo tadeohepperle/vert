@@ -444,7 +444,7 @@ impl<'a> Layouter<'a> {
             let top_div = self.divs.get(id).unwrap();
             // set the size of each div in the tree:
             _ = self.get_and_set_size(top_div, top_level_size);
-            top_div.c_pos.set(DVec2::ZERO);
+            top_div.c_pos.set(div_offset(top_div, top_level_size));
             // set the position of each div in the tree:
             self.set_child_positions(top_div);
         }
@@ -509,14 +509,11 @@ impl<'a> Layouter<'a> {
                         return;
                     }
 
-                    let my_pos = div.c_pos.get();
-                    let my_size = div.c_size.get();
-                    let my_content_size = div.c_content_size.get();
-
-                    let (main_pos, cross_pos) = A::disassemble(div.c_pos.get());
-                    let (main_size, cross_size) = A::disassemble(div.c_size.get());
-                    let (main_content_size, cross_content_size) =
+                    let parent_size = div.c_size.get();
+                    let (main_size, cross_size) = A::disassemble(parent_size);
+                    let (main_content_size, _cross_content_size) =
                         A::disassemble(div.c_content_size.get());
+                    // Note: _cross_content_size not needed right now, because the individual cross sizes of each child are used instead.
 
                     let main_axis_offset: f64; // initial offset on main axis for the first child
                     let main_axis_step: f64; // step that gets added for each child on main axis after its own size on main axis.
@@ -552,7 +549,7 @@ impl<'a> Layouter<'a> {
                     }
 
                     let calc_cross_offset = match div.props.cross_align {
-                        CrossAlign::Start => |cross_parent: f64, cross_item: f64| -> f64 { 0.0 },
+                        CrossAlign::Start => |_: f64, _: f64| -> f64 { 0.0 },
                         CrossAlign::Center => |cross_parent: f64, cross_item: f64| -> f64 {
                             (cross_parent - cross_item) * 0.5
                         },
@@ -568,7 +565,9 @@ impl<'a> Layouter<'a> {
                         let (ch_main_size, ch_cross_size) = A::disassemble(ch.c_size.get());
                         let cross = calc_cross_offset(cross_size, ch_cross_size);
                         let ch_pos = A::assemble(main_v, cross); // 0.0 if we always assume crossaxis align start.
-                        ch.c_pos.set(ch_pos);
+
+                        let ch_offset = div_offset(ch, parent_size);
+                        ch.c_pos.set(ch_pos + ch_offset);
                         main_v += ch_main_size + main_axis_step;
                     }
                 }
@@ -585,35 +584,49 @@ impl<'a> Layouter<'a> {
     /// 2. figure out own size and content size
     /// 3. sache own size and content size in the div, then return own size.
     fn get_and_set_size(&mut self, div: &Div, parent_max_size: DVec2) -> DVec2 {
-        let fixed_w = div.props.width.px_value(parent_max_size.x);
-        let fixed_h = div.props.height.px_value(parent_max_size.y);
+        enum LenMode {
+            Fixed(f64),
+            ChildBound(f64),
+        }
+
+        use LenMode::*;
+        fn len_mode(len: Len, parent_size_px: f64) -> LenMode {
+            match len {
+                Len::Px(px) => Fixed(px),
+                Len::ParentFraction(f) => Fixed(f * parent_size_px),
+                Len::ChildrenFraction(f) => ChildBound(f),
+            }
+        }
+
+        let fixed_w = len_mode(div.props.width, parent_max_size.x);
+        let fixed_h = len_mode(div.props.height, parent_max_size.y);
 
         let own_size: DVec2;
         let content_size: DVec2;
         // None values indicate, that the size value is not known yet.
         match (fixed_w, fixed_h) {
-            (Some(x), Some(y)) => {
+            (Fixed(x), Fixed(y)) => {
                 own_size = dvec2(x, y);
                 content_size = self.get_and_set_content_size(div, own_size);
             }
-            (Some(x), None) => {
+            (Fixed(x), ChildBound(ch_fact_y)) => {
                 // x is fixed, y height is the sum/max of children height (depending on axis y/x)
                 let max_size = dvec2(x, parent_max_size.y);
 
                 content_size = self.get_and_set_content_size(div, max_size);
-                own_size = dvec2(x, content_size.y);
+                own_size = dvec2(x, content_size.y * ch_fact_y);
             }
-            (None, Some(y)) => {
+            (ChildBound(ch_fact_x), Fixed(y)) => {
                 // y is fixed, x width is the sum/max of children width (depending on axis y/x)
                 let max_size = dvec2(parent_max_size.x, y);
 
                 content_size = self.get_and_set_content_size(div, max_size);
-                own_size = dvec2(content_size.x, y);
+                own_size = dvec2(content_size.x * ch_fact_x, y);
             }
-            (None, None) => {
+            (ChildBound(ch_fact_x), ChildBound(ch_fact_y)) => {
                 // nothing is fixed, x width and y height are the sum/max of children widths and heights (depending on axis y/x)
                 content_size = self.get_and_set_content_size(div, parent_max_size);
-                own_size = content_size;
+                own_size = dvec2(content_size.x * ch_fact_x, content_size.y * ch_fact_y);
             }
         }
 
@@ -746,6 +759,8 @@ pub struct DivStyle {
     pub border_color: Color,
     pub border_radius: BorderRadius,
     pub border_thickness: f32,
+    pub offset_x: Len,
+    pub offset_y: Len,
     // set to 0.0 for very crisp inner border. set to 20.0 for like an inset shadow effect.
     pub border_softness: f32,
     // todo: margin and padding
@@ -762,6 +777,8 @@ impl Default for DivStyle {
             border_thickness: 0.0,
             border_softness: 1.0,
             border_color: Color::BLACK,
+            offset_x: Len::Px(0.0),
+            offset_y: Len::Px(0.0),
         }
     }
 }
@@ -835,8 +852,8 @@ pub struct DivProps {
 impl Default for DivProps {
     fn default() -> Self {
         Self {
-            width: Len::HugContent,
-            height: Len::HugContent,
+            width: Len::CHILDREN,
+            height: Len::CHILDREN,
             axis: Axis::Y,
             main_align: MainAlign::Start,
             cross_align: CrossAlign::Start,
@@ -869,20 +886,44 @@ pub enum CrossAlign {
     End,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
+/// Crazy idea: what, if instead of having this as an enum, we instead have a struct
+/// with all three of those and just use the f64 as a weight!
+/// So len would be a linear function of these 3 things!
+/// That would for allow for some crazy layouts, like 10px + 2 times the size of children.
+/// Then we also do not need margin and padding anymore.
+///
+/// Only question is then: how do we pass some max size to the children when determining the size?
+///
+/// Because right now there is a split:
+/// Px(f64) / ParentFraction(f64) -> Parent dictates exact px size of children
+/// ChildrenFraction(f64) -> Children take as much space as they need and then the parent determines its own size based on the childrens size.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Len {
     Px(f64),
-    FractionOfParent(f64),
-    #[default]
-    HugContent,
+    ParentFraction(f64),
+    ChildrenFraction(f64),
 }
 
 impl Len {
-    pub fn px_value(&self, parent_px_size: f64) -> Option<f64> {
-        match self {
-            Len::Px(x) => Some(*x),
-            Len::FractionOfParent(fr) => Some(*fr * parent_px_size),
-            Len::HugContent => None,
-        }
-    }
+    pub const ZERO: Len = Len::Px(0.0);
+    pub const PARENT: Len = Len::ParentFraction(1.0);
+    pub const CHILDREN: Len = Len::ChildrenFraction(1.0);
+}
+
+/// Warning: assumes the content_size is set already on this div
+pub fn div_offset(div: &Div, parent_size: DVec2) -> DVec2 {
+    let content_size = div.c_content_size.get();
+    let x: f64 = match div.style.offset_x {
+        Len::Px(x) => x,
+        Len::ParentFraction(f) => parent_size.x * f,
+        Len::ChildrenFraction(f) => content_size.x * f,
+    };
+
+    let y: f64 = match div.style.offset_y {
+        Len::Px(x) => x,
+        Len::ParentFraction(f) => parent_size.y * f,
+        Len::ChildrenFraction(f) => content_size.y * f,
+    };
+
+    dvec2(x, y)
 }

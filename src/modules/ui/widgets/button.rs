@@ -41,8 +41,8 @@ impl Widget for Button {
     ) -> ButtonResponse {
         let mut div_res = board.add_text_div(
             DivProps {
-                width: Len::HugContent,
-                height: Len::HugContent,
+                width: Len::CHILDREN,
+                height: Len::CHILDREN,
                 ..Default::default()
             },
             DivStyle {
@@ -52,6 +52,8 @@ impl Widget for Button {
                 border_thickness: 4.0,
                 border_softness: 3.0,
                 z_bias: 0,
+                offset_x: Len::ZERO,
+                offset_y: Len::ZERO,
             },
             Text {
                 color: self.text_color,

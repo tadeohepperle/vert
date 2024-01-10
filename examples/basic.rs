@@ -45,5 +45,17 @@ impl MyApp {
         self.deps
             .color_mesh
             .draw_cubes(&[Transform::new(1.0, 1.0, 1.0)], None);
+
+        self.deps.text.draw_world_text(
+            DrawText {
+                text: "Hello".into(),
+                pos: Vec2::ZERO,
+                font_texture_size: 60.0,
+                font_layout_size: 60.0,
+                max_width: None,
+                color: Color::BLUE,
+            },
+            Transform::default().face_minus_z(),
+        )
     }
 }
