@@ -5,7 +5,7 @@ use glam::{vec2, Vec2, Vec3};
 use smallvec::SmallVec;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
-    event::{ElementState, KeyEvent, MouseButton, WindowEvent},
+    event::{ElementState, KeyEvent, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
 };
 
@@ -25,8 +25,8 @@ pub struct InputDependencies {
 
 #[derive(Debug)]
 pub struct Input {
-    keys: PressCache<KeyCode>,
-    mouse_buttons: PressCache<MouseButton>,
+    keys: KeyState,
+    mouse_buttons: MouseButtonState,
     resized: Option<PhysicalSize<u32>>,
     close_requested: bool,
     cursor_just_moved: bool,
@@ -145,7 +145,18 @@ impl Input {
                 state,
                 button,
             } => {
-                self.mouse_buttons.receive_element_state(*button, *state);
+                let button = match button {
+                    winit::event::MouseButton::Left => MouseButton::Left,
+                    winit::event::MouseButton::Right => MouseButton::Right,
+                    winit::event::MouseButton::Middle => MouseButton::Middle,
+                    winit::event::MouseButton::Back => MouseButton::Back,
+                    winit::event::MouseButton::Forward => MouseButton::Forward,
+                    winit::event::MouseButton::Other(_) => {
+                        // ignore
+                        return;
+                    }
+                };
+                self.mouse_buttons.receive_state(button, *state);
             }
             // /////////////////////////////////////////////////////////////////////////////
             // Currently unused:
@@ -315,11 +326,11 @@ impl Input {
         self.resized
     }
 
-    pub fn keys(&self) -> &PressCache<KeyCode> {
+    pub fn keys(&self) -> &KeyState {
         &self.keys
     }
 
-    pub fn mouse_buttons(&self) -> &PressCache<MouseButton> {
+    pub fn mouse_buttons(&self) -> &MouseButtonState {
         &self.mouse_buttons
     }
 
@@ -338,11 +349,62 @@ impl Input {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct PressCache<T> {
-    just_pressed: SmallVec<[T; 8]>,
-    pressed: SmallVec<[T; 8]>,
-    just_released: SmallVec<[T; 8]>,
+#[derive(Debug, Clone, Default, Copy)]
+pub struct MouseButtonState {
+    buttons: [PressState; 5],
+}
+
+impl MouseButtonState {
+    pub fn receive_state(&mut self, button: MouseButton, element_state: ElementState) {
+        let button = button as usize;
+        match element_state {
+            ElementState::Released => {
+                self.buttons[button] = PressState::JustReleased;
+            }
+            ElementState::Pressed => {
+                self.buttons[button] = PressState::JustPressed;
+            }
+        }
+    }
+
+    pub fn clear_at_end_of_frame(&mut self) {
+        for b in self.buttons.iter_mut() {
+            if *b == PressState::JustPressed {
+                *b = PressState::Pressed;
+            }
+            if *b == PressState::JustReleased {
+                *b = PressState::Released
+            }
+        }
+    }
+
+    pub fn left(&self) -> PressState {
+        self.buttons[MouseButton::Left as usize]
+    }
+
+    pub fn right(&self) -> PressState {
+        self.buttons[MouseButton::Right as usize]
+    }
+
+    pub fn middle(&self) -> PressState {
+        self.buttons[MouseButton::Middle as usize]
+    }
+
+    pub fn back(&self) -> PressState {
+        self.buttons[MouseButton::Back as usize]
+    }
+
+    pub fn forward(&self) -> PressState {
+        self.buttons[MouseButton::Forward as usize]
+    }
+}
+
+pub enum MouseButton {
+    Left = 0,
+    Right = 1,
+    Middle = 2,
+    Back = 3,
+    Forward = 4,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -355,27 +417,32 @@ pub enum PressState {
 }
 
 impl PressState {
-    pub fn is_pressed(&self) -> bool {
+    pub fn pressed(&self) -> bool {
         matches!(self, PressState::JustPressed | PressState::Pressed)
     }
 
-    pub fn is_released(&self) -> bool {
+    pub fn just_pressed(&self) -> bool {
+        matches!(self, PressState::JustPressed)
+    }
+
+    pub fn released(&self) -> bool {
         matches!(self, PressState::JustReleased | PressState::Released)
     }
-}
 
-impl<T> Default for PressCache<T> {
-    fn default() -> Self {
-        Self {
-            just_pressed: Default::default(),
-            pressed: Default::default(),
-            just_released: Default::default(),
-        }
+    pub fn just_released(&self) -> bool {
+        matches!(self, PressState::JustReleased)
     }
 }
 
-impl<T: Copy + PartialEq + Debug> PressCache<T> {
-    pub fn press_state(&self, key: T) -> PressState {
+#[derive(Debug, Clone, Default)]
+pub struct KeyState {
+    just_pressed: SmallVec<[KeyCode; 4]>,
+    pressed: SmallVec<[KeyCode; 4]>,
+    just_released: SmallVec<[KeyCode; 4]>,
+}
+
+impl KeyState {
+    pub fn key(&self, key: KeyCode) -> PressState {
         if self.just_pressed.contains(&key) {
             PressState::JustPressed
         } else if self.pressed.contains(&key) {
@@ -387,15 +454,15 @@ impl<T: Copy + PartialEq + Debug> PressCache<T> {
         }
     }
 
-    pub fn is_pressed(&self, key: T) -> bool {
+    pub fn is_pressed(&self, key: KeyCode) -> bool {
         self.pressed.contains(&key)
     }
 
-    pub fn just_pressed(&self, key: T) -> bool {
+    pub fn just_pressed(&self, key: KeyCode) -> bool {
         self.just_pressed.contains(&key)
     }
 
-    pub fn just_released(&self, key: T) -> bool {
+    pub fn just_released(&self, key: KeyCode) -> bool {
         self.just_released.contains(&key)
     }
 
@@ -407,9 +474,8 @@ impl<T: Copy + PartialEq + Debug> PressCache<T> {
         self.just_released.clear();
     }
 
-    pub fn receive_element_state(&mut self, value: T, element_state: ElementState) {
+    pub fn receive_element_state(&mut self, value: KeyCode, element_state: ElementState) {
         let pressed_already = self.pressed.contains(&value);
-
         match element_state {
             ElementState::Released => {
                 if pressed_already {

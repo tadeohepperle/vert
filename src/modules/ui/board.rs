@@ -14,7 +14,11 @@ use std::{
 
 use crate::{
     elements::{rect::Aabb, Color, Rect},
-    modules::{arenas::Key, input::PressState, Egui, Input},
+    modules::{
+        arenas::Key,
+        input::{MouseButtonState, PressState},
+        Egui, Input,
+    },
     prelude::{glam::Vec2, winit::event::MouseButton},
     utils::ChillCell,
 };
@@ -78,6 +82,37 @@ pub struct Board {
     top_level_size: DVec2,
     top_level_children: Vec<Id>,
     divs: HashMap<Id, Div>,
+
+    // experimental:
+    hot_active: HotActiveWithId,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HotActiveWithId {
+    None,
+    Hot(Id),
+    Active(Id),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HotActive {
+    None,
+    Hot,
+    Active,
+}
+
+impl HotActive {
+    pub fn is_none(&self) -> bool {
+        matches!(self, HotActive::None)
+    }
+
+    pub fn is_hot(&self) -> bool {
+        matches!(self, HotActive::Hot)
+    }
+
+    pub fn is_active(&self) -> bool {
+        matches!(self, HotActive::Active)
+    }
 }
 
 /// The Board alternates between two phases:
@@ -111,6 +146,33 @@ impl Board {
         self.divs.values()
     }
 
+    pub fn input(&self) -> &BoardInput {
+        &self.input
+    }
+
+    pub fn hot_active(&self, id: Id) -> HotActive {
+        match self.hot_active {
+            HotActiveWithId::None => HotActive::None,
+            HotActiveWithId::Hot(_) => HotActive::Hot,
+            HotActiveWithId::Active(_) => HotActive::Active,
+        }
+    }
+
+    pub fn set_hot_active(&mut self, id: Id, state: HotActive) {
+        match state {
+            HotActive::None => {
+                // dont allow change to none if currently other item is hot or active
+                if matches!(self.hot_active, HotActiveWithId::Hot(i) | HotActiveWithId::Active(i) if i != id)
+                {
+                    return;
+                }
+                self.hot_active = HotActiveWithId::None;
+            }
+            HotActive::Hot => self.hot_active = HotActiveWithId::Hot(id),
+            HotActive::Active => self.hot_active = HotActiveWithId::Active(id),
+        }
+    }
+
     pub fn new(board_size: DVec2) -> Self {
         println!("new Board created");
         let last_frame = 0;
@@ -122,6 +184,7 @@ impl Board {
             phase: BoardPhase::Rendering,
             top_level_size: board_size,
             top_level_children: vec![],
+            hot_active: HotActiveWithId::None,
         }
     }
 
@@ -160,7 +223,7 @@ impl Board {
     ) -> TextResponse<'a> {
         // So main axis is always X for text
         props.axis = Axis::X;
-        let (comm, entry): (Option<Comm>, OccupiedEntry<'_, Id, Div>) =
+        let (comm, entry): (Comm, OccupiedEntry<'_, Id, Div>) =
             self._add_div(props, style, id, Some(text), parent);
         TextResponse { comm, entry }
     }
@@ -172,7 +235,7 @@ impl Board {
         id: Id,
         text: Option<Text>,
         parent: Option<ContainerId>,
-    ) -> (Option<Comm>, OccupiedEntry<'a, Id, Div>) {
+    ) -> (Comm, OccupiedEntry<'a, Id, Div>) {
         // go into the parent and register the child:
         let parent_z_index = if let Some(parent) = parent {
             let parent = self.divs.get_mut(&parent._priv).expect("Invalid Parent...");
@@ -197,7 +260,6 @@ impl Board {
                 if div.last_frame == self.last_frame {
                     panic!("Div with id {id:?} inserted twice in one frame!");
                 }
-
                 div.props = props;
                 div.z_index = parent_z_index + 1;
                 div.last_frame = self.last_frame;
@@ -227,7 +289,6 @@ impl Board {
             }
             Entry::Vacant(vacant) => {
                 entry = vacant.insert_entry(Div {
-                    id,
                     props,
                     z_index,
                     last_frame: self.last_frame,
@@ -247,24 +308,18 @@ impl Board {
         };
 
         // build up the response
-        let comm = if let Some(rect) = rect {
-            let mut comm = Comm {
-                rect,
-                hovered: false,
-                clicked: false,
-            };
+        let mut comm = Comm {
+            mouse_in_rect: false,
+        };
+
+        if let Some(rect) = rect {
             if let Some(cursor_pos) = self.input.cursor_pos {
                 if rect.contains(cursor_pos) {
-                    comm.hovered = true;
-                    if self.input.left_mouse_button == PressState::JustPressed {
-                        comm.clicked = true;
-                    }
+                    comm.mouse_in_rect = true;
                 }
             }
-            Some(comm)
-        } else {
-            None
         };
+
         (comm, entry)
     }
 
@@ -286,7 +341,7 @@ impl Board {
 pub struct ContainerResponse<'a> {
     /// to be used as a parent for another div
     pub id: ContainerId,
-    comm: Option<Comm>,
+    comm: Comm,
     pub entry: OccupiedEntry<'a, Id, Div>,
 }
 
@@ -305,38 +360,30 @@ impl<'a> DerefMut for ContainerResponse<'a> {
 }
 
 impl<'a> ContainerResponse<'a> {
-    pub fn is_hovered(&self) -> bool {
-        if let Some(comm) = &self.comm {
-            comm.hovered
-        } else {
-            false
-        }
+    pub fn mouse_in_rect(&self) -> bool {
+        self.comm.mouse_in_rect
     }
 
-    pub fn style_mut(&mut self) -> &mut DivStyle {
+    pub fn style(&mut self) -> &mut DivStyle {
         &mut self.entry.get_mut().style
     }
 }
 
 pub struct TextResponse<'a> {
-    comm: Option<Comm>,
+    comm: Comm,
     pub entry: OccupiedEntry<'a, Id, Div>,
 }
 
 impl<'a> TextResponse<'a> {
-    pub fn is_hovered(&self) -> bool {
-        if let Some(comm) = &self.comm {
-            comm.hovered
-        } else {
-            false
-        }
+    pub fn mouse_in_rect(&self) -> bool {
+        self.comm.mouse_in_rect
     }
 
-    pub fn style_mut(&mut self) -> &mut DivStyle {
+    pub fn style(&mut self) -> &mut DivStyle {
         &mut self.entry.get_mut().style
     }
 
-    pub fn text_mut(&mut self) -> &mut Text {
+    pub fn text(&mut self) -> &mut Text {
         match &mut self.entry.get_mut().content {
             DivContent::Text(text_e) => &mut text_e.text,
             DivContent::Children(_) => panic!("This should always be text on a text div"),
@@ -346,21 +393,17 @@ impl<'a> TextResponse<'a> {
 
 #[derive(Debug, Clone, Default)]
 pub struct BoardInput {
-    pub left_mouse_button: PressState,
-    pub right_mouse_button: PressState,
+    pub mouse_buttons: MouseButtonState,
     pub scroll: f32,
     pub cursor_pos: Option<Vec2>,
     pub cursor_delta: Vec2,
 }
 
 impl BoardInput {
+    /// todo! other function from input module + camera + plane in 3d space => 3d game world ui!
     pub fn from_input_module(input: &Input) -> Self {
-        let left_mouse_button = input.mouse_buttons().press_state(MouseButton::Left);
-        let right_mouse_button = input.mouse_buttons().press_state(MouseButton::Left);
-
         BoardInput {
-            left_mouse_button,
-            right_mouse_button,
+            mouse_buttons: *input.mouse_buttons(),
             scroll: input.scroll().unwrap_or(0.0),
             cursor_pos: Some(input.cursor_pos()),
             cursor_delta: input.cursor_delta(),
@@ -368,16 +411,14 @@ impl BoardInput {
     }
 }
 
+/// Communication for each Rect
 pub struct Comm {
-    pub rect: Rect,
     // Some, if the mouse is hovering, clicking or releasing?
-    pub hovered: bool,
-    pub clicked: bool,
+    pub mouse_in_rect: bool,
 }
 
 #[derive(Debug)]
 pub struct Div {
-    id: Id,
     pub(crate) content: DivContent,
     pub(crate) props: DivProps,
     pub(crate) style: DivStyle,
