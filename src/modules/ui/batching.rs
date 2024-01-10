@@ -10,7 +10,9 @@ use crate::{
 };
 
 use super::{
-    board::{Board, BorderRadius, CachedTextLayout, Div, DivContent, Text},
+    board::{
+        offset_dvec2, Board, BorderRadius, CachedTextLayout, Div, DivContent, Text, TextEntry,
+    },
     font_cache::{FontSize, TextLayoutResult},
 };
 
@@ -24,13 +26,7 @@ pub fn get_batches(board: &Board) -> BatchingResult {
         // add the div itself as a primitive.
 
         if let DivContent::Text(text) = &div.content {
-            let layout = &div
-                .c_text_layout
-                .get()
-                .as_ref()
-                .expect("Text layout mush have been computed before")
-                .result;
-            sort_primitives.push(SortPrimitive::Text { div, text, layout });
+            sort_primitives.push(SortPrimitive::Text { div, text });
             // add the text glyphs as primitives.
         }
     }
@@ -46,7 +42,7 @@ pub fn get_batches(board: &Board) -> BatchingResult {
     if let Some(first) = sort_primitives.first() {
         let batch = match first {
             SortPrimitive::Rect { .. } => BatchRegion::Rect(0..0),
-            SortPrimitive::Text { text, .. } => BatchRegion::Text(0..0, text.font),
+            SortPrimitive::Text { text, .. } => BatchRegion::Text(0..0, text.text.font),
         };
         batches.push(batch);
     }
@@ -64,7 +60,7 @@ pub fn get_batches(board: &Board) -> BatchingResult {
             // create a new batch:
             let new_batch = match prim {
                 SortPrimitive::Rect { .. } => BatchRegion::Rect(0..0),
-                SortPrimitive::Text { text, .. } => BatchRegion::Text(0..0, text.font),
+                SortPrimitive::Text { text, .. } => BatchRegion::Text(0..0, text.text.font),
             };
             batches.push(new_batch);
         }
@@ -84,16 +80,22 @@ pub fn get_batches(board: &Board) -> BatchingResult {
                 };
                 rects.push(rect_raw);
             }
-            SortPrimitive::Text { div, text, layout } => {
+            SortPrimitive::Text { div, text } => {
                 // todo! add text pos to glyphs
-                let div_pos = div.c_pos.get().as_vec2();
-
-                for (pos, uv) in layout.glyph_pos_and_atlas_uv.iter().copied() {
+                let text_pos = text.c_pos.get();
+                for (pos, uv) in text
+                    .c_text_layout
+                    .get()
+                    .result
+                    .glyph_pos_and_atlas_uv
+                    .iter()
+                    .copied()
+                {
                     // dbg!(pos);
                     // dbg!(div_pos);
                     glyphs.push(GlyphRaw {
-                        pos: pos + div_pos,
-                        color: text.color,
+                        pos: pos + text_pos.as_vec2(),
+                        color: text.text.color,
                         uv,
                     });
                 }
@@ -119,14 +121,8 @@ pub fn get_batches(board: &Board) -> BatchingResult {
 
 #[derive(Debug, Clone, Copy)]
 enum SortPrimitive<'a> {
-    Rect {
-        div: &'a Div,
-    },
-    Text {
-        div: &'a Div,
-        text: &'a Text,
-        layout: &'a TextLayoutResult,
-    },
+    Rect { div: &'a Div },
+    Text { div: &'a Div, text: &'a TextEntry },
 }
 
 impl<'a> SortPrimitive<'a> {
@@ -143,7 +139,7 @@ impl<'a> SortPrimitive<'a> {
     fn batch_key(&self) -> u64 {
         match self {
             SortPrimitive::Rect { .. } => u64::MAX,
-            SortPrimitive::Text { text, .. } => text.font.map(|e| e.as_u64()).unwrap_or(0),
+            SortPrimitive::Text { text, .. } => text.text.font.map(|e| e.as_u64()).unwrap_or(0),
         }
     }
 }

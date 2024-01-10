@@ -8,7 +8,8 @@ use crate::{
         arenas::Key,
         ui::{
             board::{
-                Board, BorderRadius, ContainerId, DivProps, DivStyle, Id, Len, MainAlign, Text,
+                Align, Board, BorderRadius, ContainerId, DivProps, DivStyle, Id, Len, MainAlign,
+                Text,
             },
             font_cache::FontSize,
         },
@@ -41,16 +42,18 @@ impl Widget for Button {
     ) -> ButtonResponse {
         let mut div_res = board.add_text_div(
             DivProps {
-                width: Len::CHILDREN,
-                height: Len::CHILDREN,
+                width: Len::Px(200.0),
+                height: Len::ChildrenFraction(1.5),
+                main_align: MainAlign::Center,
+                cross_align: Align::Center,
                 ..Default::default()
             },
             DivStyle {
                 color: self.color,
                 border_color: Color::BLACK,
-                border_radius: BorderRadius::all(8.0),
-                border_thickness: 4.0,
-                border_softness: 3.0,
+                border_radius: BorderRadius::all(16.0),
+                border_thickness: 10.0,
+                border_softness: 16.0,
                 z_bias: 0,
                 offset_x: Len::ZERO,
                 offset_y: Len::ZERO,
@@ -60,6 +63,8 @@ impl Widget for Button {
                 string: self.text,
                 font: self.font,
                 size: FontSize(24),
+                offset_x: Len::ZERO,
+                offset_y: Len::Px(-4.0),
             },
             id,
             parent,

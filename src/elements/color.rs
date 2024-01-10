@@ -40,6 +40,7 @@ impl Color {
     pub const BLUE: Color = Color::new(0.0, 0.0, 1.0);
     pub const WHITE: Color = Color::new(1.0, 1.0, 1.0);
     pub const YELLOW: Color = Color::new(1.0, 1.0, 0.0);
+    pub const PURPLE: Color = Color::new(1.0, 0.0, 1.0);
 
     pub const fn new(r: f32, g: f32, b: f32) -> Self {
         Color { r, g, b, a: 1.0 }

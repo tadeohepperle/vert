@@ -5,6 +5,7 @@ use std::{
         hash_map::{Entry, OccupiedEntry},
         HashMap,
     },
+    fmt::Debug,
     hash::{Hash, Hasher},
     iter::Map,
     marker::PhantomData,
@@ -13,11 +14,11 @@ use std::{
 
 use crate::{
     elements::{rect::Aabb, Color, Rect},
-    modules::{arenas::Key, input::PressState, Input},
+    modules::{arenas::Key, input::PressState, Egui, Input},
     prelude::{glam::Vec2, winit::event::MouseButton},
     utils::ChillCell,
 };
-use egui::ahash::HashSet;
+use egui::{ahash::HashSet, Color32, Pos2, Stroke, Ui};
 use etagere::euclid::default;
 use fontdue::{
     layout::{HorizontalAlign, Layout, VerticalAlign},
@@ -140,7 +141,7 @@ impl Board {
         id: Id,
         parent: Option<ContainerId>,
     ) -> ContainerResponse<'a> {
-        let (comm, entry) = self._add_div(props, style, id, DivContent::Children(vec![]), parent);
+        let (comm, entry) = self._add_div(props, style, id, None, parent);
         let div_id = ContainerId { _priv: id };
         ContainerResponse {
             id: div_id,
@@ -151,14 +152,16 @@ impl Board {
 
     pub fn add_text_div<'a>(
         &'a mut self,
-        props: DivProps,
+        mut props: DivProps,
         style: DivStyle,
         text: Text,
         id: Id,
         parent: Option<ContainerId>,
     ) -> TextResponse<'a> {
+        // So main axis is always X for text
+        props.axis = Axis::X;
         let (comm, entry): (Option<Comm>, OccupiedEntry<'_, Id, Div>) =
-            self._add_div(props, style, id, DivContent::Text(text), parent);
+            self._add_div(props, style, id, Some(text), parent);
         TextResponse { comm, entry }
     }
 
@@ -167,7 +170,7 @@ impl Board {
         props: DivProps,
         style: DivStyle,
         id: Id,
-        content: DivContent,
+        text: Option<Text>,
         parent: Option<ContainerId>,
     ) -> (Option<Comm>, OccupiedEntry<'a, Id, Div>) {
         // go into the parent and register the child:
@@ -199,10 +202,19 @@ impl Board {
                 div.z_index = parent_z_index + 1;
                 div.last_frame = self.last_frame;
                 div.style = style;
-                div.content = content;
-                // technically we could also invalidate the font cache here, if the content is children and not text. But doe not matter much.
 
-                // return the Rect. (must be set, because the node was already inserted at a previous frame.)
+                match text {
+                    Some(new_text) => match &mut div.content {
+                        DivContent::Text(old_text) if old_text.text.same_glyphs(&new_text) => {
+                            // keep the computed layout, just set the new text (color, offset, etc...; font and size should be the same)
+                            old_text.text = new_text
+                        }
+                        e => *e = DivContent::Text(TextEntry::new(new_text)),
+                    },
+                    None => div.content = DivContent::Children(vec![]),
+                }
+
+                // return the Rect. (must be set, because the node was already inserted at a previous frame. Maybe not up to date anymore, but good enough.)
                 let size = div.c_size.get();
                 let pos = div.c_pos.get();
                 rect = Some(Rect {
@@ -220,11 +232,13 @@ impl Board {
                     z_index,
                     last_frame: self.last_frame,
                     style,
-                    content,
+                    content: match text {
+                        Some(text) => DivContent::Text(TextEntry::new(text)),
+                        None => DivContent::Children(vec![]),
+                    },
                     c_size: Cell::new(DVec2::ZERO),
                     c_pos: Cell::new(DVec2::ZERO),
                     c_content_size: Cell::new(DVec2::ZERO),
-                    c_text_layout: ChillCell::new(None),
                 });
 
                 // rect not known yet.
@@ -324,7 +338,7 @@ impl<'a> TextResponse<'a> {
 
     pub fn text_mut(&mut self) -> &mut Text {
         match &mut self.entry.get_mut().content {
-            DivContent::Text(text) => text,
+            DivContent::Text(text_e) => &mut text_e.text,
             DivContent::Children(_) => panic!("This should always be text on a text div"),
         }
     }
@@ -376,7 +390,6 @@ pub struct Div {
     pub(crate) c_size: Cell<DVec2>,
     pub(crate) c_content_size: Cell<DVec2>,
     pub(crate) c_pos: Cell<DVec2>,
-    pub(crate) c_text_layout: ChillCell<Option<CachedTextLayout>>,
 }
 
 impl Div {
@@ -444,138 +457,19 @@ impl<'a> Layouter<'a> {
             let top_div = self.divs.get(id).unwrap();
             // set the size of each div in the tree:
             _ = self.get_and_set_size(top_div, top_level_size);
-            top_div.c_pos.set(div_offset(top_div, top_level_size));
+
+            let top_div_content_size = top_div.c_content_size.get();
+            let offset = offset_dvec2(
+                top_div.style.offset_x,
+                top_div.style.offset_y,
+                top_div_content_size,
+                top_level_size,
+            );
+            top_div.c_pos.set(offset);
             // set the position of each div in the tree:
             self.set_child_positions(top_div);
         }
     }
-
-    /// sets the position of this div.
-    ///
-    /// Expects that sizes and child_sizes of all divs have already been computed.
-    fn set_child_positions(&self, div: &Div) {
-        match div.props.axis {
-            Axis::X => _monomorphized_set_child_positions::<XMain>(self, div),
-            Axis::Y => _monomorphized_set_child_positions::<YMain>(self, div),
-        }
-
-        pub trait AssembleDisassemble {
-            /// returns (main_axis, cross_axis)
-            fn disassemble(v: DVec2) -> (f64, f64);
-            fn assemble(main: f64, cross: f64) -> DVec2;
-        }
-
-        struct XMain;
-        struct YMain;
-
-        impl AssembleDisassemble for XMain {
-            #[inline(always)]
-            fn disassemble(v: DVec2) -> (f64, f64) {
-                // (main_axis, cross_axis)
-                (v.x, v.y)
-            }
-            #[inline(always)]
-            fn assemble(main: f64, cross: f64) -> DVec2 {
-                DVec2 { x: main, y: cross }
-            }
-        }
-
-        impl AssembleDisassemble for YMain {
-            #[inline(always)]
-            fn disassemble(v: DVec2) -> (f64, f64) {
-                // (main_axis, cross_axis)
-                (v.y, v.x)
-            }
-            #[inline(always)]
-            fn assemble(main: f64, cross: f64) -> DVec2 {
-                DVec2 { x: cross, y: main }
-            }
-        }
-
-        #[inline(always)]
-        fn _monomorphized_set_child_positions<A: AssembleDisassemble>(
-            sel: &Layouter<'_>,
-            div: &Div,
-        ) {
-            match &div.content {
-                DivContent::Text(text) => {
-                    // todo!() maybe in future store offset of text or something, in case the parent pos is the same?
-                    // right now, we just store the glyphs as a layout result independent of the divs pos in here,
-                    // every frame we build up a glyoh buffer adding the position of the div to each glyph individually.
-                }
-                DivContent::Children(children) => {
-                    let n_children = children.len();
-                    if n_children == 0 {
-                        return;
-                    }
-
-                    let parent_size = div.c_size.get();
-                    let (main_size, cross_size) = A::disassemble(parent_size);
-                    let (main_content_size, _cross_content_size) =
-                        A::disassemble(div.c_content_size.get());
-                    // Note: _cross_content_size not needed right now, because the individual cross sizes of each child are used instead.
-
-                    let main_axis_offset: f64; // initial offset on main axis for the first child
-                    let main_axis_step: f64; // step that gets added for each child on main axis after its own size on main axis.
-
-                    match div.props.main_align {
-                        MainAlign::Start => {
-                            main_axis_offset = 0.0;
-                            main_axis_step = 0.0;
-                        }
-                        MainAlign::Center => {
-                            main_axis_offset = (main_size - main_content_size) * 0.5;
-                            main_axis_step = 0.0;
-                        }
-                        MainAlign::End => {
-                            main_axis_offset = main_size - main_content_size;
-                            main_axis_step = 0.0;
-                        }
-                        MainAlign::SpaceBetween => {
-                            main_axis_offset = 0.0;
-
-                            if n_children == 1 {
-                                main_axis_step = 0.0;
-                            } else {
-                                main_axis_step =
-                                    (main_size - main_content_size) / (children.len() - 1) as f64;
-                            }
-                        }
-                        MainAlign::SpaceAround => {
-                            main_axis_step =
-                                (main_size - main_content_size) / children.len() as f64;
-                            main_axis_offset = main_axis_step / 2.0;
-                        }
-                    }
-
-                    let calc_cross_offset = match div.props.cross_align {
-                        CrossAlign::Start => |_: f64, _: f64| -> f64 { 0.0 },
-                        CrossAlign::Center => |cross_parent: f64, cross_item: f64| -> f64 {
-                            (cross_parent - cross_item) * 0.5
-                        },
-                        CrossAlign::End => |cross_parent: f64, cross_item: f64| -> f64 {
-                            cross_parent - cross_item
-                        },
-                    };
-
-                    let children = children.iter().map(|e| sel.divs.get(e).unwrap());
-
-                    let mut main_v = main_axis_offset;
-                    for ch in children {
-                        let (ch_main_size, ch_cross_size) = A::disassemble(ch.c_size.get());
-                        let cross = calc_cross_offset(cross_size, ch_cross_size);
-                        let ch_pos = A::assemble(main_v, cross); // 0.0 if we always assume crossaxis align start.
-
-                        let ch_offset = div_offset(ch, parent_size);
-                        ch.c_pos.set(ch_pos + ch_offset);
-                        main_v += ch_main_size + main_axis_step;
-                    }
-                }
-            }
-        }
-    }
-
-    /// Gets monomorphized into two functions: One for Y being the Main Axis and one for X being the Main Axis.
 
     /// Calculates and sets the sizes of the given div and all of its children recursively.
     ///
@@ -645,12 +539,8 @@ impl<'a> Layouter<'a> {
     fn get_and_set_content_size(&mut self, div: &Div, content_max_size: DVec2) -> DVec2 {
         let content_size: DVec2;
         match &div.content {
-            DivContent::Text(text) => {
-                content_size = self.get_text_size_or_layout_and_set(
-                    text,
-                    &div.c_text_layout,
-                    content_max_size,
-                );
+            DivContent::Text(text_entry) => {
+                content_size = self.get_text_size_or_layout_and_set(text_entry, content_max_size);
             }
             DivContent::Children(children) => {
                 content_size =
@@ -693,25 +583,27 @@ impl<'a> Layouter<'a> {
     /// Returns the size of the layouted text.
     fn get_text_size_or_layout_and_set(
         &mut self,
-        text: &Text,
-        c_text_layout: &ChillCell<Option<CachedTextLayout>>,
+        text_entry: &TextEntry,
         max_size: DVec2,
     ) -> DVec2 {
         let i_max_size = max_size.as_ivec2();
         // look for cached value and return it:
-        let cached = c_text_layout.get_mut();
-        if let Some(cached) = cached {
-            if cached.max_size == i_max_size {
-                return cached.result.total_rect.d_size();
-            }
+        let cached = text_entry.c_text_layout.get_mut();
+        if cached.max_size == i_max_size {
+            return cached.result.total_rect.d_size();
         }
 
         // otherwise layout the text:
+        dbg!(text_entry);
+        dbg!(max_size);
         let layout_settings = fontdue::layout::LayoutSettings {
             x: 0.0,
             y: 0.0,
             max_width: Some(max_size.x as f32),
             max_height: Some(max_size.y as f32),
+            // We only support Left right now, because there are issues with fontdues text layout:
+            // If you specify e.g. Center, it will always center it to the provided max_size. This is a bit bad,
+            // because it then returns a way bigger size than the text actually takes and the text is then drawn in the top right corner.
             horizontal_align: HorizontalAlign::Left,
             vertical_align: VerticalAlign::Top,
             line_height: 1.0,
@@ -719,18 +611,156 @@ impl<'a> Layouter<'a> {
             wrap_hard_breaks: true, // todo!() needle expose these functions
         };
         let result = self.fonts.perform_text_layout(
-            &text.string,
-            text.size,
-            text.size.into(),
+            &text_entry.text.string,
+            text_entry.text.size,
+            text_entry.text.size.into(),
             &layout_settings,
-            text.font,
+            text_entry.text.font,
         );
+        dbg!(&result);
         let text_size = result.total_rect.d_size();
-        *cached = Some(CachedTextLayout {
+        *cached = CachedTextLayout {
             max_size: i_max_size,
             result,
-        });
+        };
+        dbg!(text_size);
         text_size
+    }
+
+    /// sets the position of this div.
+    ///
+    /// Expects that sizes and child_sizes of all divs have already been computed.
+    fn set_child_positions(&self, div: &Div) {
+        match div.props.axis {
+            Axis::X => _monomorphized_set_child_positions::<XMain>(self, div),
+            Axis::Y => _monomorphized_set_child_positions::<YMain>(self, div),
+        }
+
+        pub trait AssembleDisassemble {
+            /// returns (main_axis, cross_axis)
+            fn disassemble(v: DVec2) -> (f64, f64);
+            fn assemble(main: f64, cross: f64) -> DVec2;
+        }
+
+        struct XMain;
+        struct YMain;
+
+        impl AssembleDisassemble for XMain {
+            #[inline(always)]
+            fn disassemble(v: DVec2) -> (f64, f64) {
+                // (main_axis, cross_axis)
+                (v.x, v.y)
+            }
+            #[inline(always)]
+            fn assemble(main: f64, cross: f64) -> DVec2 {
+                DVec2 { x: main, y: cross }
+            }
+        }
+
+        impl AssembleDisassemble for YMain {
+            #[inline(always)]
+            fn disassemble(v: DVec2) -> (f64, f64) {
+                // (main_axis, cross_axis)
+                (v.y, v.x)
+            }
+            #[inline(always)]
+            fn assemble(main: f64, cross: f64) -> DVec2 {
+                DVec2 { x: cross, y: main }
+            }
+        }
+
+        /// Gets monomorphized into two functions: One for Y being the Main Axis and one for X being the Main Axis.
+        #[inline(always)]
+        fn _monomorphized_set_child_positions<A: AssembleDisassemble>(
+            sel: &Layouter<'_>,
+            div: &Div,
+        ) {
+            let n_children = match &div.content {
+                DivContent::Text(_) => 1,
+                DivContent::Children(children) => children.len(),
+            };
+            if n_children == 0 {
+                return;
+            }
+
+            let div_pos = div.c_pos.get();
+            let div_size = div.c_size.get();
+            let (main_size, cross_size) = A::disassemble(div_size);
+            let content_size = div.c_content_size.get();
+            let (main_content_size, cross_content_size) = A::disassemble(content_size);
+
+            let mut main_axis_offset: f64; // initial offset on main axis for the first child
+            let main_axis_step: f64; // step that gets added for each child on main axis after its own size on main axis.
+
+            match div.props.main_align {
+                MainAlign::Start => {
+                    main_axis_offset = 0.0;
+                    main_axis_step = 0.0;
+                }
+                MainAlign::Center => {
+                    main_axis_offset = (main_size - main_content_size) * 0.5;
+                    main_axis_step = 0.0;
+                }
+                MainAlign::End => {
+                    main_axis_offset = main_size - main_content_size;
+                    main_axis_step = 0.0;
+                }
+                MainAlign::SpaceBetween => {
+                    main_axis_offset = 0.0;
+
+                    if n_children == 1 {
+                        main_axis_step = 0.0;
+                    } else {
+                        main_axis_step = (main_size - main_content_size) / (n_children - 1) as f64;
+                    }
+                }
+                MainAlign::SpaceAround => {
+                    main_axis_step = (main_size - main_content_size) / n_children as f64;
+                    main_axis_offset = main_axis_step / 2.0;
+                }
+            }
+
+            let calc_cross_offset = match div.props.cross_align {
+                Align::Start => |_: f64, _: f64| -> f64 { 0.0 },
+                Align::Center => |cross_parent: f64, cross_item: f64| -> f64 {
+                    (cross_parent - cross_item) * 0.5
+                },
+                Align::End => {
+                    |cross_parent: f64, cross_item: f64| -> f64 { cross_parent - cross_item }
+                }
+            };
+
+            match &div.content {
+                DivContent::Text(t) => {
+                    let cross = calc_cross_offset(cross_size, cross_content_size);
+                    let text_pos = A::assemble(main_axis_offset, cross);
+                    let text_offset =
+                        offset_dvec2(t.text.offset_x, t.text.offset_y, content_size, div_size);
+                    t.c_pos.set(text_pos + text_offset + div_pos);
+                }
+                DivContent::Children(children) => {
+                    let children = children.iter().map(|e| sel.divs.get(e).unwrap());
+                    for ch in children {
+                        let (ch_main_size, ch_cross_size) = A::disassemble(ch.c_size.get());
+                        let cross = calc_cross_offset(cross_size, ch_cross_size);
+                        let ch_rel_pos = A::assemble(main_axis_offset, cross);
+                        let ch_offset = offset_dvec2(
+                            ch.style.offset_x,
+                            ch.style.offset_y,
+                            ch.c_content_size.get(),
+                            div_size,
+                        );
+                        ch.c_pos.set(ch_rel_pos + ch_offset + div_pos);
+                        sel.set_child_positions(ch);
+                        main_axis_offset += ch_main_size + main_axis_step;
+                    }
+                }
+            }
+
+            // Question: maybe in future store offset of text or something, in case the parent pos is the same?
+            // right now, we just store the glyphs as a layout result independent of the divs pos in here,
+            // every frame we build up a glyoh buffer adding the position of the div to each glyph individually.
+        }
     }
 }
 
@@ -815,8 +845,25 @@ impl BorderRadius {
 
 #[derive(Debug)]
 pub enum DivContent {
-    Text(Text),
+    Text(TextEntry),
     Children(Vec<Id>),
+}
+
+#[derive(Debug)]
+pub(super) struct TextEntry {
+    pub text: Text,
+    pub c_pos: Cell<DVec2>,
+    pub c_text_layout: ChillCell<CachedTextLayout>,
+}
+
+impl TextEntry {
+    fn new(text: Text) -> Self {
+        TextEntry {
+            text,
+            c_pos: Cell::new(DVec2::ZERO),
+            c_text_layout: ChillCell::new(CachedTextLayout::zeroed()),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -826,14 +873,57 @@ pub struct Text {
     /// None means the default font will be used insteads
     pub font: Option<Key<Font>>,
     pub size: FontSize,
+    // is this here maybe in the wrong place for offset? Maybe an extra div for this stuff would be better than putting it in the text itself!
+    // on the other hand it is very useful to adjust the font baseline in a quick and dirty way.
+    pub offset_x: Len,
+    pub offset_y: Len,
 }
 
-#[derive(Debug)]
+impl Text {
+    fn same_glyphs(&self, other: &Self) -> bool {
+        self.size == other.size && self.font == other.font && self.string == other.string
+    }
+}
+
+impl Default for Text {
+    fn default() -> Self {
+        Self {
+            color: Color::BLACK,
+            string: "Placeholder".into(),
+            font: None,
+            size: FontSize(24),
+            offset_x: Len::Px(0.0),
+            offset_y: Len::Px(0.0),
+        }
+    }
+}
+
 pub struct CachedTextLayout {
     /// Width and Height that the text can take at Max. Right now the assumption is that the text is always bounded by some way (e.g. the entire screen).
     /// These can be integers, so that minor float differences do not cause a new layout.
     pub max_size: IVec2,
     pub result: TextLayoutResult,
+}
+
+impl CachedTextLayout {
+    pub fn zeroed() -> Self {
+        CachedTextLayout {
+            max_size: IVec2::ZERO,
+            result: TextLayoutResult {
+                glyph_pos_and_atlas_uv: vec![],
+                total_rect: Rect::ZERO,
+            },
+        }
+    }
+}
+
+impl Debug for CachedTextLayout {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CachedTextLayout")
+            .field("max_size", &self.max_size)
+            .field("result", &self.result)
+            .finish()
+    }
 }
 
 #[derive(Debug)]
@@ -845,7 +935,7 @@ pub struct DivProps {
     /// Determines how children are layed out.
     pub axis: Axis,
     pub main_align: MainAlign,
-    pub cross_align: CrossAlign,
+    pub cross_align: Align,
     // todo! translation, absolute, padding, margin
 }
 
@@ -856,7 +946,7 @@ impl Default for DivProps {
             height: Len::CHILDREN,
             axis: Axis::Y,
             main_align: MainAlign::Start,
-            cross_align: CrossAlign::Start,
+            cross_align: Align::Start,
         }
     }
 }
@@ -879,7 +969,7 @@ pub enum MainAlign {
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub enum CrossAlign {
+pub enum Align {
     #[default]
     Start,
     Center,
@@ -911,19 +1001,137 @@ impl Len {
 }
 
 /// Warning: assumes the content_size is set already on this div
-pub fn div_offset(div: &Div, parent_size: DVec2) -> DVec2 {
-    let content_size = div.c_content_size.get();
-    let x: f64 = match div.style.offset_x {
+pub(super) fn offset_dvec2(
+    offset_x: Len,
+    offset_y: Len,
+    content_size: DVec2,
+    parent_size: DVec2,
+) -> DVec2 {
+    let x: f64 = match offset_x {
         Len::Px(x) => x,
         Len::ParentFraction(f) => parent_size.x * f,
         Len::ChildrenFraction(f) => content_size.x * f,
     };
 
-    let y: f64 = match div.style.offset_y {
+    let y: f64 = match offset_y {
         Len::Px(x) => x,
         Len::ParentFraction(f) => parent_size.y * f,
         Len::ChildrenFraction(f) => content_size.y * f,
     };
 
     dvec2(x, y)
+}
+
+pub fn egui_inspect_board(ctx: &mut egui::Context, board: &mut Board) {
+    fn str_split(debug: &dyn Debug) -> String {
+        let div_str = format!("{debug:?}");
+        let mut div_str2 = String::new();
+
+        for (i, c) in div_str.chars().enumerate() {
+            div_str2.push(c);
+            if (i + 1) % 100 == 0 {
+                div_str2.push('\n');
+            }
+        }
+        div_str2
+    }
+
+    egui::Window::new("Board").max_width(700.0).show(ctx, |ui| {
+        // /////////////////////////////////////////////////////////////////////////////
+        // Graphics Settings
+        // /////////////////////////////////////////////////////////////////////////////
+        ui.label(format!(
+            "Top level children: {}",
+            board.top_level_children.len()
+        ));
+        ui.label(format!("Top level size: {}", board.top_level_size));
+
+        fn show_widget(ui: &mut Ui, board: &Board, div: &Div, level: usize) {
+            ui.horizontal(|ui| {
+                ui.add_space((level * 20) as f32);
+                ui.label(str_split(div));
+            });
+
+            match &div.content {
+                DivContent::Text(text) => {
+                    ui.horizontal(|ui| {
+                        ui.add_space(((level + 1) * 20) as f32);
+                        ui.label(str_split(text));
+                    });
+                }
+                DivContent::Children(children) => {
+                    for div in children.iter().map(|e| board.divs.get(e).unwrap()) {
+                        show_widget(ui, board, div, level + 1)
+                    }
+                }
+            }
+        }
+
+        for top in board.top_level_children.iter() {
+            let top_level_div = board.divs.get(top).unwrap();
+            show_widget(ui, board, top_level_div, 0);
+        }
+
+        // ui.painter()..circle(
+        //     Pos2::new(0.0, 0.0),
+        //     40.0,
+        //     egui::Rgba::from_rgb(1.0, 0.0, 0.0),
+        //     Stroke::new(5.0, egui::Rgba::from_rgb(1.0, 1.0, 0.0)),
+        // );
+
+        // let bloom_settings = self.deps.bloom.settings_mut();
+        // ui.label(format!(
+        //     "{} fps / {:.3} ms",
+        //     self.deps.time.fps().round() as i32,
+        //     self.deps.time.delta().as_secs_f32() * 1000.0
+        // ));
+        // ui.label("Bloom");
+        // ui.add(egui::Checkbox::new(
+        //     &mut bloom_settings.activated,
+        //     "Bloom Activated",
+        // ));
+        // if bloom_settings.activated {
+        //     ui.add(egui::Slider::new(
+        //         &mut bloom_settings.blend_factor,
+        //         0.0..=1.0,
+        //     ));
+        // }
+
+        // let tone_mapping_settings = self.deps.tone_mapping.settings_mut();
+        // ui.label("Tonemapping");
+        // ui.radio_value(
+        //     tone_mapping_settings,
+        //     ToneMappingSettings::Disabled,
+        //     "Disabled",
+        // );
+        // ui.radio_value(tone_mapping_settings, ToneMappingSettings::Aces, "Aces");
+        // // /////////////////////////////////////////////////////////////////////////////
+        // // Camera Settings
+        // // /////////////////////////////////////////////////////////////////////////////
+
+        // ui.label("Camera Kind");
+        // let orthographic_radio =
+        //     ui.radio_value(&mut self.camera_settings.is_ortho, true, "Orthographic");
+        // let perspective_radio =
+        //     ui.radio_value(&mut self.camera_settings.is_ortho, false, "Perspective");
+
+        // let slider = if self.camera_settings.is_ortho {
+        //     ui.label("Orthographic Camera Y Height");
+        //     ui.add(egui::Slider::new(
+        //         &mut self.camera_settings.ortho_y_height,
+        //         0.1..=100.0,
+        //     ))
+        // } else {
+        //     ui.label("Perspective Camera FOV (y) in degrees");
+        //     ui.add(egui::Slider::new(
+        //         &mut self.camera_settings.perspective_fovy_degrees,
+        //         2.0..=170.0,
+        //     ))
+        // };
+
+        // if slider.changed() || orthographic_radio.changed() || perspective_radio.changed() {
+        //     self.camera_settings
+        //         .apply(&mut self.deps.camera_3d.camera_mut().projection);
+        // }
+    });
 }

@@ -52,6 +52,7 @@ impl Module for Egui {
 
     fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
         // Important note: pixels_per_point is the inverse of the devices scale_factor.
+
         let platform = Platform::new(PlatformDescriptor {
             physical_size: deps.ctx.size,
             pixels_per_point: 1.0 / deps.ctx.scale_factor() as f32, // ??? is this updated properly?
