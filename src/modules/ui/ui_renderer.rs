@@ -36,6 +36,7 @@ pub struct UiRenderer {
     glyph_pipeline: wgpu::RenderPipeline,
     rect_shader_watcher: Option<ShaderFileWatcher>,
     rect_pipeline: wgpu::RenderPipeline,
+    // textured_rect_pipeline: wgpu::RenderPipeline,
     collected_batches: BatchingResult,
     draw_batches: Vec<BatchRegion>,
     rect_buffer: GrowableBuffer<RectRaw>,
@@ -84,6 +85,7 @@ impl Module for UiRenderer {
             glyph_pipeline: text_pipeline,
             rect_shader_watcher,
             rect_pipeline,
+            // textured_rect_pipeline: todo!(),
             collected_batches: BatchingResult::new(),
             draw_batches: vec![],
             rect_buffer,
@@ -178,6 +180,7 @@ impl MainPassRenderer for UiRenderer {
                     // todo!() maybe not set entire buffer and then adjust the instance indexes that are drawn???
                     render_pass.draw(0..VERTEX_COUNT, r.start as u32..r.end as u32);
                 }
+                BatchRegion::TexturedRect(_, _) => todo!(),
             }
         }
     }

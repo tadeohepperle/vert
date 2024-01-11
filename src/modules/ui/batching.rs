@@ -5,13 +5,14 @@ use glam::vec2;
 use wgpu::VertexFormat;
 
 use crate::{
-    elements::{rect::Aabb, Color},
+    elements::{rect::Aabb, BindableTexture, Color},
     modules::{arenas::Key, Attribute, VertexT},
 };
 
 use super::{
     board::{
-        offset_dvec2, Board, BorderRadius, CachedTextLayout, Div, DivContent, Text, TextEntry,
+        offset_dvec2, Board, BorderRadius, CachedTextLayout, Div, DivContent, DivTexture, Text,
+        TextEntry,
     },
     font_cache::{FontSize, TextLayoutResult},
 };
@@ -22,8 +23,13 @@ pub fn get_batches(board: &Board) -> BatchingResult {
     // todo! reuse allocated vec next frame!
     let mut sort_primitives: Vec<SortPrimitive> = vec![];
     for div in board.iter_divs() {
-        sort_primitives.push(SortPrimitive::Rect { div });
-        // add the div itself as a primitive.
+        // add the div itself as a primitive (textured vs untextured)
+        match &div.style.texture {
+            Some(div_texture) => {
+                sort_primitives.push(SortPrimitive::TexturedRect { div, div_texture })
+            }
+            None => sort_primitives.push(SortPrimitive::Rect { div }),
+        };
 
         if let DivContent::Text(text) = &div.content {
             sort_primitives.push(SortPrimitive::Text { div, text });
@@ -36,6 +42,7 @@ pub fn get_batches(board: &Board) -> BatchingResult {
 
     // create continous batches that refer to either a bunch of rect or glyph instances.
     let mut rects: Vec<RectRaw> = vec![];
+    let mut textured_rects: Vec<RectRawTextured> = vec![];
     let mut glyphs: Vec<GlyphRaw> = vec![];
     let mut batches: Vec<BatchRegion> = vec![];
 
@@ -43,6 +50,9 @@ pub fn get_batches(board: &Board) -> BatchingResult {
         let batch = match first {
             SortPrimitive::Rect { .. } => BatchRegion::Rect(0..0),
             SortPrimitive::Text { text, .. } => BatchRegion::Text(0..0, text.text.font),
+            SortPrimitive::TexturedRect { div, div_texture } => {
+                BatchRegion::TexturedRect(0..0, div_texture.texture)
+            }
         };
         batches.push(batch);
     }
@@ -56,11 +66,13 @@ pub fn get_batches(board: &Board) -> BatchingResult {
             match batch {
                 BatchRegion::Rect(r) => r.end = rects.len(),
                 BatchRegion::Text(r, _) => r.end = glyphs.len(),
+                BatchRegion::TexturedRect(r, _) => r.end = textured_rects.len(),
             }
             // create a new batch:
             let new_batch = match prim {
                 SortPrimitive::Rect { .. } => BatchRegion::Rect(0..0),
                 SortPrimitive::Text { text, .. } => BatchRegion::Text(0..0, text.text.font),
+                SortPrimitive::TexturedRect { div, div_texture } => todo!(),
             };
             batches.push(new_batch);
         }
@@ -68,17 +80,15 @@ pub fn get_batches(board: &Board) -> BatchingResult {
         // add the rect / the glyphs to the buffers.
         match prim {
             SortPrimitive::Rect { div } => {
-                let rect_raw = RectRaw {
-                    pos: div.computed_aabb(),
-                    color: div.style.color,
-                    border_radius: div.style.border_radius,
-                    border_color: div.style.border_color,
-                    border_thickness: div.style.border_thickness,
-                    border_softness: div.style.border_softness,
-                    _unused2: 0.0,
-                    _unused3: 0.0,
-                };
+                let rect_raw = RectRaw::from_div(div);
                 rects.push(rect_raw);
+            }
+            SortPrimitive::TexturedRect { div, div_texture } => {
+                let rect_raw_textured = RectRawTextured {
+                    rect: RectRaw::from_div(div),
+                    uv: div_texture.uv,
+                };
+                textured_rects.push(rect_raw_textured);
             }
             SortPrimitive::Text { div, text } => {
                 // todo! add text pos to glyphs
@@ -109,11 +119,13 @@ pub fn get_batches(board: &Board) -> BatchingResult {
         match region {
             BatchRegion::Rect(r) => r.end = rects.len(),
             BatchRegion::Text(r, _) => r.end = glyphs.len(),
+            BatchRegion::TexturedRect(r, _) => r.end = glyphs.len(),
         }
     }
 
     BatchingResult {
         rects,
+        textured_rects,
         glyphs,
         batches,
     }
@@ -121,8 +133,17 @@ pub fn get_batches(board: &Board) -> BatchingResult {
 
 #[derive(Debug, Clone, Copy)]
 enum SortPrimitive<'a> {
-    Rect { div: &'a Div },
-    Text { div: &'a Div, text: &'a TextEntry },
+    Rect {
+        div: &'a Div,
+    },
+    TexturedRect {
+        div: &'a Div,
+        div_texture: &'a DivTexture,
+    },
+    Text {
+        div: &'a Div,
+        text: &'a TextEntry,
+    },
 }
 
 impl<'a> SortPrimitive<'a> {
@@ -132,6 +153,7 @@ impl<'a> SortPrimitive<'a> {
         match self {
             SortPrimitive::Rect { div } => div.z_index,
             SortPrimitive::Text { div, .. } => div.z_index + 16,
+            SortPrimitive::TexturedRect { div, div_texture } => div.z_index,
         }
     }
 
@@ -139,7 +161,12 @@ impl<'a> SortPrimitive<'a> {
     fn batch_key(&self) -> u64 {
         match self {
             SortPrimitive::Rect { .. } => u64::MAX,
-            SortPrimitive::Text { text, .. } => text.text.font.map(|e| e.as_u64()).unwrap_or(0),
+            SortPrimitive::TexturedRect { div, div_texture } => {
+                div_texture.texture.as_u64_xor_type()
+            }
+            SortPrimitive::Text { text, .. } => {
+                text.text.font.map(|e| e.as_u64_xor_type()).unwrap_or(0)
+            }
         }
     }
 }
@@ -147,6 +174,7 @@ impl<'a> SortPrimitive<'a> {
 #[derive(Debug)]
 pub enum BatchRegion {
     Rect(Range<usize>),
+    TexturedRect(Range<usize>, Key<BindableTexture>),
     Text(Range<usize>, Option<Key<Font>>),
 }
 
@@ -155,6 +183,7 @@ impl BatchRegion {
     fn batch_key(&self) -> u64 {
         match self {
             BatchRegion::Rect(_) => u64::MAX,
+            BatchRegion::TexturedRect(_, texture) => texture.as_u64_xor_type(),
             BatchRegion::Text(_, font) => font.map(|e| e.as_u64()).unwrap_or(0),
         }
     }
@@ -163,6 +192,7 @@ impl BatchRegion {
 #[derive(Debug)]
 pub struct BatchingResult {
     pub rects: Vec<RectRaw>,
+    pub textured_rects: Vec<RectRawTextured>,
     pub glyphs: Vec<GlyphRaw>,
     pub batches: Vec<BatchRegion>,
 }
@@ -171,6 +201,7 @@ impl BatchingResult {
     pub fn new() -> Self {
         BatchingResult {
             rects: vec![],
+            textured_rects: vec![],
             glyphs: vec![],
             batches: vec![],
         }
@@ -192,24 +223,29 @@ impl BatchingResult {
         }
 
         let rects_before: usize = self.rects.len();
+        let textured_rects_before: usize = self.textured_rects.len();
         let glyphs_before: usize = self.glyphs.len();
         self.rects.append(&mut other.rects);
         self.glyphs.append(&mut other.glyphs);
         // adjust indices of batch regions, because they now point to later regions in the other two vectors.
-        self.batches
-            .extend(other.batches.into_iter().map(|e| match e {
-                BatchRegion::Rect(r) => BatchRegion::Rect(Range {
-                    start: r.start + rects_before,
-                    end: r.end + rects_before,
-                }),
-                BatchRegion::Text(r, font) => BatchRegion::Text(
-                    Range {
-                        start: r.start + glyphs_before,
-                        end: r.end + glyphs_before,
-                    },
-                    font,
-                ),
-            }))
+        self.batches.extend(other.batches.into_iter().map(|mut e| {
+            // offset the range of each batch region:
+            match &mut e {
+                BatchRegion::Rect(r) => {
+                    r.start += rects_before;
+                    r.end += rects_before;
+                }
+                BatchRegion::TexturedRect(r, _) => {
+                    r.start += textured_rects_before;
+                    r.end += textured_rects_before;
+                }
+                BatchRegion::Text(r, _) => {
+                    r.start += glyphs_before;
+                    r.end += glyphs_before;
+                }
+            };
+            e
+        }))
     }
 }
 
@@ -234,6 +270,39 @@ impl VertexT for RectRaw {
         Attribute::new("border_radius", VertexFormat::Float32x4),
         Attribute::new("border_color", VertexFormat::Float32x4),
         Attribute::new("others", VertexFormat::Float32x4),
+    ];
+}
+
+impl RectRaw {
+    fn from_div(div: &Div) -> Self {
+        RectRaw {
+            pos: div.computed_aabb(),
+            color: div.style.color,
+            border_radius: div.style.border_radius,
+            border_color: div.style.border_color,
+            border_thickness: div.style.border_thickness,
+            border_softness: div.style.border_softness,
+            _unused2: 0.0,
+            _unused3: 0.0,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, bytemuck::Pod, bytemuck::Zeroable, Copy)]
+pub struct RectRawTextured {
+    rect: RectRaw,
+    uv: Aabb,
+}
+
+impl VertexT for RectRawTextured {
+    const ATTRIBUTES: &'static [Attribute] = &[
+        Attribute::new("pos", VertexFormat::Float32x4),
+        Attribute::new("color", VertexFormat::Float32x4),
+        Attribute::new("border_radius", VertexFormat::Float32x4),
+        Attribute::new("border_color", VertexFormat::Float32x4),
+        Attribute::new("others", VertexFormat::Float32x4),
+        Attribute::new("uv", VertexFormat::Float32x4),
     ];
 }
 

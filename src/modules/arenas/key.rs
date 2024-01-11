@@ -1,4 +1,4 @@
-use std::{fmt::Display, marker::PhantomData};
+use std::{any::TypeId, fmt::Display, marker::PhantomData};
 
 use slotmap::{Key as KeyT, KeyData};
 
@@ -28,8 +28,18 @@ pub struct Key<T: 'static + Sized> {
 }
 
 impl<T: 'static + Sized> Key<T> {
+    #[inline]
     pub fn as_u64(&self) -> u64 {
         unsafe { std::mem::transmute(*self) }
+    }
+
+    /// a weak pseudo hash of the key. Used to check for equality
+    #[inline]
+    pub fn as_u64_xor_type(&self) -> u64 {
+        // just copy the first 8 bytes of the type id:
+        let ty: u64 = unsafe { std::mem::transmute_copy(&TypeId::of::<T>()) };
+        let key = self.as_u64();
+        ty ^ key
     }
 }
 

@@ -822,10 +822,10 @@ pub struct DivStyle {
     pub texture: Option<DivTexture>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct DivTexture {
-    texture: Key<BindableTexture>,
-    uv: Aabb,
+    pub texture: Key<BindableTexture>,
+    pub uv: Aabb,
 }
 
 impl Default for DivStyle {
