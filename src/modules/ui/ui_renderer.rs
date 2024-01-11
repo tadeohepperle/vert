@@ -3,6 +3,7 @@ use std::vec;
 use wgpu::BufferUsages;
 use wgpu::MultisampleState;
 use wgpu::RenderPipelineDescriptor;
+use wgpu::ShaderModule;
 use wgpu::ShaderModuleDescriptor;
 
 use crate::Dependencies;
@@ -32,9 +33,9 @@ use super::board::Board;
 use super::font_cache::FontCache;
 
 pub struct UiRenderer {
-    glyph_shader_watcher: Option<ShaderFileWatcher>,
+    shader_watcher: Option<ShaderFileWatcher>,
+    shader_module: ShaderModule,
     glyph_pipeline: wgpu::RenderPipeline,
-    rect_shader_watcher: Option<ShaderFileWatcher>,
     rect_pipeline: wgpu::RenderPipeline,
     // textured_rect_pipeline: wgpu::RenderPipeline,
     collected_batches: BatchingResult,
@@ -61,29 +62,21 @@ impl Module for UiRenderer {
         let rect_buffer = GrowableBuffer::new(device, 512, BufferUsages::VERTEX);
         let glyph_buffer = GrowableBuffer::new(device, 512, BufferUsages::VERTEX);
 
-        let text_shader_watcher = None;
-        let rect_shader_watcher = None;
+        let shader_watcher = None;
+        let shader_module = deps
+            .ctx
+            .device
+            .create_shader_module(ShaderModuleDescriptor {
+                label: Some("Ui Renderer Shaders"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("ui.wgsl").into()),
+            });
 
-        let text_pipeline = create_pipeline::<GlyphRaw>(
-            include_str!("glyph.wgsl"),
-            "Glyph",
-            device,
-            &[
-                deps.main_screen.bind_group_layout(),
-                rgba_bind_group_layout(device),
-            ],
-        );
-        let rect_pipeline = create_pipeline::<RectRaw>(
-            include_str!("rect.wgsl"),
-            "Rect",
-            device,
-            &[deps.main_screen.bind_group_layout()],
-        );
-
+        let glyph_pipeline = create_glyph_pipeline(&shader_module, &deps);
+        let rect_pipeline = create_rect_pipeline(&shader_module, &deps);
         Ok(UiRenderer {
-            glyph_shader_watcher: text_shader_watcher,
-            glyph_pipeline: text_pipeline,
-            rect_shader_watcher,
+            shader_watcher,
+            shader_module,
+            glyph_pipeline,
             rect_pipeline,
             // textured_rect_pipeline: todo!(),
             collected_batches: BatchingResult::new(),
@@ -103,8 +96,8 @@ impl Module for UiRenderer {
 }
 
 impl UiRenderer {
-    pub fn watch_rect_shader_file(&mut self, path: &str) {
-        self.rect_shader_watcher = Some(ShaderFileWatcher::new(path));
+    pub fn watch_shader_file(&mut self, path: &str) {
+        self.shader_watcher = Some(ShaderFileWatcher::new(path));
     }
 
     /// Warning: only call AFTER layout has been performed for this frame. (needs to be BillboardPhase::Rendering)
@@ -114,13 +107,6 @@ impl UiRenderer {
         assert_eq!(board.phase(), BoardPhase::Rendering);
         let batches = get_batches(board);
         self.collected_batches.combine(batches);
-        // if board.input().mouse_buttons.left().just_pressed() {
-        //     println!("{:?}", &self.collected_batches);
-        // }
-
-        // dbg!(&batches);
-
-        // println!("draw_billboard");
     }
 }
 
@@ -131,17 +117,6 @@ impl Prepare for UiRenderer {
         queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
     ) {
-        if let Some(s) = &self.rect_shader_watcher {
-            if let Some(new_wgsl) = s.check_for_changes() {
-                self.rect_pipeline = create_pipeline::<RectRaw>(
-                    &new_wgsl,
-                    "Rect",
-                    device,
-                    &[self.deps.main_screen.bind_group_layout()],
-                );
-            }
-        }
-
         self.rect_buffer
             .prepare(&self.collected_batches.rects, device, queue);
         self.glyph_buffer
@@ -187,18 +162,43 @@ impl MainPassRenderer for UiRenderer {
 }
 
 use crate::modules::VertexT;
+
+fn create_rect_pipeline(shader_module: &ShaderModule, deps: &Deps) -> wgpu::RenderPipeline {
+    let device = &deps.ctx.device;
+    create_pipeline::<RectRaw>(
+        shader_module,
+        "rect_vs",
+        "rect_fs",
+        "Rect",
+        device,
+        &[deps.main_screen.bind_group_layout()],
+    )
+}
+
+fn create_glyph_pipeline(shader_module: &ShaderModule, deps: &Deps) -> wgpu::RenderPipeline {
+    let device = &deps.ctx.device;
+    create_pipeline::<GlyphRaw>(
+        shader_module,
+        "glyph_vs",
+        "glyph_fs",
+        "Glyph",
+        device,
+        &[
+            deps.main_screen.bind_group_layout(),
+            rgba_bind_group_layout(device),
+        ],
+    )
+}
+
 /// Shared function for both rects and glyphs (both are transparent quads)
-pub fn create_pipeline<I: VertexT>(
-    shader_wgsl: &str,
+fn create_pipeline<I: VertexT>(
+    shader_module: &ShaderModule,
+    vertex_entry: &str,
+    fragment_entry: &str,
     label: &str,
     device: &wgpu::Device,
     bind_group_layouts: &[&wgpu::BindGroupLayout],
 ) -> wgpu::RenderPipeline {
-    let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some(&format!("{label} ShaderModule")),
-        source: wgpu::ShaderSource::Wgsl(shader_wgsl.into()),
-    });
-
     let _empty = &mut vec![];
     let vertex_buffers_layout = &[I::vertex_buffer_layout(0, true, _empty)];
 
@@ -212,13 +212,13 @@ pub fn create_pipeline<I: VertexT>(
         label: Some(&format!("{label} Pipeline")),
         layout: Some(&layout),
         vertex: wgpu::VertexState {
-            module: &shader_module,
-            entry_point: "vs_main",
+            module: shader_module,
+            entry_point: vertex_entry,
             buffers: vertex_buffers_layout,
         },
         fragment: Some(wgpu::FragmentState {
             module: &shader_module,
-            entry_point: "fs_main",
+            entry_point: fragment_entry,
             targets: &[Some(wgpu::ColorTargetState {
                 format: HDR_COLOR_FORMAT,
                 blend: Some(wgpu::BlendState::ALPHA_BLENDING),

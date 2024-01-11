@@ -44,7 +44,7 @@ impl Module for MyApp {
         deps.bloom.settings_mut().activated = false;
         deps.ui
             .ui_renderer
-            .watch_rect_shader_file("./src/modules/ui/rect.wgsl");
+            .watch_shader_file("./src/modules/ui/rect.wgsl");
 
         Ok(MyApp {
             deps,
