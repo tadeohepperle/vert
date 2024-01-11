@@ -1,0 +1,5 @@
+- Images in UI (Separate Batches with batch key being related to the image)
+- Put all shaders into one big file to enable more code sharing?
+- Add a slider widget to the UI (just to check that it is capable enough), probably needs Rect in Response
+- Add Pbr Materials, Directional Lights, Point Lights, Shadow Maps?
+- Submodules that get inserted at Runtime.

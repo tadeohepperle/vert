@@ -13,7 +13,7 @@ use std::{
 };
 
 use crate::{
-    elements::{rect::Aabb, Color, Rect},
+    elements::{rect::Aabb, BindableTexture, Color, Rect},
     modules::{
         arenas::Key,
         input::{MouseButtonState, PressState},
@@ -96,14 +96,14 @@ pub enum HotActiveWithId {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HotActive {
-    None,
+    Nil,
     Hot,
     Active,
 }
 
 impl HotActive {
     pub fn is_none(&self) -> bool {
-        matches!(self, HotActive::None)
+        matches!(self, HotActive::Nil)
     }
 
     pub fn is_hot(&self) -> bool {
@@ -135,11 +135,12 @@ impl Board {
 
 impl Board {
     /// call to transition from  BoardPhase::Rendering -> BoardPhase::AddDivs.
-    pub fn start_frame(&mut self, input: BoardInput) {
+    pub fn start_frame(&mut self, input: BoardInput, top_level_size: DVec2) {
         assert_eq!(self.phase, BoardPhase::Rendering);
         self.input = input;
         self.phase = BoardPhase::AddDivs;
         self.top_level_children.clear();
+        self.top_level_size = top_level_size;
     }
 
     pub fn iter_divs(&self) -> impl Iterator<Item = &Div> {
@@ -152,15 +153,15 @@ impl Board {
 
     pub fn hot_active(&self, id: Id) -> HotActive {
         match self.hot_active {
-            HotActiveWithId::None => HotActive::None,
-            HotActiveWithId::Hot(_) => HotActive::Hot,
-            HotActiveWithId::Active(_) => HotActive::Active,
+            HotActiveWithId::Hot(i) if i == id => HotActive::Hot,
+            HotActiveWithId::Active(i) if i == id => HotActive::Active,
+            _ => HotActive::Nil,
         }
     }
 
     pub fn set_hot_active(&mut self, id: Id, state: HotActive) {
         match state {
-            HotActive::None => {
+            HotActive::Nil => {
                 // dont allow change to none if currently other item is hot or active
                 if matches!(self.hot_active, HotActiveWithId::Hot(i) | HotActiveWithId::Active(i) if i != id)
                 {
@@ -415,50 +416,6 @@ impl BoardInput {
 pub struct Comm {
     // Some, if the mouse is hovering, clicking or releasing?
     pub mouse_in_rect: bool,
-}
-
-#[derive(Debug)]
-pub struct Div {
-    pub(crate) content: DivContent,
-    pub(crate) props: DivProps,
-    pub(crate) style: DivStyle,
-    // last_frame is reset every frame.
-    last_frame: u64,
-    // calculated as parent.z_index + 1, important for sorting in batching.
-    pub(crate) z_index: i32,
-
-    // computed sizes and position
-    pub(crate) c_size: Cell<DVec2>,
-    pub(crate) c_content_size: Cell<DVec2>,
-    pub(crate) c_pos: Cell<DVec2>,
-}
-
-impl Div {
-    #[inline(always)]
-    pub fn computed_aabb(&self) -> Aabb {
-        let size = self.c_size.get();
-        let pos = self.c_pos.get();
-
-        Aabb {
-            min_x: pos.x as f32,
-            min_y: pos.y as f32,
-            max_x: (pos.x + size.x) as f32,
-            max_y: (pos.y + size.y) as f32,
-        }
-    }
-
-    #[inline(always)]
-    pub fn computed_rect(&self) -> Rect {
-        let size = self.c_size.get();
-        let pos = self.c_pos.get();
-
-        Rect {
-            min_x: pos.x as f32,
-            min_y: pos.y as f32,
-            width: size.x as f32,
-            height: size.y as f32,
-        }
-    }
 }
 
 struct Layouter<'a> {
@@ -805,22 +762,47 @@ impl<'a> Layouter<'a> {
     }
 }
 
-pub struct DivChildIter<'a> {
-    i: usize,
-    children_ids: &'a [Id],
-    divs: &'a HashMap<Id, Div>,
+#[derive(Debug)]
+pub struct Div {
+    pub(crate) content: DivContent,
+    pub(crate) props: DivProps,
+    pub(crate) style: DivStyle,
+    // last_frame is reset every frame.
+    last_frame: u64,
+    // calculated as parent.z_index + 1, important for sorting in batching.
+    pub(crate) z_index: i32,
+
+    // computed sizes and position
+    pub(crate) c_size: Cell<DVec2>,
+    pub(crate) c_content_size: Cell<DVec2>,
+    pub(crate) c_pos: Cell<DVec2>,
 }
 
-impl<'a> DivChildIter<'a> {}
+impl Div {
+    #[inline(always)]
+    pub fn computed_aabb(&self) -> Aabb {
+        let size = self.c_size.get();
+        let pos = self.c_pos.get();
 
-impl<'a> Iterator for DivChildIter<'a> {
-    type Item = &'a Div;
+        Aabb {
+            min_x: pos.x as f32,
+            min_y: pos.y as f32,
+            max_x: (pos.x + size.x) as f32,
+            max_y: (pos.y + size.y) as f32,
+        }
+    }
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let child_id = self.children_ids.get(self.i)?;
-        let child = self.divs.get(child_id).unwrap();
-        self.i += 1;
-        Some(child)
+    #[inline(always)]
+    pub fn computed_rect(&self) -> Rect {
+        let size = self.c_size.get();
+        let pos = self.c_pos.get();
+
+        Rect {
+            min_x: pos.x as f32,
+            min_y: pos.y as f32,
+            width: size.x as f32,
+            height: size.y as f32,
+        }
     }
 }
 
@@ -837,6 +819,13 @@ pub struct DivStyle {
     // todo: margin and padding
     /// Note: z_bias is multiplied with 1024 when determining the final z_index and should be a rather small number.
     pub z_bias: i32,
+    pub texture: Option<DivTexture>,
+}
+
+#[derive(Debug)]
+pub struct DivTexture {
+    texture: Key<BindableTexture>,
+    uv: Aabb,
 }
 
 impl Default for DivStyle {
@@ -850,6 +839,7 @@ impl Default for DivStyle {
             border_color: Color::BLACK,
             offset_x: Len::Px(0.0),
             offset_y: Len::Px(0.0),
+            texture: None,
         }
     }
 }

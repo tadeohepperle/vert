@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use glam::{dvec2, vec2, vec3, Vec2};
 use vert::{
     elements::{Color, Rect, Transform},
@@ -65,20 +67,23 @@ impl MyApp {
             .color_mesh
             .draw_cubes(&[Transform::new(1.0, 1.0, 1.0)], None);
 
-        self.ui
-            .start_frame(BoardInput::from_input_module(&self.deps.input));
+        let size = self.deps.ctx.size;
+        self.ui.start_frame(
+            BoardInput::from_input_module(&self.deps.input),
+            dvec2(size.width as f64, size.height as f64),
+        );
         let parent = self
             .ui
             .add_non_text_div(
                 DivProps {
-                    width: Len::Px(700.0),
-                    height: Len::ChildrenFraction(1.5),
+                    width: Len::PARENT,
+                    height: Len::CHILDREN,
                     axis: Axis::X,
                     main_align: MainAlign::SpaceBetween,
                     cross_align: Align::Center,
                 },
                 DivStyle {
-                    color: Color::RED,
+                    color: Color::RED.alpha(0.2),
                     ..Default::default()
                 },
                 Id::from("Parent"),
@@ -216,25 +221,76 @@ impl MyApp {
             );
         }
 
-        let clicked = self
+        let container2 = self
             .ui
-            .add(
-                Button {
-                    text: "Hello Click".into(),
-                    ..Default::default()
+            .add_non_text_div(
+                DivProps {
+                    width: Len::CHILDREN,
+                    height: Len::PARENT,
+                    axis: Axis::Y,
+                    main_align: MainAlign::SpaceAround,
+                    cross_align: Align::Center,
                 },
-                Id::from("my button"),
+                DivStyle::default(),
+                Id::from("Container 2"),
                 Some(parent),
             )
-            .clicked;
+            .id;
 
-        if clicked {
-            println!("Hello");
+        {
+            let clicked = self
+                .ui
+                .add(
+                    Button {
+                        text: "Click".into(),
+                        ..Default::default()
+                    },
+                    Id::from("my button"),
+                    Some(container2),
+                )
+                .clicked;
+            if clicked {
+                println!("Hello 1");
+            }
         }
+        {
+            let clicked = self
+                .ui
+                .add(
+                    Button {
+                        text: "Button 2".into(),
+                        ..Default::default()
+                    },
+                    Id::from("my button 2"),
+                    Some(container2),
+                )
+                .clicked;
+            if clicked {
+                println!("Hello 2");
+            }
+        }
+        {
+            let clicked = self
+                .ui
+                .add(
+                    Button {
+                        text: "Button 3".into(),
+                        ..Default::default()
+                    },
+                    Id::from("my button 3"),
+                    Some(container2),
+                )
+                .clicked;
+            if clicked {
+                println!("Hello 3");
+            }
+        }
+
         // let mut ctx = self.deps.egui.context();
         // egui_inspect_board(&mut ctx, &mut self.ui);
 
         self.ui.end_frame(&mut self.deps.ui.fonts);
         self.deps.ui.ui_renderer.draw_billboard(&self.ui);
+        // std::thread::sleep(Duration::from_millis(150));
     }
 }

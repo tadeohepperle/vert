@@ -378,22 +378,27 @@ impl MouseButtonState {
         }
     }
 
+    #[inline]
     pub fn left(&self) -> PressState {
         self.buttons[MouseButton::Left as usize]
     }
 
+    #[inline]
     pub fn right(&self) -> PressState {
         self.buttons[MouseButton::Right as usize]
     }
 
+    #[inline]
     pub fn middle(&self) -> PressState {
         self.buttons[MouseButton::Middle as usize]
     }
 
+    #[inline]
     pub fn back(&self) -> PressState {
         self.buttons[MouseButton::Back as usize]
     }
 
+    #[inline]
     pub fn forward(&self) -> PressState {
         self.buttons[MouseButton::Forward as usize]
     }
