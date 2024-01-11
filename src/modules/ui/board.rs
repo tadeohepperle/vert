@@ -592,8 +592,8 @@ impl<'a> Layouter<'a> {
         }
 
         // otherwise layout the text:
-        dbg!(text_entry);
-        dbg!(max_size);
+        // dbg!(text_entry);
+        // dbg!(max_size);
         let layout_settings = fontdue::layout::LayoutSettings {
             x: 0.0,
             y: 0.0,
@@ -615,13 +615,13 @@ impl<'a> Layouter<'a> {
             &layout_settings,
             text_entry.text.font,
         );
-        dbg!(&result);
+        // dbg!(&result);
         let text_size = result.total_rect.d_size();
         *cached = CachedTextLayout {
             max_size: i_max_size,
             result,
         };
-        dbg!(text_size);
+        // dbg!(text_size);
         text_size
     }
 

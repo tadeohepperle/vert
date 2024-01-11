@@ -12,8 +12,8 @@ use std::{collections::HashMap, ops::Deref};
 use crate::{
     elements::{rect::Aabb, BindableTexture, Rect, Texture},
     modules::{
-        arenas::{Arena, Key},
-        scheduler, GraphicsContext, Prepare, Renderer, Time,
+        arenas::{Arena, Key, OwnedKey},
+        scheduler, Arenas, GraphicsContext, Prepare, Renderer, Time,
     },
     utils::{next_pow2_number, Timing},
     Dependencies, Handle, Module,
@@ -25,22 +25,20 @@ use crate::{
 #[derive(Debug, Dependencies)]
 pub struct Deps {
     ctx: Handle<GraphicsContext>,
-    time: Handle<Time>,
     renderer: Handle<Renderer>,
-    scheduler: Handle<Scheduler>,
+    arenas: Handle<Arenas>,
 }
 
 const ATLAS_SIZE: u32 = 4096;
+
+/// Todo! Currently no glyph cleanup, which is quite bad. Glyph cleanup can be pretty hard though.
 pub struct FontCache {
     deps: Deps,
-    fonts: Arena<Font>,
-    atlas_texture: BindableTexture,
+    atlas_texture: OwnedKey<BindableTexture>,
     atlas_allocator: AtlasAllocator,
-    default_font: Key<Font>,
+    default_font: OwnedKey<Font>,
     glyphs: HashMap<GlyphKey, Glyph>,
     texture_writes: Vec<GlyphKey>,
-    /// Since start of the game
-    total_secs: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -75,7 +73,6 @@ impl From<FontSize> for f32 {
 }
 
 struct Glyph {
-    last_touched_total_secs: u64,
     alloc_id: AllocId,
     metrics: fontdue::Metrics,
     bitmap: Vec<u8>,
@@ -89,40 +86,36 @@ impl Module for FontCache {
     type Config = ();
     type Dependencies = Deps;
 
-    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
         const DEFAULT_FONT_BYTES: &[u8] = include_bytes!("../../../assets/Oswald-Medium.ttf");
         let default_font = fontdue::Font::from_bytes(DEFAULT_FONT_BYTES, Default::default())
             .expect("could not load default font");
 
-        let mut fonts = Arena::new();
-        let default_font = fonts.insert(default_font);
+        let default_font = deps.arenas.insert(default_font);
 
         let atlas_width: u32 = ATLAS_SIZE;
         let atlas_height: u32 = ATLAS_SIZE;
-        let mut atlas_allocator =
+        let atlas_allocator =
             AtlasAllocator::new(etagere::size2(atlas_width as i32, atlas_height as i32));
 
         let image = RgbaImage::new(atlas_width, atlas_height);
         let atlas_texture = Texture::from_image(&deps.ctx.device, &deps.ctx.queue, &image);
         let atlas_texture = BindableTexture::new(&deps.ctx.device, atlas_texture);
+        let atlas_texture = deps.arenas.insert(atlas_texture);
+
         Ok(FontCache {
             deps,
-            fonts,
             default_font,
             atlas_texture,
             atlas_allocator,
             glyphs: HashMap::new(),
             texture_writes: vec![],
-            total_secs: 0,
         })
     }
 
     fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
         let mut renderer = handle.deps.renderer;
         renderer.register_prepare(handle);
-
-        let mut scheduler = handle.deps.scheduler;
-        scheduler.register_update(handle, Timing::LATE + 10, Self::end_frame);
 
         Ok(())
     }
@@ -135,59 +128,41 @@ impl Prepare for FontCache {
         queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
     ) {
+        let atlas_texture = &self.deps.arenas[&self.atlas_texture];
         for key in self.texture_writes.iter() {
             let glyph = self.glyphs.get(key).unwrap();
             let glyph_image = glyph_to_rgba_image(glyph);
             update_texture_region(
-                &self.atlas_texture.texture,
+                &atlas_texture.texture,
                 &glyph_image,
                 glyph.offset_in_atlas,
                 queue,
             );
         }
+        self.texture_writes.clear();
     }
 }
 
 impl FontCache {
-    /// end frame, clean up texture by freeing glyphs
-    pub fn end_frame(&mut self) {
-        // used to clean up glyphs, that have not been used for some time, to get free space in the texture atlas.
-        self.texture_writes.clear();
-        let total_secs_before = self.total_secs;
-        self.total_secs = self.deps.time.total().as_secs();
-
-        const DEALLOCATE_AFTER_N_SECS: u64 = 3;
-        // once per second:
-        if total_secs_before != self.total_secs {
-            self.glyphs.retain(|_, glyph| {
-                // glyphs that have not been touched for a number of seconds are freed.
-                if glyph.last_touched_total_secs + DEALLOCATE_AFTER_N_SECS > self.total_secs {
-                    true // is still ok
-                } else {
-                    self.atlas_allocator.deallocate(glyph.alloc_id);
-                    false // remove
-                }
-            });
-        }
-    }
-
     pub fn default_font(&self) -> Key<Font> {
-        self.default_font
+        self.default_font.key()
     }
 
-    pub fn add_font(&mut self, font: fontdue::Font) -> Key<Font> {
-        self.fonts.insert(font)
+    pub fn atlas_texture(&self) -> Key<BindableTexture> {
+        self.atlas_texture.key()
+    }
+
+    pub fn atlas_texture_obj(&self) -> &BindableTexture {
+        &self.deps.arenas[&self.atlas_texture]
     }
 
     /// Returns non if there is no glyph that can be assigned to the char (e.g. for space)
     fn get_glyph_atlas_uv_or_rasterize<'a>(&'a mut self, key: GlyphKey) -> Option<Aabb> {
         if let Some(glyph) = self.glyphs.get_mut(&key) {
-            glyph.last_touched_total_secs = self.total_secs;
             return Some(glyph.atlas_uv);
         }
 
-        let font = self.fonts.get(key.font).unwrap();
-
+        let font = &self.deps.arenas[key.font];
         let (metrics, bitmap) = font.rasterize(key.char, key.font_size.into());
         debug_assert_eq!(bitmap.len(), metrics.width * metrics.height);
 
@@ -223,15 +198,10 @@ impl FontCache {
             bitmap,
             offset_in_atlas,
             atlas_uv: uv,
-            last_touched_total_secs: self.total_secs,
             alloc_id: allocation.id,
         };
         self.glyphs.insert(key, glyph);
         Some(uv)
-    }
-
-    pub fn atlas_texture(&self) -> &BindableTexture {
-        &self.atlas_texture
     }
 
     /// if layout_font_size_px is None, the size at which the font was rasterized font is used for layout
@@ -244,8 +214,8 @@ impl FontCache {
         font: Option<Key<Font>>,
     ) -> TextLayoutResult {
         // Note: (layout_settings.x, layout_settings.y) is the top left corner where the text starts.
-        let font = font.unwrap_or_else(|| self.default_font);
-        let font_obj = self.fonts.get(font).expect("Rasterized Font not found");
+        let font = font.unwrap_or_else(|| self.default_font.key());
+        let font_obj = &self.deps.arenas[font];
 
         let mut layout: Layout<()> = Layout::new(CoordinateSystem::PositiveYDown);
         layout.reset(layout_settings);

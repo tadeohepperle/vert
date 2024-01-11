@@ -72,6 +72,18 @@ impl MyApp {
             BoardInput::from_input_module(&self.deps.input),
             dvec2(size.width as f64, size.height as f64),
         );
+
+        self.deps.world_rects.draw_textured_rect(
+            UiRect {
+                pos: Rect::new(0.0, 0.0, 1024.0, 1024.0),
+                uv: Rect::UNIT,
+                color: Color::WHITE,
+                border_radius: Default::default(),
+            },
+            Transform::default(),
+            self.deps.ui.fonts.atlas_texture(),
+        );
+
         let parent = self
             .ui
             .add_non_text_div(
@@ -90,6 +102,36 @@ impl MyApp {
                 None,
             )
             .id;
+
+        // let text = self.ui.add_text_div(
+        //     DivProps::default(),
+        //     DivStyle::default(),
+        //     Text {
+        //         color: Color::WHITE,
+        //         string: "This is all the text that we need".into(),
+        //         font: None,
+        //         size: FontSize(80),
+        //         offset_x: Len::ZERO,
+        //         offset_y: Len::ZERO,
+        //     },
+        //     Id::from("sasass"),
+        //     Some(parent),
+        // );
+
+        // let text2 = self.ui.add_text_div(
+        //     DivProps::default(),
+        //     DivStyle::default(),
+        //     Text {
+        //         color: Color::RED,
+        //         string: "This is some other text".into(),
+        //         font: None,
+        //         size: FontSize(20),
+        //         offset_x: Len::ZERO,
+        //         offset_y: Len::ZERO,
+        //     },
+        //     Id::from("asdsadsadsasdsad"),
+        //     Some(parent),
+        // );
 
         let purp_parent = self
             .ui

@@ -17,7 +17,7 @@ use crate::{
         BindableTexture, Color, GrowableBuffer, ToRaw, Transform, TransformRaw,
     },
     modules::{
-        arenas::Key,
+        arenas::{Key, OwnedKey},
         renderer::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT},
         Arenas, Attribute, GraphicsContext, MainCamera3D, MainScreenSize, Prepare, Renderer,
         VertexT,
@@ -54,7 +54,7 @@ impl WorldRectRenderer {
                 ui_rect: rect,
                 transform: transform.to_raw(),
             },
-            self.white_px_texture_key,
+            self.white_px_texture_key.key(),
         );
     }
 }
@@ -75,7 +75,7 @@ pub struct Deps {
 /// Let's not abstract too early.
 pub struct WorldRectRenderer {
     pipeline: wgpu::RenderPipeline,
-    white_px_texture_key: Key<BindableTexture>,
+    white_px_texture_key: OwnedKey<BindableTexture>,
     queue: TexturedInstancesQueue<WorldRect>,
     instance_ranges: Vec<(Range<u32>, Key<BindableTexture>)>,
     instance_buffer: GrowableBuffer<WorldRect>,
@@ -89,7 +89,7 @@ impl Module for WorldRectRenderer {
 
     fn new(config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
         let white_texture = create_white_px_texture(&deps.ctx.device, &deps.ctx.queue);
-        let white_px_texture_key = deps.arenas.textures_mut().insert(white_texture);
+        let white_px_texture_key = deps.arenas.insert(white_texture);
         let pipeline =
             create_render_pipeline(&deps.ctx.device, include_str!("world_rect.wgsl"), &deps.cam);
 
@@ -138,7 +138,7 @@ impl MainPassRenderer for WorldRectRenderer {
 
         // 6 indices to draw two triangles
         const VERTEX_COUNT: u32 = 6;
-        let textures = self.deps.arenas.textures();
+        let textures = self.deps.arenas.arena::<BindableTexture>();
         for (range, texture) in self.instance_ranges.iter() {
             let Some(texture) = textures.get(*texture) else {
                 warn!("Texture with key {texture:?} does not exist and cannot be rendered for a UI Rect");

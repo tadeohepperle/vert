@@ -2,6 +2,25 @@ use std::{fmt::Display, marker::PhantomData};
 
 use slotmap::{Key as KeyT, KeyData};
 
+/// An owned key cannot be cloned or in any way duplicated (except with unsafe of course). it is unique.
+///
+/// But it can be converted into any number of normal keys that can be passed around.
+#[repr(C)]
+pub struct OwnedKey<T: 'static + Sized>(pub(super) Key<T>);
+
+impl<T: 'static + Sized> OwnedKey<T> {
+    pub fn key(&self) -> Key<T> {
+        self.0
+    }
+}
+
+// only from Owned -> Normal is allowed!
+impl<T: 'static + Sized> From<OwnedKey<T>> for Key<T> {
+    fn from(value: OwnedKey<T>) -> Self {
+        value.0
+    }
+}
+
 #[repr(C)]
 pub struct Key<T: 'static + Sized> {
     value: KeyData,

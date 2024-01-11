@@ -1,14 +1,21 @@
-use crate::{elements::BindableTexture, Module};
+use crate::{elements::BindableTexture, utils::ChillCell, Module};
 use slotmap::SlotMap;
-use std::{any::TypeId, collections::HashMap, ops::DerefMut};
+use std::{
+    any::TypeId,
+    borrow::BorrowMut,
+    cell::RefCell,
+    collections::HashMap,
+    ops::{DerefMut, Index, IndexMut},
+};
 
 mod key;
-pub use key::Key;
+pub use key::{Key, OwnedKey};
 
 pub struct Arenas {
-    textures: Arena<BindableTexture>,
-    fonts: Arena<fontdue::Font>,
-    any: HashMap<TypeId, UntypedArena>,
+    /// Todo! doing ChillCell + HashMap lookup is absolutely disgusting.
+    /// It would be better if could construct something at compile time.
+    /// This is just an intermediate solution, to get something working.
+    any: ChillCell<HashMap<TypeId, UntypedArena>>,
 }
 
 impl Module for Arenas {
@@ -23,10 +30,69 @@ impl Module for Arenas {
 impl Arenas {
     pub fn new() -> Self {
         Arenas {
-            textures: Default::default(),
-            fonts: Default::default(),
-            any: Default::default(),
+            any: ChillCell::new(HashMap::new()),
         }
+    }
+
+    pub fn arena<A: 'static + Sized>(&self) -> &Arena<A> {
+        self._any_arena_internal::<A>()
+    }
+
+    pub fn any_arena_mut<A: 'static + Sized>(&mut self) -> &mut Arena<A> {
+        self._any_arena_internal::<A>()
+    }
+
+    #[inline]
+    pub fn _any_arena_internal<A: 'static + Sized>(&self) -> &mut Arena<A> {
+        let type_key = TypeId::of::<A>();
+        let arena = self
+            .any
+            .get_mut()
+            .entry(type_key)
+            .or_insert_with(|| Arena::<A>::new().into_untyped())
+            .typed_mut::<A>();
+        arena
+    }
+
+    pub fn insert<A: 'static + Sized>(&mut self, value: A) -> OwnedKey<A> {
+        let key = self._any_arena_internal::<A>().insert(value);
+        OwnedKey(key)
+    }
+
+    pub fn remove<A: 'static + Sized>(&mut self, key: OwnedKey<A>) -> Option<A> {
+        self._any_arena_internal::<A>().remove(key.0)
+    }
+
+    pub fn get_mut<A: 'static + Sized>(&self, key: OwnedKey<A>) -> Option<&mut A> {
+        self._any_arena_internal::<A>().get_mut(key.0)
+    }
+
+    pub fn get<A: 'static + Sized>(&self, key: Key<A>) -> Option<&A> {
+        self._any_arena_internal::<A>().get(key)
+    }
+}
+
+impl<T: 'static + Sized> Index<Key<T>> for Arenas {
+    type Output = T;
+
+    fn index(&self, key: Key<T>) -> &Self::Output {
+        self._any_arena_internal().get(key).unwrap()
+    }
+}
+
+// Note: no IndexMut implementation for Key<A> only for OwnedKey<A>
+
+impl<T: 'static + Sized> Index<&OwnedKey<T>> for Arenas {
+    type Output = T;
+
+    fn index(&self, key: &OwnedKey<T>) -> &Self::Output {
+        self._any_arena_internal().get(key.0).unwrap()
+    }
+}
+
+impl<T: 'static + Sized> IndexMut<&OwnedKey<T>> for Arenas {
+    fn index_mut(&mut self, key: &OwnedKey<T>) -> &mut Self::Output {
+        self._any_arena_internal().get_mut(key.0).unwrap()
     }
 }
 
@@ -67,50 +133,6 @@ impl<T: 'static + Sized> Default for Arena<T> {
         Self {
             inner: Default::default(),
         }
-    }
-}
-
-impl Arenas {
-    pub fn textures(&self) -> &Arena<BindableTexture> {
-        &self.textures
-    }
-
-    pub fn textures_mut(&mut self) -> &mut Arena<BindableTexture> {
-        &mut self.textures
-    }
-
-    pub fn fonts(&self) -> &Arena<fontdue::Font> {
-        &self.fonts
-    }
-
-    pub fn fonts_mut(&mut self) -> &mut Arena<fontdue::Font> {
-        &mut self.fonts
-    }
-
-    // pub fn any_arena<A: 'static + Sized>(&mut self) -> &Arena<A> {
-    //     let type_key = TypeId::of::<A>();
-    //     let arena = self
-    //         .guard
-    //         .any
-    //         .get(&type_key)
-    //         .unwrap_or_else(|| {
-    //             self.guard
-    //                 .any
-    //                 .insert(type_key, Arena::<A>::new().into_untyped());
-    //             self.guard.any.get(&type_key).unwrap()
-    //         })
-    //         .typed::<A>();
-    //     arena
-    // }
-
-    pub fn any_arena_mut<A: 'static + Sized>(&mut self) -> &mut Arena<A> {
-        let type_key = TypeId::of::<A>();
-        let arena = self
-            .any
-            .entry(type_key)
-            .or_insert_with(|| Arena::<A>::new().into_untyped())
-            .typed_mut::<A>();
-        arena
     }
 }
 

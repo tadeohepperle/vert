@@ -111,8 +111,12 @@ impl UiRenderer {
         // ensure layout has been done by checking the phase
         assert_eq!(board.phase(), BoardPhase::Rendering);
         let batches = get_batches(board);
-        // dbg!(&batches);
         self.collected_batches.combine(batches);
+        // if board.input().mouse_buttons.left().just_pressed() {
+        //     println!("{:?}", &self.collected_batches);
+        // }
+
+        // dbg!(&batches);
 
         // println!("draw_billboard");
     }
@@ -154,7 +158,9 @@ impl MainPassRenderer for UiRenderer {
         render_pass.set_bind_group(0, self.deps.main_screen.bind_group(), &[]);
 
         // 6 indices to draw two triangles
+
         const VERTEX_COUNT: u32 = 6;
+        let atlas_texture = self.deps.fonts.atlas_texture_obj();
         for batch in self.draw_batches.iter() {
             match batch {
                 BatchRegion::Rect(r) => {
@@ -165,7 +171,6 @@ impl MainPassRenderer for UiRenderer {
                     render_pass.draw(0..VERTEX_COUNT, r.start as u32..r.end as u32);
                 }
                 BatchRegion::Text(r, font) => {
-                    let atlas_texture = self.deps.fonts.atlas_texture();
                     render_pass.set_bind_group(1, &atlas_texture.bind_group, &[]);
                     render_pass.set_pipeline(&self.glyph_pipeline);
                     // set the instance buffer (no vertex buffer used, vertex positions computed from instances)

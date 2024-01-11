@@ -18,7 +18,7 @@ use crate::{
         BindableTexture, Color, GrowableBuffer, Rect,
     },
     modules::{
-        arenas::Key,
+        arenas::{Key, OwnedKey},
         renderer::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT},
         Arenas, Attribute, GraphicsContext, MainScreenSize, Prepare, Renderer, VertexT,
     },
@@ -38,7 +38,7 @@ impl UiRectRenderer {
     }
 
     pub fn draw_rect(&mut self, rect: UiRect) {
-        self.queue.add(rect, self.white_px_texture_key);
+        self.queue.add(rect, self.white_px_texture_key.key());
     }
 }
 
@@ -55,7 +55,7 @@ pub struct Deps {
 }
 pub struct UiRectRenderer {
     pipeline: wgpu::RenderPipeline,
-    white_px_texture_key: Key<BindableTexture>,
+    white_px_texture_key: OwnedKey<BindableTexture>,
     queue: TexturedInstancesQueue<UiRect>,
     instance_ranges: Vec<(Range<u32>, Key<BindableTexture>)>,
     instance_buffer: GrowableBuffer<UiRect>,
@@ -69,7 +69,7 @@ impl Module for UiRectRenderer {
 
     fn new(config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
         let white_texture = create_white_px_texture(&deps.ctx.device, &deps.ctx.queue);
-        let white_px_texture_key = deps.arenas.textures_mut().insert(white_texture);
+        let white_px_texture_key = deps.arenas.insert(white_texture);
 
         let pipeline =
             create_render_pipeline(&deps.ctx.device, include_str!("ui_rect.wgsl"), &deps.screen);
@@ -119,7 +119,7 @@ impl MainPassRenderer for UiRectRenderer {
 
         // 6 indices to draw two triangles
         const VERTEX_COUNT: u32 = 6;
-        let textures = self.deps.arenas.textures();
+        let textures = self.deps.arenas.arena::<BindableTexture>();
         for (range, texture) in self.instance_ranges.iter() {
             let Some(texture) = textures.get(*texture) else {
                 warn!("Texture with key {texture:?} does not exist and cannot be rendered for a UI Rect");
