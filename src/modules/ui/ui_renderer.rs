@@ -1,5 +1,6 @@
 use std::vec;
 
+use log::warn;
 use wgpu::BufferUsages;
 use wgpu::MultisampleState;
 use wgpu::RenderPipelineDescriptor;
@@ -9,11 +10,13 @@ use wgpu::ShaderModuleDescriptor;
 use crate::Dependencies;
 
 use crate::elements::texture::rgba_bind_group_layout;
+use crate::elements::BindableTexture;
 use crate::elements::GrowableBuffer;
 use crate::modules::renderer::DEPTH_FORMAT;
 use crate::modules::renderer::HDR_COLOR_FORMAT;
 use crate::modules::renderer::MSAA_SAMPLE_COUNT;
 use crate::modules::ui::board::BoardPhase;
+use crate::modules::Arenas;
 use crate::modules::GraphicsContext;
 use crate::modules::MainPassRenderer;
 use crate::modules::MainScreenSize;
@@ -29,6 +32,7 @@ use super::batching::BatchRegion;
 use super::batching::BatchingResult;
 use super::batching::GlyphRaw;
 use super::batching::RectRaw;
+use super::batching::RectRawTextured;
 use super::board::Board;
 use super::font_cache::FontCache;
 
@@ -37,10 +41,12 @@ pub struct UiRenderer {
     shader_module: ShaderModule,
     glyph_pipeline: wgpu::RenderPipeline,
     rect_pipeline: wgpu::RenderPipeline,
+    textured_rect_pipeline: wgpu::RenderPipeline,
     // textured_rect_pipeline: wgpu::RenderPipeline,
     collected_batches: BatchingResult,
     draw_batches: Vec<BatchRegion>,
     rect_buffer: GrowableBuffer<RectRaw>,
+    textured_rect_buffer: GrowableBuffer<RectRawTextured>,
     glyph_buffer: GrowableBuffer<GlyphRaw>,
     deps: Deps,
 }
@@ -49,6 +55,7 @@ pub struct UiRenderer {
 pub struct Deps {
     renderer: Handle<Renderer>,
     fonts: Handle<FontCache>,
+    arenas: Handle<Arenas>,
     ctx: Handle<GraphicsContext>,
     main_screen: Handle<MainScreenSize>,
 }
@@ -59,8 +66,9 @@ impl Module for UiRenderer {
 
     fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
         let device = &deps.ctx.device;
-        let rect_buffer = GrowableBuffer::new(device, 512, BufferUsages::VERTEX);
+        let rect_buffer = GrowableBuffer::new(device, 256, BufferUsages::VERTEX);
         let glyph_buffer = GrowableBuffer::new(device, 512, BufferUsages::VERTEX);
+        let textured_rect_buffer = GrowableBuffer::new(device, 256, BufferUsages::VERTEX);
 
         let shader_watcher = None;
         let shader_module = deps
@@ -73,15 +81,18 @@ impl Module for UiRenderer {
 
         let glyph_pipeline = create_glyph_pipeline(&shader_module, &deps);
         let rect_pipeline = create_rect_pipeline(&shader_module, &deps);
+        let textured_rect_pipeline = create_textured_rect_pipeline(&shader_module, &deps);
+
         Ok(UiRenderer {
             shader_watcher,
             shader_module,
             glyph_pipeline,
             rect_pipeline,
-            // textured_rect_pipeline: todo!(),
+            textured_rect_pipeline,
             collected_batches: BatchingResult::new(),
             draw_batches: vec![],
             rect_buffer,
+            textured_rect_buffer,
             glyph_buffer,
             deps,
         })
@@ -117,14 +128,36 @@ impl Prepare for UiRenderer {
         queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
     ) {
+        // recreate the pipelines if watching some file:
+        if let Some(watcher) = &self.shader_watcher {
+            if let Some(new_wgsl) = watcher.check_for_changes() {
+                let shader_module =
+                    self.deps
+                        .ctx
+                        .device
+                        .create_shader_module(ShaderModuleDescriptor {
+                            label: Some("Ui Renderer Shaders"),
+                            source: wgpu::ShaderSource::Wgsl(new_wgsl.into()),
+                        });
+                self.glyph_pipeline = create_glyph_pipeline(&shader_module, &self.deps);
+                self.rect_pipeline = create_rect_pipeline(&shader_module, &self.deps);
+                self.textured_rect_pipeline =
+                    create_textured_rect_pipeline(&shader_module, &self.deps);
+            }
+        }
+
+        // update buffers:
         self.rect_buffer
             .prepare(&self.collected_batches.rects, device, queue);
+        self.textured_rect_buffer
+            .prepare(&self.collected_batches.textured_rects, device, queue);
         self.glyph_buffer
             .prepare(&self.collected_batches.glyphs, device, queue);
         self.draw_batches.clear();
         std::mem::swap(&mut self.draw_batches, &mut self.collected_batches.batches);
         self.collected_batches.glyphs.clear();
         self.collected_batches.rects.clear();
+        self.collected_batches.textured_rects.clear();
     }
 }
 
@@ -137,7 +170,10 @@ impl MainPassRenderer for UiRenderer {
         // 6 indices to draw two triangles
 
         const VERTEX_COUNT: u32 = 6;
-        let atlas_texture = self.deps.fonts.atlas_texture_obj();
+        let atlas_texture = self.deps.fonts.atlas_texture();
+        let textures = self.deps.arenas.arena::<BindableTexture>();
+        let atlas_texture = textures.get(atlas_texture).unwrap();
+
         for batch in self.draw_batches.iter() {
             match batch {
                 BatchRegion::Rect(r) => {
@@ -147,7 +183,7 @@ impl MainPassRenderer for UiRenderer {
                     // todo!() maybe not set entire buffer and then adjust the instance indexes that are drawn???
                     render_pass.draw(0..VERTEX_COUNT, r.start as u32..r.end as u32);
                 }
-                BatchRegion::Text(r, font) => {
+                BatchRegion::Text(r, _font) => {
                     render_pass.set_bind_group(1, &atlas_texture.bind_group, &[]);
                     render_pass.set_pipeline(&self.glyph_pipeline);
                     // set the instance buffer (no vertex buffer used, vertex positions computed from instances)
@@ -155,7 +191,19 @@ impl MainPassRenderer for UiRenderer {
                     // todo!() maybe not set entire buffer and then adjust the instance indexes that are drawn???
                     render_pass.draw(0..VERTEX_COUNT, r.start as u32..r.end as u32);
                 }
-                BatchRegion::TexturedRect(_, _) => todo!(),
+                BatchRegion::TexturedRect(r, texture) => {
+                    if let Some(texture) = textures.get(*texture) {
+                        render_pass.set_bind_group(1, &texture.bind_group, &[]);
+                        render_pass.set_pipeline(&self.textured_rect_pipeline);
+                        // set the instance buffer (no vertex buffer used, vertex positions computed from instances)
+                        render_pass
+                            .set_vertex_buffer(0, self.textured_rect_buffer.buffer().slice(..));
+                        // todo!() maybe not set entire buffer and then adjust the instance indexes that are drawn???
+                        render_pass.draw(0..VERTEX_COUNT, r.start as u32..r.end as u32);
+                    } else {
+                        warn!("Texture not found for key {texture} in a ui rendering batch (textured rect)")
+                    }
+                }
             }
         }
     }
@@ -172,6 +220,24 @@ fn create_rect_pipeline(shader_module: &ShaderModule, deps: &Deps) -> wgpu::Rend
         "Rect",
         device,
         &[deps.main_screen.bind_group_layout()],
+    )
+}
+
+fn create_textured_rect_pipeline(
+    shader_module: &ShaderModule,
+    deps: &Deps,
+) -> wgpu::RenderPipeline {
+    let device = &deps.ctx.device;
+    create_pipeline::<RectRawTextured>(
+        shader_module,
+        "textured_rect_vs",
+        "textured_rect_fs",
+        "Textured Rect",
+        device,
+        &[
+            deps.main_screen.bind_group_layout(),
+            rgba_bind_group_layout(device),
+        ],
     )
 }
 

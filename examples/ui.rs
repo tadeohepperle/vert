@@ -44,7 +44,7 @@ impl Module for MyApp {
         deps.bloom.settings_mut().activated = false;
         deps.ui
             .ui_renderer
-            .watch_shader_file("./src/modules/ui/rect.wgsl");
+            .watch_shader_file("./src/modules/ui/ui.wgsl");
 
         Ok(MyApp {
             deps,
@@ -93,6 +93,7 @@ impl MyApp {
                     axis: Axis::X,
                     main_align: MainAlign::SpaceBetween,
                     cross_align: Align::Center,
+                    absolute: false,
                 },
                 DivStyle {
                     color: Color::RED.alpha(0.2),
@@ -142,6 +143,7 @@ impl MyApp {
                     axis: Axis::Y,
                     main_align: MainAlign::Center,
                     cross_align: Align::Center,
+                    absolute: false,
                 },
                 DivStyle {
                     color: Color::PURPLE.alpha(0.5),
@@ -163,6 +165,7 @@ impl MyApp {
                 axis: Axis::Y,
                 main_align: MainAlign::Center,
                 cross_align: Align::Center,
+                absolute: false,
             },
             DivStyle {
                 color: Color::GREEN,
@@ -179,6 +182,7 @@ impl MyApp {
                 axis: Axis::Y,
                 main_align: MainAlign::Center,
                 cross_align: Align::Center,
+                absolute: false,
             },
             DivStyle {
                 color: Color::WHITE,
@@ -195,6 +199,7 @@ impl MyApp {
                 axis: Axis::Y,
                 main_align: MainAlign::Start,
                 cross_align: Align::Start,
+                absolute: false,
             },
             DivStyle {
                 color: Color::BLACK,
@@ -211,6 +216,7 @@ impl MyApp {
                 axis: Axis::Y,
                 main_align: MainAlign::Start,
                 cross_align: Align::Start,
+                absolute: false,
             },
             DivStyle {
                 color: Color::YELLOW,
@@ -251,6 +257,7 @@ impl MyApp {
                     axis: Axis::Y,
                     main_align: MainAlign::Start,
                     cross_align: Align::Start,
+                    absolute: false,
                 },
                 DivStyle {
                     color: Color::GREEN,
@@ -272,6 +279,7 @@ impl MyApp {
                     axis: Axis::Y,
                     main_align: MainAlign::SpaceAround,
                     cross_align: Align::Center,
+                    absolute: false,
                 },
                 DivStyle::default(),
                 Id::from("Container 2"),

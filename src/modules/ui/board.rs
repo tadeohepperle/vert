@@ -1,3 +1,7 @@
+//! Module for layout of ui elements on a board.
+//!
+//! The board represents a screen, card or anything. Elements can be added in an immediate mode API.
+
 use std::{
     borrow::{Borrow, Cow},
     cell::{Cell, RefCell, UnsafeCell},
@@ -563,15 +567,23 @@ impl<'a> Layouter<'a> {
             Axis::X => {
                 for c in children {
                     let child_size = self.get_and_set_size(c, parent_max_size);
-                    all_children_size.x += child_size.x;
-                    all_children_size.y = all_children_size.y.max(child_size.y);
+
+                    // children with absolute positioning should not contribute to the size of the parent.
+                    if !c.props.absolute {
+                        all_children_size.x += child_size.x;
+                        all_children_size.y = all_children_size.y.max(child_size.y);
+                    }
                 }
             }
             Axis::Y => {
                 for c in children {
                     let child_size = self.get_and_set_size(c, parent_max_size);
-                    all_children_size.x = all_children_size.x.max(child_size.x);
-                    all_children_size.y += child_size.y;
+
+                    // children with absolute positioning should not contribute to the size of the parent.
+                    if !c.props.absolute {
+                        all_children_size.x = all_children_size.x.max(child_size.x);
+                        all_children_size.y += child_size.y;
+                    }
                 }
             }
         }
@@ -686,37 +698,12 @@ impl<'a> Layouter<'a> {
             let (main_size, cross_size) = A::disassemble(div_size);
             let content_size = div.c_content_size.get();
             let (main_content_size, cross_content_size) = A::disassemble(content_size);
-
-            let mut main_axis_offset: f64; // initial offset on main axis for the first child
-            let main_axis_step: f64; // step that gets added for each child on main axis after its own size on main axis.
-
-            match div.props.main_align {
-                MainAlign::Start => {
-                    main_axis_offset = 0.0;
-                    main_axis_step = 0.0;
-                }
-                MainAlign::Center => {
-                    main_axis_offset = (main_size - main_content_size) * 0.5;
-                    main_axis_step = 0.0;
-                }
-                MainAlign::End => {
-                    main_axis_offset = main_size - main_content_size;
-                    main_axis_step = 0.0;
-                }
-                MainAlign::SpaceBetween => {
-                    main_axis_offset = 0.0;
-
-                    if n_children == 1 {
-                        main_axis_step = 0.0;
-                    } else {
-                        main_axis_step = (main_size - main_content_size) / (n_children - 1) as f64;
-                    }
-                }
-                MainAlign::SpaceAround => {
-                    main_axis_step = (main_size - main_content_size) / n_children as f64;
-                    main_axis_offset = main_axis_step / 2.0;
-                }
-            }
+            let (mut main_offset, main_step) = main_offset_and_step(
+                div.props.main_align,
+                main_size,
+                main_content_size,
+                n_children,
+            );
 
             let calc_cross_offset = match div.props.cross_align {
                 Align::Start => |_: f64, _: f64| -> f64 { 0.0 },
@@ -731,7 +718,7 @@ impl<'a> Layouter<'a> {
             match &div.content {
                 DivContent::Text(t) => {
                     let cross = calc_cross_offset(cross_size, cross_content_size);
-                    let text_pos = A::assemble(main_axis_offset, cross);
+                    let text_pos = A::assemble(main_offset, cross);
                     let text_offset =
                         offset_dvec2(t.text.offset_x, t.text.offset_y, content_size, div_size);
                     t.c_pos.set(text_pos + text_offset + div_pos);
@@ -741,16 +728,30 @@ impl<'a> Layouter<'a> {
                     for ch in children {
                         let (ch_main_size, ch_cross_size) = A::disassemble(ch.c_size.get());
                         let cross = calc_cross_offset(cross_size, ch_cross_size);
-                        let ch_rel_pos = A::assemble(main_axis_offset, cross);
+
+                        let ch_rel_pos: DVec2;
+                        if ch.props.absolute {
+                            // for absolute positioning just position the widget roughly like it was the only one.
+                            let main_offset = main_offset_of_absolute_div(
+                                div.props.main_align,
+                                main_size,
+                                ch_main_size,
+                            );
+                            ch_rel_pos = A::assemble(main_offset, cross);
+                        } else {
+                            ch_rel_pos = A::assemble(main_offset, cross);
+                            main_offset += ch_main_size + main_step;
+                        }
+
                         let ch_offset = offset_dvec2(
                             ch.style.offset_x,
                             ch.style.offset_y,
                             ch.c_content_size.get(),
                             div_size,
                         );
+
                         ch.c_pos.set(ch_rel_pos + ch_offset + div_pos);
                         sel.set_child_positions(ch);
-                        main_axis_offset += ch_main_size + main_axis_step;
                     }
                 }
             }
@@ -758,6 +759,65 @@ impl<'a> Layouter<'a> {
             // Question: maybe in future store offset of text or something, in case the parent pos is the same?
             // right now, we just store the glyphs as a layout result independent of the divs pos in here,
             // every frame we build up a glyoh buffer adding the position of the div to each glyph individually.
+        }
+
+        /// The main offset is the offset on the main axis at the start of layout.
+        /// After each child with relative positioning it is incremented by the childs size, plus the step value.
+        ///
+        /// This function computes the initial main offset and this step value for different main axis alignment modes.
+        #[inline]
+        fn main_offset_and_step(
+            main_align: MainAlign,
+            main_size: f64,
+            main_content_size: f64,
+            n_children: usize,
+        ) -> (f64, f64) {
+            let offset: f64; // initial offset on main axis for the first child
+            let step: f64; //  step that gets added for each child on main axis after its own size on main axis.
+            match main_align {
+                MainAlign::Start => {
+                    offset = 0.0;
+                    step = 0.0;
+                }
+                MainAlign::Center => {
+                    offset = (main_size - main_content_size) * 0.5;
+                    step = 0.0;
+                }
+                MainAlign::End => {
+                    offset = main_size - main_content_size;
+                    step = 0.0;
+                }
+                MainAlign::SpaceBetween => {
+                    offset = 0.0;
+
+                    if n_children == 1 {
+                        step = 0.0;
+                    } else {
+                        step = (main_size - main_content_size) / (n_children - 1) as f64;
+                    }
+                }
+                MainAlign::SpaceAround => {
+                    step = (main_size - main_content_size) / n_children as f64;
+                    offset = step / 2.0;
+                }
+            };
+            (offset, step)
+        }
+
+        /// used to calculate the main axis offset of absolute divs.
+        #[inline]
+        fn main_offset_of_absolute_div(
+            parent_main_align: MainAlign,
+            parent_main_size: f64,
+            self_main_size: f64,
+        ) -> f64 {
+            match parent_main_align {
+                MainAlign::Start => 0.0,
+                MainAlign::Center | MainAlign::SpaceBetween | MainAlign::SpaceAround => {
+                    (parent_main_size - self_main_size) * 0.5
+                }
+                MainAlign::End => parent_main_size - self_main_size,
+            }
         }
     }
 }
@@ -967,6 +1027,8 @@ pub struct DivProps {
     pub axis: Axis,
     pub main_align: MainAlign,
     pub cross_align: Align,
+    /// true = in CSS `position: absolute;`
+    pub absolute: bool,
     // todo! translation, absolute, padding, margin
 }
 
@@ -978,6 +1040,7 @@ impl Default for DivProps {
             axis: Axis::Y,
             main_align: MainAlign::Start,
             cross_align: Align::Start,
+            absolute: false,
         }
     }
 }
@@ -1102,67 +1165,5 @@ pub fn egui_inspect_board(ctx: &mut egui::Context, board: &mut Board) {
             let top_level_div = board.divs.get(top).unwrap();
             show_widget(ui, board, top_level_div, 0);
         }
-
-        // ui.painter()..circle(
-        //     Pos2::new(0.0, 0.0),
-        //     40.0,
-        //     egui::Rgba::from_rgb(1.0, 0.0, 0.0),
-        //     Stroke::new(5.0, egui::Rgba::from_rgb(1.0, 1.0, 0.0)),
-        // );
-
-        // let bloom_settings = self.deps.bloom.settings_mut();
-        // ui.label(format!(
-        //     "{} fps / {:.3} ms",
-        //     self.deps.time.fps().round() as i32,
-        //     self.deps.time.delta().as_secs_f32() * 1000.0
-        // ));
-        // ui.label("Bloom");
-        // ui.add(egui::Checkbox::new(
-        //     &mut bloom_settings.activated,
-        //     "Bloom Activated",
-        // ));
-        // if bloom_settings.activated {
-        //     ui.add(egui::Slider::new(
-        //         &mut bloom_settings.blend_factor,
-        //         0.0..=1.0,
-        //     ));
-        // }
-
-        // let tone_mapping_settings = self.deps.tone_mapping.settings_mut();
-        // ui.label("Tonemapping");
-        // ui.radio_value(
-        //     tone_mapping_settings,
-        //     ToneMappingSettings::Disabled,
-        //     "Disabled",
-        // );
-        // ui.radio_value(tone_mapping_settings, ToneMappingSettings::Aces, "Aces");
-        // // /////////////////////////////////////////////////////////////////////////////
-        // // Camera Settings
-        // // /////////////////////////////////////////////////////////////////////////////
-
-        // ui.label("Camera Kind");
-        // let orthographic_radio =
-        //     ui.radio_value(&mut self.camera_settings.is_ortho, true, "Orthographic");
-        // let perspective_radio =
-        //     ui.radio_value(&mut self.camera_settings.is_ortho, false, "Perspective");
-
-        // let slider = if self.camera_settings.is_ortho {
-        //     ui.label("Orthographic Camera Y Height");
-        //     ui.add(egui::Slider::new(
-        //         &mut self.camera_settings.ortho_y_height,
-        //         0.1..=100.0,
-        //     ))
-        // } else {
-        //     ui.label("Perspective Camera FOV (y) in degrees");
-        //     ui.add(egui::Slider::new(
-        //         &mut self.camera_settings.perspective_fovy_degrees,
-        //         2.0..=170.0,
-        //     ))
-        // };
-
-        // if slider.changed() || orthographic_radio.changed() || perspective_radio.changed() {
-        //     self.camera_settings
-        //         .apply(&mut self.deps.camera_3d.camera_mut().projection);
-        // }
     });
 }

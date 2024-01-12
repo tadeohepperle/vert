@@ -22,6 +22,17 @@ struct RectInstance {
     @location(4) others: vec4<f32>,
 }
 
+struct TexturedRectInstance {
+    @location(0) aabb: vec4<f32>, // pos aabb for the glyph
+    @location(1) color: vec4<f32>,
+    @location(2) border_radius: vec4<f32>,
+    @location(3) border_color: vec4<f32>,
+    // border_thickness, border_softness, _unused, _unused
+    @location(4) others: vec4<f32>,
+    // for the texture
+    @location(5) uv: vec4<f32>,
+}
+
 struct GlyphInstance {
     @location(0) pos: vec4<f32>, // pos aabb for the glyph
     @location(1) color: vec4<f32>,
@@ -45,9 +56,23 @@ struct RectVertexOutput {
     @location(2) color: vec4<f32>,
     @location(3) border_radius: vec4<f32>,
     @location(4) border_color: vec4<f32>,
-     // border_thickness, _unused, _unused, _unused
+     // border_thickness, border_softness, _unused, _unused
     @location(5) others: vec4<f32>,
 };
+
+
+struct TexturedRectVertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) offset: vec2<f32>, // offset from center
+    @location(1) size: vec2<f32>,
+    @location(2) color: vec4<f32>,
+    @location(3) border_radius: vec4<f32>,
+    @location(4) border_color: vec4<f32>,
+     // border_thickness, border_softness, _unused, _unused
+    @location(5) others: vec4<f32>,
+    @location(6) uv: vec2<f32>,
+};
+
 
 struct GlyphVertexOutput {
     @builtin(position) clip_position: vec4<f32>,
@@ -88,6 +113,40 @@ fn rect_fs(in: RectVertexOutput) -> @location(0) vec4<f32> {
     return vec4(color.rgb, alpha);
 }
 
+
+@vertex
+fn textured_rect_vs(
+    @builtin(vertex_index) vertex_index: u32,
+    instance: TexturedRectInstance,
+) -> TexturedRectVertexOutput {
+    let vertex = pos_uv_vertex(vertex_index, instance.aabb, instance.uv);
+    let device_pos = vec2<f32>((vertex.pos.x / screen.width) * 2.0 - 1.0, 1.0 - (vertex.pos.y / screen.height) * 2.0) ;
+    let center = (instance.aabb.xy + instance.aabb.zw) * 0.5;
+
+    var out: TexturedRectVertexOutput;
+    out.clip_position = vec4<f32>(device_pos, 0.0, 1.0);
+    out.offset = vertex.pos - center;
+    out.size = instance.aabb.zw - instance.aabb.xy;
+
+    out.color = instance.color;
+    out.border_radius = instance.border_radius;
+    out.border_color = instance.border_color;
+    out.others = instance.others;
+    out.uv = vertex.uv;
+    return out;
+}
+
+@fragment
+fn textured_rect_fs(in: TexturedRectVertexOutput) -> @location(0) vec4<f32> {
+    
+    // return vec4(0.5, 0.8,0.8,1.0);
+    
+    let sdf = rounded_box_sdf(in.offset, in.size, in.border_radius);
+    let image_color: vec4<f32> = textureSample(t_diffuse, s_diffuse, in.uv);
+    let image_color_tinted: vec3<f32> = mix(image_color.rgb, image_color.rgb * in.color.rgb, in.color.a);
+    // todo! add borders and other fancy stuff from above in rect_fs
+    return vec4(image_color_tinted, image_color.a);
+}
 
 @vertex
 fn glyph_vs(
@@ -169,8 +228,6 @@ fn pos_uv_vertex(idx: u32, pos: vec4<f32>, uv: vec4<f32>) -> PosUvVertex {
     }
     return out;
 }
-
-
 
 
 fn rounded_box_sdf(offset: vec2<f32>, size: vec2<f32>, border_radius: vec4<f32>) -> f32 {

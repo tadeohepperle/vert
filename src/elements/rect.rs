@@ -88,14 +88,12 @@ impl Aabb {
         pos.x >= self.min_x && pos.y >= self.min_y && pos.x <= self.max_x && pos.y <= self.max_y
     }
 
-    pub fn unit() -> Self {
-        Self {
-            min_x: 0.0,
-            min_y: 0.0,
-            max_x: 1.0,
-            max_y: 1.0,
-        }
-    }
+    pub const UNIT: Aabb = Aabb {
+        min_x: 0.0,
+        min_y: 0.0,
+        max_x: 1.0,
+        max_y: 1.0,
+    };
 }
 
 impl Into<Aabb> for Rect {

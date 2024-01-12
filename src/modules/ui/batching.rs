@@ -70,9 +70,14 @@ pub fn get_batches(board: &Board) -> BatchingResult {
             }
             // create a new batch:
             let new_batch = match prim {
-                SortPrimitive::Rect { .. } => BatchRegion::Rect(0..0),
-                SortPrimitive::Text { text, .. } => BatchRegion::Text(0..0, text.text.font),
-                SortPrimitive::TexturedRect { div, div_texture } => todo!(),
+                SortPrimitive::Rect { .. } => BatchRegion::Rect(rects.len()..0),
+                SortPrimitive::Text { text, .. } => {
+                    BatchRegion::Text(glyphs.len()..0, text.text.font)
+                }
+                SortPrimitive::TexturedRect {
+                    div: _,
+                    div_texture,
+                } => BatchRegion::TexturedRect(textured_rects.len()..0, div_texture.texture),
             };
             batches.push(new_batch);
         }
@@ -119,7 +124,7 @@ pub fn get_batches(board: &Board) -> BatchingResult {
         match region {
             BatchRegion::Rect(r) => r.end = rects.len(),
             BatchRegion::Text(r, _) => r.end = glyphs.len(),
-            BatchRegion::TexturedRect(r, _) => r.end = glyphs.len(),
+            BatchRegion::TexturedRect(r, _) => r.end = textured_rects.len(),
         }
     }
 
@@ -184,7 +189,7 @@ impl BatchRegion {
         match self {
             BatchRegion::Rect(_) => u64::MAX,
             BatchRegion::TexturedRect(_, texture) => texture.as_u64_xor_type(),
-            BatchRegion::Text(_, font) => font.map(|e| e.as_u64()).unwrap_or(0),
+            BatchRegion::Text(_, font) => font.map(|e| e.as_u64_xor_type()).unwrap_or(0),
         }
     }
 }
@@ -291,8 +296,8 @@ impl RectRaw {
 #[repr(C)]
 #[derive(Debug, Clone, bytemuck::Pod, bytemuck::Zeroable, Copy)]
 pub struct RectRawTextured {
-    rect: RectRaw,
-    uv: Aabb,
+    pub rect: RectRaw,
+    pub uv: Aabb,
 }
 
 impl VertexT for RectRawTextured {

@@ -152,9 +152,9 @@ impl FontCache {
         self.atlas_texture.key()
     }
 
-    pub fn atlas_texture_obj(&self) -> &BindableTexture {
-        &self.deps.arenas[&self.atlas_texture]
-    }
+    // pub fn atlas_texture_obj(&self) -> &BindableTexture {
+    //     &self.deps.arenas[&self.atlas_texture]
+    // }
 
     /// Returns non if there is no glyph that can be assigned to the char (e.g. for space)
     fn get_glyph_atlas_uv_or_rasterize<'a>(&'a mut self, key: GlyphKey) -> Option<Aabb> {
