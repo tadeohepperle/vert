@@ -5,6 +5,9 @@ use super::board::{Board, ContainerId, HotActive, Id};
 pub mod button;
 pub use button::Button;
 
+pub mod slider;
+pub use slider::Slider;
+
 pub trait Widget {
     /// lifetime to allow mutable entries inserted into the hashmap be returned.
     /// allows editing of e.g. a widgets style based on the response in the same frame.
@@ -20,7 +23,7 @@ pub trait Widget {
 }
 
 /// Shout out to Casey Muratori, our lord and savior. (See this Video as well for an exmplanation: https://www.youtube.com/watch?v=geZwWo-qNR4)
-pub fn next_hot_active_and_clicked(
+pub fn next_hot_active(
     hot_active: HotActive,
     mouse_in_rect: bool,
     button_press: PressState,

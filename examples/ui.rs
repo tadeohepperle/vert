@@ -89,7 +89,7 @@ impl MyApp {
             .add_non_text_div(
                 DivProps {
                     width: Len::PARENT,
-                    height: Len::CHILDREN,
+                    height: Len::CONTENT,
                     axis: Axis::X,
                     main_align: MainAlign::SpaceBetween,
                     cross_align: Align::Center,
@@ -274,7 +274,7 @@ impl MyApp {
             .ui
             .add_non_text_div(
                 DivProps {
-                    width: Len::CHILDREN,
+                    width: Len::CONTENT,
                     height: Len::PARENT,
                     axis: Axis::Y,
                     main_align: MainAlign::SpaceAround,

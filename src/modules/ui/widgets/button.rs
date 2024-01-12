@@ -18,7 +18,7 @@ use crate::{
     },
 };
 
-use super::{next_hot_active_and_clicked, Widget};
+use super::{next_hot_active, Widget};
 
 pub struct Button {
     pub text: Cow<'static, str>,
@@ -60,7 +60,7 @@ impl Widget for Button {
         let mut response = board.add_text_div(
             DivProps {
                 width: Len::Px(200.0),
-                height: Len::ChildrenFraction(1.5),
+                height: Len::ContentFraction(1.5),
                 main_align: MainAlign::Center,
                 cross_align: Align::Center,
                 ..Default::default()
@@ -89,7 +89,7 @@ impl Widget for Button {
         );
 
         let mouse_in_rect = response.mouse_in_rect();
-        let next_hot_active = next_hot_active_and_clicked(hot_active, mouse_in_rect, left_button);
+        let next_hot_active = next_hot_active(hot_active, mouse_in_rect, left_button);
         let clicked = hot_active == Active && next_hot_active == Hot;
 
         // we can now update the style immediately. Using the hot_active only on insertion instead of next_hot_active

@@ -11,10 +11,10 @@ use vert::{
         ui::{
             board::{
                 egui_inspect_board, Align, Axis, Board, BoardInput, BorderRadius, ContainerId,
-                DivProps, DivStyle, DivTexture, Id, Len, MainAlign, Text,
+                DivProps, DivStyle, DivTexture, HotActive, Id, Len, MainAlign, Text,
             },
             font_cache::FontSize,
-            widgets::{Button, Widget},
+            widgets::{next_hot_active, Button, Slider, Widget},
         },
         DefaultDependencies, DefaultModules, MainPassRenderer, Schedule,
     },
@@ -26,7 +26,7 @@ fn main() {
     let mut app = AppBuilder::new();
     app.add_plugin(DefaultModules);
     app.add::<FlyCam>();
-    // app.add::<GraphicsSettingsController>();
+    app.add::<GraphicsSettingsController>();
     app.add::<MyApp>();
     app.run().unwrap();
 }
@@ -105,6 +105,7 @@ impl MyApp {
             )
             .id;
 
+        // show some image in the UI
         self.ui.add_non_text_div(
             DivProps {
                 width: Len::Px(200.0),
@@ -123,98 +124,21 @@ impl MyApp {
             Some(parent),
         );
 
+        // sow the slider
         self.ui.add(
-            Slider {
-                value: &mut self.value,
-                min: 0.0,
-                max: 200.0,
-            },
+            Slider::new(&mut self.value, 0.0, 400.0),
             Id::from("slider"),
             Some(parent),
         );
+
         self.ui.end_frame(&mut self.deps.ui.fonts);
         self.deps.ui.ui_renderer.draw_billboard(&self.ui);
+
+        // compare to Egui Widget (obviously a bit more polished)
+        let mut egui = self.deps.egui.context();
+        egui::Window::new("Value").show(&mut egui, |ui| {
+            ui.add(egui::Slider::new(&mut self.value, 0.0..=400.0));
+        });
         // std::thread::sleep(Duration::from_millis(150));
-    }
-}
-
-pub struct Slider<'v> {
-    value: &'v mut f32,
-    min: f32,
-    max: f32,
-}
-
-impl<'v> Widget for Slider<'v> {
-    type Response<'a> = ();
-
-    fn add_to_board<'a>(
-        self,
-        board: &'a mut Board,
-        id: Id,
-        parent: Option<ContainerId>,
-    ) -> Self::Response<'a> {
-        let hot_active = board.hot_active(id);
-
-        let container = board.add_non_text_div(
-            DivProps {
-                width: Len::Px(100.0),
-                height: Len::Px(20.0),
-                axis: Axis::X,
-                main_align: MainAlign::Start,
-                cross_align: Align::Center,
-                absolute: false,
-            },
-            DivStyle {
-                color: Color::PURPLE,
-                ..DivStyle::default()
-            },
-            id,
-            parent,
-        );
-
-        let container_hovered = container.mouse_in_rect();
-        let container = container.id;
-
-        // slider bar
-        board.add_non_text_div(
-            DivProps {
-                width: Len::PARENT,
-                height: Len::Px(8.0),
-                ..Default::default()
-            },
-            DivStyle {
-                color: Color::GREY,
-                border_color: Color::from_hex("#32a852"),
-                border_radius: BorderRadius::all(4.0),
-                border_thickness: 1.0,
-                ..Default::default()
-            },
-            id + 1,
-            Some(container),
-        );
-
-        // knob
-        board.add_non_text_div(
-            DivProps {
-                width: Len::Px(16.0),
-                height: Len::Px(16.0),
-                absolute: true,
-                ..Default::default()
-            },
-            DivStyle {
-                color: Color::BLACK,
-                border_color: if container_hovered {
-                    Color::from_hex("#ffffff")
-                } else {
-                    Color::BLACK
-                },
-
-                border_radius: BorderRadius::all(8.0),
-                border_thickness: 3.0,
-                ..Default::default()
-            },
-            id + 2,
-            Some(container),
-        );
     }
 }

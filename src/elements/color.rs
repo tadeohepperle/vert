@@ -37,6 +37,7 @@ impl Color {
     pub const DARKGREY: Color = Color::new(0.1, 0.1, 0.15);
     pub const GREY: Color = Color::new(0.4, 0.4, 0.5);
     pub const RED: Color = Color::new(1.0, 0.0, 0.0);
+    pub const ORANGE: Color = Color::from_hex("#f27b35");
     pub const GREEN: Color = Color::new(0.0, 1.0, 0.0);
     pub const BLUE: Color = Color::new(0.0, 0.0, 1.0);
     pub const LIGHTBLUE: Color = Color::new(0.4, 0.4, 1.0);

@@ -49,6 +49,12 @@ pub struct ContainerId {
     _priv: Id,
 }
 
+impl ContainerId {
+    pub fn id(&self) -> Id {
+        self._priv
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(pub u64);
 
@@ -242,20 +248,27 @@ impl Board {
         parent: Option<ContainerId>,
     ) -> (Comm, OccupiedEntry<'a, Id, Div>) {
         // go into the parent and register the child:
-        let parent_z_index = if let Some(parent) = parent {
+        let parent_z_index: i32;
+        let parent_children: usize;
+
+        if let Some(parent) = parent {
             let parent = self.divs.get_mut(&parent._priv).expect("Invalid Parent...");
             match &mut parent.content {
                 DivContent::Text { .. } => panic!("Invalid Parent... Text Div cannnot be parent"),
-                DivContent::Children(children) => children.push(id),
+                DivContent::Children(children) => {
+                    parent_children = children.len();
+                    children.push(id)
+                }
             };
-            parent.z_index
+            parent_z_index = parent.z_index;
         } else {
             self.top_level_children.push(id);
-            0
+            parent_z_index = 0;
+            parent_children = 0;
         };
 
         // insert child entry. z_index is always 1 more than parent to render on top.
-        let z_index = parent_z_index + 1 + style.z_bias * 1024;
+        let z_index = parent_z_index + 1 + parent_children as i32 + style.z_bias * 1024;
         let rect: Option<Rect>;
         let entry: OccupiedEntry<'a, Id, Div>;
         match self.divs.entry(id) {
@@ -266,7 +279,7 @@ impl Board {
                     panic!("Div with id {id:?} inserted twice in one frame!");
                 }
                 div.props = props;
-                div.z_index = parent_z_index + 1;
+                div.z_index = z_index;
                 div.last_frame = self.last_frame;
                 div.style = style;
 
@@ -490,7 +503,7 @@ impl<'a> Layouter<'a> {
             match len {
                 Len::Px(px) => Fixed(px),
                 Len::ParentFraction(f) => Fixed(f * parent_size_px),
-                Len::ChildrenFraction(f) => ChildBound(f),
+                Len::ContentFraction(f) => ChildBound(f),
             }
         }
 
@@ -891,12 +904,12 @@ pub struct DivTexture {
 impl Default for DivStyle {
     fn default() -> Self {
         Self {
-            color: Color::BLACK,
+            color: Color::TRANSPARENT,
             border_radius: BorderRadius::default(),
             z_bias: 0,
             border_thickness: 0.0,
-            border_softness: 1.0,
-            border_color: Color::BLACK,
+            border_softness: 0.0,
+            border_color: Color::TRANSPARENT,
             offset_x: Len::Px(0.0),
             offset_y: Len::Px(0.0),
             texture: None,
@@ -1035,8 +1048,8 @@ pub struct DivProps {
 impl Default for DivProps {
     fn default() -> Self {
         Self {
-            width: Len::CHILDREN,
-            height: Len::CHILDREN,
+            width: Len::CONTENT,
+            height: Len::CONTENT,
             axis: Axis::Y,
             main_align: MainAlign::Start,
             cross_align: Align::Start,
@@ -1085,13 +1098,13 @@ pub enum Align {
 pub enum Len {
     Px(f64),
     ParentFraction(f64),
-    ChildrenFraction(f64),
+    ContentFraction(f64),
 }
 
 impl Len {
     pub const ZERO: Len = Len::Px(0.0);
     pub const PARENT: Len = Len::ParentFraction(1.0);
-    pub const CHILDREN: Len = Len::ChildrenFraction(1.0);
+    pub const CONTENT: Len = Len::ContentFraction(1.0);
 }
 
 /// Warning: assumes the content_size is set already on this div
@@ -1104,13 +1117,13 @@ pub(super) fn offset_dvec2(
     let x: f64 = match offset_x {
         Len::Px(x) => x,
         Len::ParentFraction(f) => parent_size.x * f,
-        Len::ChildrenFraction(f) => content_size.x * f,
+        Len::ContentFraction(f) => content_size.x * f,
     };
 
     let y: f64 = match offset_y {
         Len::Px(x) => x,
         Len::ParentFraction(f) => parent_size.y * f,
-        Len::ChildrenFraction(f) => content_size.y * f,
+        Len::ContentFraction(f) => content_size.y * f,
     };
 
     dvec2(x, y)
