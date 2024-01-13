@@ -84,25 +84,20 @@ impl MyApp {
             self.deps.ui.fonts.atlas_texture(),
         );
 
-        let parent = self
-            .ui
-            .add_non_text_div(
-                DivProps {
-                    width: Len::PARENT,
-                    height: Len::CONTENT,
-                    axis: Axis::X,
-                    main_align: MainAlign::SpaceBetween,
-                    cross_align: Align::Center,
-                    absolute: false,
-                },
-                DivStyle {
-                    color: Color::RED.alpha(0.2),
-                    ..Default::default()
-                },
-                Id::from("Parent"),
-                None,
-            )
-            .id;
+        let mut parent = self.ui.add_non_text_div(
+            DivProps {
+                width: Len::PARENT,
+                height: Len::CONTENT,
+                axis: Axis::X,
+                main_align: MainAlign::SpaceBetween,
+                cross_align: Align::Center,
+                absolute: false,
+            },
+            Id::from("Parent"),
+            None,
+        );
+        parent.style().color = Color::RED.alpha(0.2);
+        let parent = parent.id;
 
         // let text = self.ui.add_text_div(
         //     DivProps::default(),
@@ -134,82 +129,75 @@ impl MyApp {
         //     Some(parent),
         // );
 
-        let purp_parent = self
-            .ui
+        let mut purp_parent = self.ui.add_non_text_div(
+            DivProps {
+                width: Len::Px(100.0),
+                height: Len::Px(200.0),
+                axis: Axis::Y,
+                main_align: MainAlign::Center,
+                cross_align: Align::Center,
+                absolute: false,
+            },
+            Id::from("Purple Parent"),
+            Some(parent),
+        );
+
+        let style = purp_parent.style();
+        style.color = Color::PURPLE.alpha(0.5);
+        style.border_radius = BorderRadius::all(20.0);
+        style.border_color = Color::GREEN;
+        style.border_thickness = 6.0;
+        style.border_softness = 1.0;
+
+        let purp_parent = purp_parent.id;
+
+        let mut d = self.ui.add_non_text_div(
+            DivProps {
+                width: Len::Px(50.0),
+                height: Len::Px(50.0),
+                axis: Axis::Y,
+                main_align: MainAlign::Center,
+                cross_align: Align::Center,
+                absolute: false,
+            },
+            Id::from("child 1 in purple"),
+            Some(purp_parent),
+        );
+        d.style().color = Color::GREEN;
+
+        self.ui
             .add_non_text_div(
                 DivProps {
-                    width: Len::Px(100.0),
-                    height: Len::Px(200.0),
+                    width: Len::Px(50.0),
+                    height: Len::Px(50.0),
                     axis: Axis::Y,
                     main_align: MainAlign::Center,
                     cross_align: Align::Center,
                     absolute: false,
                 },
-                DivStyle {
-                    color: Color::PURPLE.alpha(0.5),
-                    border_radius: BorderRadius::all(20.0),
-                    border_color: Color::GREEN,
-                    border_thickness: 6.0,
-                    border_softness: 1.0,
-                    ..Default::default()
+                Id::from("child 2 in purple"),
+                Some(purp_parent),
+            )
+            .style()
+            .color = Color::WHITE;
+
+        self.ui
+            .add_non_text_div(
+                DivProps {
+                    width: Len::Px(100.0),
+                    height: Len::Px(20.0),
+                    axis: Axis::Y,
+                    main_align: MainAlign::Start,
+                    cross_align: Align::Start,
+                    absolute: false,
                 },
-                Id::from("Purple Parent"),
+                Id::from("other"),
                 Some(parent),
             )
-            .id;
+            .style()
+            .color = Color::BLACK;
 
-        self.ui.add_non_text_div(
-            DivProps {
-                width: Len::Px(50.0),
-                height: Len::Px(50.0),
-                axis: Axis::Y,
-                main_align: MainAlign::Center,
-                cross_align: Align::Center,
-                absolute: false,
-            },
-            DivStyle {
-                color: Color::GREEN,
-                ..Default::default()
-            },
-            Id::from("child 1 in purple"),
-            Some(purp_parent),
-        );
-
-        self.ui.add_non_text_div(
-            DivProps {
-                width: Len::Px(50.0),
-                height: Len::Px(50.0),
-                axis: Axis::Y,
-                main_align: MainAlign::Center,
-                cross_align: Align::Center,
-                absolute: false,
-            },
-            DivStyle {
-                color: Color::WHITE,
-                ..Default::default()
-            },
-            Id::from("child 2 in purple"),
-            Some(purp_parent),
-        );
-
-        self.ui.add_non_text_div(
-            DivProps {
-                width: Len::Px(100.0),
-                height: Len::Px(20.0),
-                axis: Axis::Y,
-                main_align: MainAlign::Start,
-                cross_align: Align::Start,
-                absolute: false,
-            },
-            DivStyle {
-                color: Color::BLACK,
-                ..Default::default()
-            },
-            Id::from("other"),
-            Some(parent),
-        );
-
-        let mut text_div_comm = self.ui.add_text_div(
+        let mut text_div = self.ui.add_text_div(
             DivProps {
                 width: Len::Px(300.0),
                 height: Len::Px(400.0),
@@ -217,12 +205,6 @@ impl MyApp {
                 main_align: MainAlign::Start,
                 cross_align: Align::Start,
                 absolute: false,
-            },
-            DivStyle {
-                color: Color::YELLOW,
-                border_radius: BorderRadius::all(20.0),
-                border_thickness: 20.0,
-                ..Default::default()
             },
             Text {
                 color: Color::new(6.0, 2.0, 2.0),
@@ -236,21 +218,26 @@ impl MyApp {
             Some(parent),
         );
 
+        let style = text_div.style();
+        style.color = Color::YELLOW;
+        style.border_radius = BorderRadius::all(20.0);
+        style.border_thickness = 20.0;
+
         // can immediately edit the style and text without a 1-frame lag:
         // 1 frame lag only applies to the layout rect (DivProps) itself.
-        if text_div_comm.mouse_in_rect() {
-            let style = text_div_comm.style();
+        if text_div.mouse_in_rect() {
+            let style = text_div.style();
             style.color = Color::BLUE;
             style.border_color = Color::GREEN;
             style.border_thickness = 6.0;
             // style.border_radius = BorderRadius::new(40.0, 40.0, 40.0, 40.0);
-            text_div_comm.text().color = Color::BLACK;
+            text_div.text().color = Color::BLACK;
         }
 
         let total_time = self.deps.time.total().as_secs_f64() * 4.0;
         let total_time2 = self.deps.time.total().as_secs_f64() * 9.7;
-        if text_div_comm.mouse_in_rect() {
-            self.ui.add_non_text_div(
+        if text_div.mouse_in_rect() {
+            let mut green_square = self.ui.add_non_text_div(
                 DivProps {
                     width: Len::Px(40.0),
                     height: Len::Px(40.0),
@@ -259,15 +246,14 @@ impl MyApp {
                     cross_align: Align::Start,
                     absolute: false,
                 },
-                DivStyle {
-                    color: Color::GREEN,
-                    offset_x: Len::Px(total_time.sin() * 20.0),
-                    offset_y: Len::Px(total_time2.cos() * 20.0),
-                    ..Default::default()
-                },
                 Id::from(2112213232),
                 Some(parent),
             );
+
+            let style = green_square.style();
+            style.color = Color::GREEN;
+            style.offset_x = Len::Px(total_time.sin() * 20.0);
+            style.offset_y = Len::Px(total_time2.cos() * 20.0);
         }
 
         let container2 = self
@@ -281,7 +267,6 @@ impl MyApp {
                     cross_align: Align::Center,
                     absolute: false,
                 },
-                DivStyle::default(),
                 Id::from("Container 2"),
                 Some(parent),
             )

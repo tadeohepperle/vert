@@ -51,7 +51,6 @@ impl<'v> Widget for Slider<'v> {
                     cross_align: Align::Center,
                     ..Default::default()
                 },
-                DivStyle::default(),
                 id + 237,
                 parent,
             )
@@ -66,7 +65,6 @@ impl<'v> Widget for Slider<'v> {
                 cross_align: Align::Center,
                 absolute: false,
             },
-            DivStyle::default(),
             id,
             Some(parent),
         );
@@ -76,22 +74,20 @@ impl<'v> Widget for Slider<'v> {
 
         // slider bar
 
-        board.add_non_text_div(
+        let mut d = board.add_non_text_div(
             DivProps {
                 width: Len::PARENT,
                 height: Len::Px(8.0),
                 ..Default::default()
             },
-            DivStyle {
-                color: Color::GREY,
-                border_color: Color::from_hex("#32a852"),
-                border_radius: BorderRadius::all(4.0),
-                border_thickness: 1.0,
-                ..Default::default()
-            },
             id + 1,
             Some(slider),
         );
+        let style = d.style();
+        style.color = Color::GREY;
+        style.color = Color::from_hex("#32a852");
+        style.border_radius = BorderRadius::all(4.0);
+        style.border_thickness = 1.0;
 
         const PX_TOTAL_RANGE: f64 = SLIDER_WIDTH - KNOB_WIDTH;
         let px_delta = board.input().cursor_delta.x;
@@ -104,13 +100,10 @@ impl<'v> Widget for Slider<'v> {
                 absolute: true,
                 ..Default::default()
             },
-            DivStyle {
-                border_radius: BorderRadius::all(KNOB_WIDTH as f32 / 2.0),
-                ..Default::default()
-            },
             knob_id,
             Some(slider),
         );
+        knob.style().border_radius = BorderRadius::all(KNOB_WIDTH as f32 / 2.0);
 
         let knob_next_hot_active =
             next_hot_active(knob_hot_active, knob.mouse_in_rect(), left_mouse_button);
@@ -151,7 +144,6 @@ impl<'v> Widget for Slider<'v> {
                 main_align: MainAlign::Center,
                 ..Default::default()
             },
-            DivStyle::default(),
             Text {
                 color: Color::DARKGREY,
                 string: format!("{:.2}", self.value).into(),

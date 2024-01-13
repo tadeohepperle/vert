@@ -1,10 +1,11 @@
 use std::ops::Add;
 
+use super::lerp::Lerp;
 use glam::{dvec2, vec2, DVec2, Vec2};
 
 ///  min_x, min_y form the top left corner.
 #[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Lerp)]
 pub struct Rect {
     pub min_x: f32,
     pub min_y: f32,
@@ -53,7 +54,7 @@ impl Rect {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Lerp)]
 pub struct Aabb {
     pub min_x: f32,
     pub min_y: f32,

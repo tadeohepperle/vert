@@ -18,3 +18,5 @@ pub use transform::{Transform, TransformRaw};
 
 pub mod rect;
 pub use rect::Rect;
+
+pub mod lerp;

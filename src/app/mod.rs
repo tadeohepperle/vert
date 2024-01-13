@@ -7,6 +7,7 @@ use std::{
 use anyhow::anyhow;
 use bumpalo::Bump;
 
+pub mod child_module;
 pub mod dependencies;
 pub mod function_handle;
 pub mod handle;
@@ -45,6 +46,8 @@ impl App {
     }
 
     pub fn all_modules(&self) {}
+
+    // pub fn add_dynamic_module(&self)
 }
 
 /// To run an application, add any number of modules and exactly one MainModule to the AppBuilder, then call `AppBuilder::run()`;

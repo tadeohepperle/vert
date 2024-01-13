@@ -156,9 +156,9 @@ impl<'a> SortPrimitive<'a> {
     #[inline]
     fn z_index(&self) -> i32 {
         match self {
-            SortPrimitive::Rect { div } => div.z_index,
-            SortPrimitive::Text { div, .. } => div.z_index + 16,
-            SortPrimitive::TexturedRect { div, div_texture } => div.z_index,
+            SortPrimitive::Rect { div } => div.z_index.get(),
+            SortPrimitive::Text { div, .. } => div.z_index.get() + 16,
+            SortPrimitive::TexturedRect { div, div_texture } => div.z_index.get(),
         }
     }
 

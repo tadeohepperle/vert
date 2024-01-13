@@ -211,11 +211,10 @@ impl Board {
     pub fn add_non_text_div<'a>(
         &'a mut self,
         props: DivProps,
-        style: DivStyle,
         id: Id,
         parent: Option<ContainerId>,
     ) -> ContainerResponse<'a> {
-        let (comm, entry) = self._add_div(props, style, id, None, parent);
+        let (comm, entry) = self._add_div(props, id, None, parent);
         let div_id = ContainerId { _priv: id };
         ContainerResponse {
             id: div_id,
@@ -227,7 +226,6 @@ impl Board {
     pub fn add_text_div<'a>(
         &'a mut self,
         mut props: DivProps,
-        style: DivStyle,
         text: Text,
         id: Id,
         parent: Option<ContainerId>,
@@ -235,14 +233,13 @@ impl Board {
         // So main axis is always X for text
         props.axis = Axis::X;
         let (comm, entry): (Comm, OccupiedEntry<'_, Id, Div>) =
-            self._add_div(props, style, id, Some(text), parent);
+            self._add_div(props, id, Some(text), parent);
         TextResponse { comm, entry }
     }
 
     fn _add_div<'a>(
         &'a mut self,
         props: DivProps,
-        style: DivStyle,
         id: Id,
         text: Option<Text>,
         parent: Option<ContainerId>,
@@ -260,15 +257,15 @@ impl Board {
                     children.push(id)
                 }
             };
-            parent_z_index = parent.z_index;
+            parent_z_index = parent.z_index.get();
         } else {
             self.top_level_children.push(id);
             parent_z_index = 0;
             parent_children = 0;
         };
 
-        // insert child entry. z_index is always 1 more than parent to render on top.
-        let z_index = parent_z_index + 1 + parent_children as i32 + style.z_bias * 1024;
+        let z_index = parent_z_index + 1 + parent_children as i32;
+
         let rect: Option<Rect>;
         let entry: OccupiedEntry<'a, Id, Div>;
         match self.divs.entry(id) {
@@ -279,9 +276,7 @@ impl Board {
                     panic!("Div with id {id:?} inserted twice in one frame!");
                 }
                 div.props = props;
-                div.z_index = z_index;
                 div.last_frame = self.last_frame;
-                div.style = style;
 
                 match text {
                     Some(new_text) => match &mut div.content {
@@ -293,7 +288,7 @@ impl Board {
                     },
                     None => div.content = DivContent::Children(vec![]),
                 }
-
+                div.z_index.set(z_index);
                 // return the Rect. (must be set, because the node was already inserted at a previous frame. Maybe not up to date anymore, but good enough.)
                 let size = div.c_size.get();
                 let pos = div.c_pos.get();
@@ -308,9 +303,9 @@ impl Board {
             Entry::Vacant(vacant) => {
                 entry = vacant.insert_entry(Div {
                     props,
-                    z_index,
+                    z_index: Cell::new(z_index),
                     last_frame: self.last_frame,
-                    style,
+                    style: DivStyle::default(),
                     content: match text {
                         Some(text) => DivContent::Text(TextEntry::new(text)),
                         None => DivContent::Children(vec![]),
@@ -843,8 +838,7 @@ pub struct Div {
     // last_frame is reset every frame.
     last_frame: u64,
     // calculated as parent.z_index + 1, important for sorting in batching.
-    pub(crate) z_index: i32,
-
+    pub(crate) z_index: Cell<i32>,
     // computed sizes and position
     pub(crate) c_size: Cell<DVec2>,
     pub(crate) c_content_size: Cell<DVec2>,

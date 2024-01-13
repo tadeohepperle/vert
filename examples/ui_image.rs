@@ -85,44 +85,37 @@ impl MyApp {
             dvec2(size.width as f64, size.height as f64),
         );
 
-        let parent = self
-            .ui
-            .add_non_text_div(
-                DivProps {
-                    width: Len::PARENT,
-                    height: Len::PARENT,
-                    axis: Axis::X,
-                    main_align: MainAlign::Center,
-                    cross_align: Align::Center,
-                    absolute: false,
-                },
-                DivStyle {
-                    color: Color::RED.alpha(0.2),
-                    ..Default::default()
-                },
-                Id::from("Parent"),
-                None,
-            )
-            .id;
+        let mut parent = self.ui.add_non_text_div(
+            DivProps {
+                width: Len::PARENT,
+                height: Len::PARENT,
+                axis: Axis::X,
+                main_align: MainAlign::Center,
+                cross_align: Align::Center,
+                absolute: false,
+            },
+            Id::from("Parent"),
+            None,
+        );
+
+        parent.color = Color::RED.alpha(0.2);
+        let parent = parent.id;
 
         // show some image in the UI
-        self.ui.add_non_text_div(
+        let mut img = self.ui.add_non_text_div(
             DivProps {
                 width: Len::Px(200.0),
                 height: Len::Px(200.0),
                 ..Default::default()
             },
-            DivStyle {
-                color: Color::RED,
-                texture: Some(DivTexture {
-                    texture: self.image_key.key(),
-                    uv: Aabb::UNIT,
-                }),
-                ..Default::default()
-            },
             Id::from("img"),
             Some(parent),
         );
+
+        img.texture = Some(DivTexture {
+            texture: self.image_key.key(),
+            uv: Aabb::UNIT,
+        });
 
         // sow the slider
         self.ui.add(

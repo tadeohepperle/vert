@@ -6,6 +6,9 @@ pub use gizmos::Gizmos;
 pub mod color_mesh;
 pub use color_mesh::ColorMeshRenderer;
 
+pub mod pbr_renderer;
+pub use pbr_renderer::PbrRenderer;
+
 pub mod ui_rect;
 pub use ui_rect::UiRectRenderer;
 

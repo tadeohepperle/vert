@@ -1,8 +1,10 @@
 use glam::{Vec3, Vec4};
 
+use super::lerp::Lerp;
+
 /// An SRGB color.
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Clone, Copy, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable, Default, Lerp)]
 pub struct Color {
     /// Red component of the color
     pub r: f32,
@@ -12,17 +14,6 @@ pub struct Color {
     pub b: f32,
     /// Alpha component of the color
     pub a: f32,
-}
-
-impl Default for Color {
-    fn default() -> Self {
-        Self {
-            r: 0.0,
-            g: 0.0,
-            b: 0.0,
-            a: 1.0,
-        }
-    }
 }
 
 impl Color {

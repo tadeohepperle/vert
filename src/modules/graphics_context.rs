@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::{utils::Timing, Dependencies};
+use glam::DVec2;
 use wgpu::SurfaceTexture;
 use winit::{dpi::PhysicalSize, window::Window};
 
@@ -61,6 +62,13 @@ impl GraphicsContext {
 
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size
+    }
+
+    pub fn size_dvec2(&self) -> DVec2 {
+        DVec2 {
+            x: self.size.width as f64,
+            y: self.size.height as f64,
+        }
     }
 
     pub fn scale_factor(&self) -> f64 {
