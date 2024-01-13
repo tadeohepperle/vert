@@ -113,12 +113,14 @@ impl UiRenderer {
 
     /// Warning: only call AFTER layout has been performed for this frame. (needs to be BillboardPhase::Rendering)
     /// Assumes all rects and text layouts are calculated.
-    pub fn draw_billboard(&mut self, board: &Board) {
+    pub fn draw_ui_board(&mut self, board: &Board) {
         // ensure layout has been done by checking the phase
         assert_eq!(board.phase(), BoardPhase::Rendering);
         let batches = get_batches(board);
         self.collected_batches.combine(batches);
     }
+
+    // todo! draw board in 3d space
 }
 
 impl Prepare for UiRenderer {

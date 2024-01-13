@@ -44,7 +44,7 @@ impl<'v> Widget for Slider<'v> {
         let knob_hot_active = board.hot_active(knob_id);
 
         let parent = board
-            .add_non_text_div(
+            .add_div(
                 DivProps {
                     axis: Axis::Y,
                     width: Len::Px(SLIDER_CONTAINER_WIDTH),
@@ -56,7 +56,7 @@ impl<'v> Widget for Slider<'v> {
             )
             .id;
 
-        let slider = board.add_non_text_div(
+        let slider = board.add_div(
             DivProps {
                 width: Len::Px(SLIDER_WIDTH),
                 height: Len::Px(20.0),
@@ -74,7 +74,7 @@ impl<'v> Widget for Slider<'v> {
 
         // slider bar
 
-        let mut d = board.add_non_text_div(
+        let mut d = board.add_div(
             DivProps {
                 width: Len::PARENT,
                 height: Len::Px(8.0),
@@ -93,7 +93,7 @@ impl<'v> Widget for Slider<'v> {
         let px_delta = board.input().cursor_delta.x;
 
         // knob
-        let mut knob = board.add_non_text_div(
+        let mut knob = board.add_div(
             DivProps {
                 width: Len::Px(KNOB_WIDTH),
                 height: Len::Px(KNOB_WIDTH),

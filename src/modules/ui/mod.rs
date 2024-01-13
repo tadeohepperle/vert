@@ -3,10 +3,16 @@ use crate::{Dependencies, Handle, Plugin};
 use self::{font_cache::FontCache, ui_renderer::UiRenderer};
 
 pub mod batching;
-pub mod board;
+mod board;
+pub use board::{
+    Align, Axis, Board, BoardInput, BoardPhase, BorderRadius, ContainerId, Div, DivProps, DivStyle,
+    DivTexture, HotActive, Id, Len, MainAlign, Text,
+};
+
 pub mod font_cache;
 pub mod ui_renderer;
-pub mod widgets;
+mod widgets;
+pub use widgets::{h_fill, next_hot_active, v_fill, Button, Slider, Widget};
 
 #[derive(Debug, Clone, Dependencies)]
 pub struct UiDeps {

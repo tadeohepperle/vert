@@ -8,12 +8,8 @@ use vert::{
         batteries::{FlyCam, GraphicsSettingsController},
         renderer::main_pass_renderer::{text_renderer::DrawText, ui_rect::UiRect},
         ui::{
-            board::{
-                egui_inspect_board, Align, Axis, Board, BoardInput, BorderRadius, DivProps,
-                DivStyle, Id, Len, MainAlign, Text,
-            },
-            font_cache::FontSize,
-            widgets::Button,
+            font_cache::FontSize, Align, Axis, Board, BoardInput, BorderRadius, Button, DivProps,
+            DivStyle, Id, Len, MainAlign, Text,
         },
         DefaultDependencies, DefaultModules, MainPassRenderer, Schedule,
     },
@@ -84,7 +80,7 @@ impl MyApp {
             self.deps.ui.fonts.atlas_texture(),
         );
 
-        let mut parent = self.ui.add_non_text_div(
+        let mut parent = self.ui.add_div(
             DivProps {
                 width: Len::PARENT,
                 height: Len::CONTENT,
@@ -93,7 +89,7 @@ impl MyApp {
                 cross_align: Align::Center,
                 absolute: false,
             },
-            Id::from("Parent"),
+            "Parent",
             None,
         );
         parent.style().color = Color::RED.alpha(0.2);
@@ -110,7 +106,7 @@ impl MyApp {
         //         offset_x: Len::ZERO,
         //         offset_y: Len::ZERO,
         //     },
-        //     Id::from("sasass"),
+        //     "sasass",
         //     Some(parent),
         // );
 
@@ -125,11 +121,11 @@ impl MyApp {
         //         offset_x: Len::ZERO,
         //         offset_y: Len::ZERO,
         //     },
-        //     Id::from("asdsadsadsasdsad"),
+        //     "asdsadsadsasdsad",
         //     Some(parent),
         // );
 
-        let mut purp_parent = self.ui.add_non_text_div(
+        let mut purp_parent = self.ui.add_div(
             DivProps {
                 width: Len::Px(100.0),
                 height: Len::Px(200.0),
@@ -138,7 +134,7 @@ impl MyApp {
                 cross_align: Align::Center,
                 absolute: false,
             },
-            Id::from("Purple Parent"),
+            "Purple Parent",
             Some(parent),
         );
 
@@ -151,7 +147,7 @@ impl MyApp {
 
         let purp_parent = purp_parent.id;
 
-        let mut d = self.ui.add_non_text_div(
+        let mut d = self.ui.add_div(
             DivProps {
                 width: Len::Px(50.0),
                 height: Len::Px(50.0),
@@ -160,13 +156,13 @@ impl MyApp {
                 cross_align: Align::Center,
                 absolute: false,
             },
-            Id::from("child 1 in purple"),
+            "child 1 in purple",
             Some(purp_parent),
         );
         d.style().color = Color::GREEN;
 
         self.ui
-            .add_non_text_div(
+            .add_div(
                 DivProps {
                     width: Len::Px(50.0),
                     height: Len::Px(50.0),
@@ -175,14 +171,14 @@ impl MyApp {
                     cross_align: Align::Center,
                     absolute: false,
                 },
-                Id::from("child 2 in purple"),
+                "child 2 in purple",
                 Some(purp_parent),
             )
             .style()
             .color = Color::WHITE;
 
         self.ui
-            .add_non_text_div(
+            .add_div(
                 DivProps {
                     width: Len::Px(100.0),
                     height: Len::Px(20.0),
@@ -191,7 +187,7 @@ impl MyApp {
                     cross_align: Align::Start,
                     absolute: false,
                 },
-                Id::from("other"),
+                "other",
                 Some(parent),
             )
             .style()
@@ -214,7 +210,7 @@ impl MyApp {
                 offset_y: Len::Px(30.0),
                 ..Default::default()
             },
-            Id::from("text div"),
+            "text div",
             Some(parent),
         );
 
@@ -237,7 +233,7 @@ impl MyApp {
         let total_time = self.deps.time.total().as_secs_f64() * 4.0;
         let total_time2 = self.deps.time.total().as_secs_f64() * 9.7;
         if text_div.mouse_in_rect() {
-            let mut green_square = self.ui.add_non_text_div(
+            let mut green_square = self.ui.add_div(
                 DivProps {
                     width: Len::Px(40.0),
                     height: Len::Px(40.0),
@@ -246,7 +242,7 @@ impl MyApp {
                     cross_align: Align::Start,
                     absolute: false,
                 },
-                Id::from(2112213232),
+                2112213232,
                 Some(parent),
             );
 
@@ -258,7 +254,7 @@ impl MyApp {
 
         let container2 = self
             .ui
-            .add_non_text_div(
+            .add_div(
                 DivProps {
                     width: Len::CONTENT,
                     height: Len::PARENT,
@@ -267,7 +263,7 @@ impl MyApp {
                     cross_align: Align::Center,
                     absolute: false,
                 },
-                Id::from("Container 2"),
+                "Container 2",
                 Some(parent),
             )
             .id;
@@ -280,7 +276,7 @@ impl MyApp {
                         text: "Click".into(),
                         ..Default::default()
                     },
-                    Id::from("my button"),
+                    "my button",
                     Some(container2),
                 )
                 .clicked;
@@ -296,7 +292,7 @@ impl MyApp {
                         text: "Button 2".into(),
                         ..Default::default()
                     },
-                    Id::from("my button 2"),
+                    "my button 2",
                     Some(container2),
                 )
                 .clicked;
@@ -312,7 +308,7 @@ impl MyApp {
                         text: "Button 3".into(),
                         ..Default::default()
                     },
-                    Id::from("my button 3"),
+                    "my button 3",
                     Some(container2),
                 )
                 .clicked;
@@ -325,7 +321,7 @@ impl MyApp {
         // egui_inspect_board(&mut ctx, &mut self.ui);
 
         self.ui.end_frame(&mut self.deps.ui.fonts);
-        self.deps.ui.ui_renderer.draw_billboard(&self.ui);
+        self.deps.ui.ui_renderer.draw_ui_board(&self.ui);
         // std::thread::sleep(Duration::from_millis(150));
     }
 }

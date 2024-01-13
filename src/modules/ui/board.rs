@@ -33,6 +33,7 @@ use fontdue::{
     Font,
 };
 use glam::{dvec2, vec2, DVec2, IVec2};
+use rand::Rng;
 use smallvec::{smallvec, SmallVec};
 
 use super::{
@@ -78,6 +79,12 @@ impl From<&'static str> for Id {
 impl From<u64> for Id {
     fn from(value: u64) -> Self {
         Id(value)
+    }
+}
+
+impl From<()> for Id {
+    fn from(_: ()) -> Self {
+        Self(rand::thread_rng().gen())
     }
 }
 
@@ -202,18 +209,19 @@ impl Board {
     pub fn add<'a, W: Widget>(
         &'a mut self,
         widget: W,
-        id: Id,
+        id: impl Into<Id>,
         parent: Option<ContainerId>,
     ) -> W::Response<'a> {
-        widget.add_to_board(self, id, parent)
+        widget.add_to_board(self, id.into(), parent)
     }
 
-    pub fn add_non_text_div<'a>(
+    pub fn add_div<'a>(
         &'a mut self,
         props: DivProps,
-        id: Id,
+        id: impl Into<Id>,
         parent: Option<ContainerId>,
     ) -> ContainerResponse<'a> {
+        let id: Id = id.into();
         let (comm, entry) = self._add_div(props, id, None, parent);
         let div_id = ContainerId { _priv: id };
         ContainerResponse {
@@ -227,9 +235,10 @@ impl Board {
         &'a mut self,
         mut props: DivProps,
         text: Text,
-        id: Id,
+        id: impl Into<Id>,
         parent: Option<ContainerId>,
     ) -> TextResponse<'a> {
+        let id: Id = id.into();
         // So main axis is always X for text
         props.axis = Axis::X;
         let (comm, entry): (Comm, OccupiedEntry<'_, Id, Div>) =
@@ -401,6 +410,20 @@ impl<'a> TextResponse<'a> {
             DivContent::Text(text_e) => &mut text_e.text,
             DivContent::Children(_) => panic!("This should always be text on a text div"),
         }
+    }
+}
+
+impl<'a> Deref for TextResponse<'a> {
+    type Target = DivStyle;
+
+    fn deref(&self) -> &Self::Target {
+        &self.entry.get().style
+    }
+}
+
+impl<'a> DerefMut for TextResponse<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.entry.get_mut().style
     }
 }
 

@@ -2,10 +2,13 @@ use crate::modules::input::PressState;
 
 use super::board::{Board, ContainerId, HotActive, Id};
 
-pub mod button;
+mod button;
 pub use button::Button;
 
-pub mod slider;
+mod fill;
+pub use fill::{h_fill, v_fill, HFill, VFill};
+
+mod slider;
 pub use slider::Slider;
 
 pub trait Widget {

@@ -9,12 +9,9 @@ use vert::{
         batteries::{FlyCam, GraphicsSettingsController},
         renderer::main_pass_renderer::{text_renderer::DrawText, ui_rect::UiRect},
         ui::{
-            board::{
-                egui_inspect_board, Align, Axis, Board, BoardInput, BorderRadius, ContainerId,
-                DivProps, DivStyle, DivTexture, HotActive, Id, Len, MainAlign, Text,
-            },
-            font_cache::FontSize,
-            widgets::{next_hot_active, Button, Slider, Widget},
+            font_cache::FontSize, next_hot_active, Align, Axis, Board, BoardInput, BorderRadius,
+            Button, ContainerId, DivProps, DivStyle, DivTexture, HotActive, Id, Len, MainAlign,
+            Slider, Text, Widget,
         },
         DefaultDependencies, DefaultModules, MainPassRenderer, Schedule,
     },
@@ -85,7 +82,7 @@ impl MyApp {
             dvec2(size.width as f64, size.height as f64),
         );
 
-        let mut parent = self.ui.add_non_text_div(
+        let mut parent = self.ui.add_div(
             DivProps {
                 width: Len::PARENT,
                 height: Len::PARENT,
@@ -94,7 +91,7 @@ impl MyApp {
                 cross_align: Align::Center,
                 absolute: false,
             },
-            Id::from("Parent"),
+            "Parent",
             None,
         );
 
@@ -102,13 +99,13 @@ impl MyApp {
         let parent = parent.id;
 
         // show some image in the UI
-        let mut img = self.ui.add_non_text_div(
+        let mut img = self.ui.add_div(
             DivProps {
                 width: Len::Px(200.0),
                 height: Len::Px(200.0),
                 ..Default::default()
             },
-            Id::from("img"),
+            "img",
             Some(parent),
         );
 
@@ -120,12 +117,12 @@ impl MyApp {
         // sow the slider
         self.ui.add(
             Slider::new(&mut self.value, 0.0, 400.0),
-            Id::from("slider"),
+            "slider",
             Some(parent),
         );
 
         self.ui.end_frame(&mut self.deps.ui.fonts);
-        self.deps.ui.ui_renderer.draw_billboard(&self.ui);
+        self.deps.ui.ui_renderer.draw_ui_board(&self.ui);
 
         // compare to Egui Widget (obviously a bit more polished)
         let mut egui = self.deps.egui.context();

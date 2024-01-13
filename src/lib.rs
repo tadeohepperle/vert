@@ -18,6 +18,7 @@ pub mod prelude {
     pub use anyhow;
     pub use bytemuck;
     pub use egui;
+    pub use fontdue;
     pub use glam;
     pub use slotmap;
     pub use wgpu;

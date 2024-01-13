@@ -4,3 +4,4 @@
 - Add Pbr Materials, Directional Lights, Point Lights, Shadow Maps?
 - Submodules that get inserted at Runtime.
 - remove msaa again and render ui on top of post processing.
+- currently there are multiple ways to render text: unify them (e.g. instant geometry text vs. ui boards)

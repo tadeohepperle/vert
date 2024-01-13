@@ -72,7 +72,7 @@ impl Plugin for DefaultModules {
     }
 }
 
-#[derive(Debug, Dependencies)]
+#[derive(Debug, Dependencies, Clone)]
 pub struct DefaultDependencies {
     pub winit: Handle<WinitMain>,
     pub tokio: Handle<TokioRuntime>,
