@@ -1,21 +1,19 @@
-use anyhow::anyhow;
 use etagere::{AllocId, AtlasAllocator};
 use fontdue::{
     layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle},
     Font,
 };
 use glam::{ivec2, IVec2};
-use image::{GenericImage, RgbaImage};
-use scheduler::Scheduler;
-use std::{collections::HashMap, ops::Deref};
+use image::RgbaImage;
+
+use std::collections::HashMap;
 
 use crate::{
     elements::{rect::Aabb, BindableTexture, Rect, Texture},
     modules::{
-        arenas::{Arena, Key, OwnedKey},
-        scheduler, Arenas, GraphicsContext, Prepare, Renderer, Time,
+        arenas::{Key, OwnedKey},
+        Arenas, GraphicsContext, Prepare, Renderer,
     },
-    utils::{next_pow2_number, Timing},
     Dependencies, Handle, Module,
 };
 
@@ -73,7 +71,8 @@ impl From<FontSize> for f32 {
 }
 
 struct Glyph {
-    alloc_id: AllocId,
+    /// currently not used, but could be used to deallocate the glyph from the shelf atlas.
+    _alloc_id: AllocId,
     metrics: fontdue::Metrics,
     bitmap: Vec<u8>,
     /// minx and miny in px in the atlas texture.
@@ -86,7 +85,7 @@ impl Module for FontCache {
     type Config = ();
     type Dependencies = Deps;
 
-    fn new(config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
         const DEFAULT_FONT_BYTES: &[u8] = include_bytes!("../../../assets/Oswald-Medium.ttf");
         let default_font = fontdue::Font::from_bytes(DEFAULT_FONT_BYTES, Default::default())
             .expect("could not load default font");
@@ -124,9 +123,9 @@ impl Module for FontCache {
 impl Prepare for FontCache {
     fn prepare(
         &mut self,
-        device: &wgpu::Device,
+        _device: &wgpu::Device,
         queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
+        _encoder: &mut wgpu::CommandEncoder,
     ) {
         let atlas_texture = &self.deps.arenas[&self.atlas_texture];
         for key in self.texture_writes.iter() {
@@ -157,7 +156,7 @@ impl FontCache {
     // }
 
     /// Returns non if there is no glyph that can be assigned to the char (e.g. for space)
-    fn get_glyph_atlas_uv_or_rasterize<'a>(&'a mut self, key: GlyphKey) -> Option<Aabb> {
+    fn get_glyph_atlas_uv_or_rasterize(&mut self, key: GlyphKey) -> Option<Aabb> {
         if let Some(glyph) = self.glyphs.get_mut(&key) {
             return Some(glyph.atlas_uv);
         }
@@ -198,7 +197,7 @@ impl FontCache {
             bitmap,
             offset_in_atlas,
             atlas_uv: uv,
-            alloc_id: allocation.id,
+            _alloc_id: allocation.id,
         };
         self.glyphs.insert(key, glyph);
         Some(uv)
@@ -296,7 +295,7 @@ fn update_texture_region(texture: &Texture, image: &RgbaImage, offset: IVec2, qu
                 z: 0,
             },
         },
-        &image,
+        image,
         wgpu::ImageDataLayout {
             offset: 0,
             bytes_per_row: Some(4 * image.width()),

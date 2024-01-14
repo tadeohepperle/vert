@@ -72,14 +72,14 @@ impl Camera3DTransform {
 
     pub fn forward(&self) -> Vec3 {
         let (yaw_sin, yaw_cos) = self.yaw.sin_cos();
-        let forward = vec3(yaw_cos, 0.0, yaw_sin).normalize();
-        forward
+        
+        vec3(yaw_cos, 0.0, yaw_sin).normalize()
     }
 
     pub fn right(&self) -> Vec3 {
         let (yaw_sin, yaw_cos) = self.yaw.sin_cos();
-        let right = vec3(-yaw_sin, 0.0, yaw_cos).normalize();
-        right
+        
+        vec3(-yaw_sin, 0.0, yaw_cos).normalize()
     }
 }
 

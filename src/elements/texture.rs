@@ -4,7 +4,7 @@ use std::{borrow::Cow, sync::OnceLock};
 
 use image::RgbaImage;
 use rand::{thread_rng, Rng};
-use smallvec::{smallvec, SmallVec};
+
 use wgpu::{BindGroupDescriptor, BindGroupLayout};
 
 #[derive(Debug)]
@@ -18,7 +18,8 @@ pub fn rgba_bind_group_layout(device: &wgpu::Device) -> &'static BindGroupLayout
     /// ugly, use resources cache in the future.
     static _RGBA_BIND_GROUP_LAYOUT: OnceLock<BindGroupLayout> = OnceLock::new();
     _RGBA_BIND_GROUP_LAYOUT.get_or_init(|| {
-        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[
                 wgpu::BindGroupLayoutEntry {
@@ -38,8 +39,7 @@ pub fn rgba_bind_group_layout(device: &wgpu::Device) -> &'static BindGroupLayout
                     count: None,
                 },
             ],
-        });
-        layout
+        })
     })
 }
 
@@ -47,7 +47,8 @@ pub fn rgba_bind_group_layout(device: &wgpu::Device) -> &'static BindGroupLayout
 pub fn rgba_bind_group_layout_msaa4(device: &wgpu::Device) -> &'static BindGroupLayout {
     static _RGBA_BIND_GROUP_LAYOUT_MSAA4: OnceLock<BindGroupLayout> = OnceLock::new();
     _RGBA_BIND_GROUP_LAYOUT_MSAA4.get_or_init(|| {
-        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[
                 wgpu::BindGroupLayoutEntry {
@@ -69,8 +70,7 @@ pub fn rgba_bind_group_layout_msaa4(device: &wgpu::Device) -> &'static BindGroup
                     count: None,
                 },
             ],
-        });
-        layout
+        })
     })
 }
 
@@ -159,7 +159,7 @@ impl Texture {
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
             },
-            &rgba,
+            rgba,
             wgpu::ImageDataLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * dimensions.0),

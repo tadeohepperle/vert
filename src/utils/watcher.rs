@@ -1,11 +1,7 @@
-use std::{
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
-};
+use std::path::PathBuf;
 
-use log::{error, info};
-use notify::{event::ModifyKind, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use tokio::sync::mpsc;
+use log::error;
+use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 
 type Event = notify::Result<notify::Event>;
 
@@ -29,7 +25,7 @@ impl FileChangeWatcher {
         .expect("could not create Watcher");
 
         for path in paths_to_watch.iter() {
-            watcher.watch(path, RecursiveMode::NonRecursive);
+            _ = watcher.watch(path, RecursiveMode::NonRecursive);
         }
 
         FileChangeWatcher {

@@ -17,7 +17,7 @@ impl Module for TokioRuntime {
 
     type Dependencies = ();
 
-    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, _deps: Self::Dependencies) -> anyhow::Result<Self> {
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()?;

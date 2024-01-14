@@ -1,22 +1,22 @@
 use std::fmt::Debug;
 
-use etagere::euclid::default;
-use glam::{vec2, Vec2, Vec3};
+
+use glam::{vec2, Vec2};
 use smallvec::SmallVec;
 use winit::{
-    dpi::{PhysicalPosition, PhysicalSize},
+    dpi::{PhysicalSize},
     event::{ElementState, KeyEvent, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
 };
 
 use crate::{
-    app::{FunctionHandle, ModuleId, UntypedHandle},
+    app::{FunctionHandle},
     modules::WinitMain,
     utils::{Timing, TimingQueue},
     Dependencies, Handle, Module,
 };
 
-use super::{winit_main, Schedule, Scheduler};
+use super::{Schedule, Scheduler};
 
 #[derive(Debug, Dependencies)]
 pub struct InputDependencies {
@@ -49,7 +49,7 @@ impl Module for Input {
     type Config = ();
     type Dependencies = InputDependencies;
 
-    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
         Ok(Input {
             keys: Default::default(),
             mouse_buttons: Default::default(),
@@ -132,7 +132,7 @@ impl Input {
             } => {
                 println!("scroll: {delta:?}");
                 match delta {
-                    winit::event::MouseScrollDelta::LineDelta(right, down) => {
+                    winit::event::MouseScrollDelta::LineDelta(_right, down) => {
                         let scroll = self.scroll.get_or_insert(0.0);
                         *scroll += down;
                     }

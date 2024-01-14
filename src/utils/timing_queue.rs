@@ -14,6 +14,12 @@ struct Entry<T> {
     element: T,
 }
 
+impl<T> Default for TimingQueue<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T> TimingQueue<T> {
     pub fn new() -> Self {
         TimingQueue {

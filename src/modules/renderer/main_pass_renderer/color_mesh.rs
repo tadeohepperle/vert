@@ -114,7 +114,7 @@ impl Module for ColorMeshRenderer {
 
     type Dependencies = Deps;
 
-    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
         let device = &deps.ctx.device;
         let pipeline = create_render_pipeline(device, include_str!("color_mesh.wgsl"), &deps.cam);
 
@@ -139,7 +139,7 @@ impl Prepare for ColorMeshRenderer {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
+        _encoder: &mut wgpu::CommandEncoder,
     ) {
         self.render_data
             .vertex_buffer
@@ -156,7 +156,7 @@ impl Prepare for ColorMeshRenderer {
 }
 
 impl MainPassRenderer for ColorMeshRenderer {
-    fn render<'pass, 'encoder>(&'encoder self, render_pass: &'pass mut wgpu::RenderPass<'encoder>) {
+    fn render<'encoder>(&'encoder self, render_pass: &mut wgpu::RenderPass<'encoder>) {
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_bind_group(0, self.deps.cam.bind_group(), &[]);
         render_pass.set_vertex_buffer(0, self.render_data.vertex_buffer.buffer().slice(..));

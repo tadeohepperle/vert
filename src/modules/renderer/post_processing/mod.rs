@@ -1,23 +1,14 @@
 use crate::{
     app::{ModuleId, UntypedHandle},
-    modules::GraphicsContext,
-    Dependencies, Handle, Module,
+    Handle, Module,
 };
 use wgpu::{CommandEncoder, ShaderModuleDescriptor};
-
-use super::Renderer;
 
 pub mod tone_mapping;
 pub use tone_mapping::{AcesToneMapping, ToneMappingSettings};
 
 pub mod bloom;
 pub use bloom::{Bloom, BloomSettings};
-
-#[derive(Debug, Dependencies)]
-pub struct PostProcessingDefaultDeps {
-    renderer: Handle<Renderer>,
-    ctx: Handle<GraphicsContext>,
-}
 
 pub trait PostProcessingEffect {
     fn apply<'e>(
@@ -64,10 +55,10 @@ impl PostProcessingEffectHandle {
         ) {
             unsafe {
                 <R as PostProcessingEffect>::apply(
-                    std::mem::transmute(obj),
-                    std::mem::transmute(encoder),
-                    std::mem::transmute(input_texture),
-                    std::mem::transmute(output_texture),
+                    &mut *(obj as *mut R),
+                    &mut *(encoder as *mut wgpu::CommandEncoder),
+                    &*(input_texture as *const wgpu::BindGroup),
+                    &*(output_texture as *const wgpu::TextureView),
                 );
             }
         }
@@ -138,9 +129,9 @@ impl SdrSurfaceRendererHandle {
         fn render<R: SdrSurfaceRenderer>(obj: *const (), encoder: *const (), view: *const ()) {
             unsafe {
                 <R as SdrSurfaceRenderer>::render(
-                    std::mem::transmute(obj),
-                    std::mem::transmute(encoder),
-                    std::mem::transmute(view),
+                    &*(obj as *const R),
+                    &mut *(encoder as *mut wgpu::CommandEncoder),
+                    &*(view as *const wgpu::TextureView),
                 );
             }
         }

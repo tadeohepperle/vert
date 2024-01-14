@@ -1,8 +1,8 @@
-use egui::{ClippedPrimitive, Context, RawInput, TextureId};
-use egui_demo_lib::DemoWindows;
-use egui_wgpu::renderer::ScreenDescriptor;
+use egui::{ClippedPrimitive, Context};
 
-use winit::{dpi::PhysicalSize, event::WindowEvent};
+
+
+use winit::{event::WindowEvent};
 
 use crate::{modules::Schedule, modules::WinitMain, utils::Timing, Dependencies, Handle, Module};
 
@@ -50,7 +50,7 @@ impl Module for Egui {
 
     type Dependencies = Deps;
 
-    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
         // Important note: pixels_per_point is the inverse of the devices scale_factor.
 
         let platform = Platform::new(PlatformDescriptor {
@@ -117,7 +117,7 @@ impl Prepare for Egui {
 impl SdrSurfaceRenderer for Egui {
     fn render<'e>(&'e self, encoder: &'e mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
         let color_attachment = wgpu::RenderPassColorAttachment {
-            view: &view,
+            view,
             resolve_target: None,
             ops: wgpu::Operations {
                 load: wgpu::LoadOp::Load,

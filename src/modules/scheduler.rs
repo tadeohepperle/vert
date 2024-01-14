@@ -1,11 +1,8 @@
-use std::{
-    ops::{Add, Sub},
-    vec,
-};
+
 
 use crate::{
-    app::{function_handle::VoidFunctionHandle, ModuleId, UntypedHandle},
-    utils::{EntryKey, Timing, TimingQueue},
+    app::{function_handle::VoidFunctionHandle},
+    utils::{Timing, TimingQueue},
     Handle, Module,
 };
 
@@ -19,7 +16,7 @@ pub struct Scheduler {
 impl Module for Scheduler {
     type Config = ();
     type Dependencies = ();
-    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, _deps: Self::Dependencies) -> anyhow::Result<Self> {
         Ok(Self {
             on_exit: TimingQueue::new(),
             on_update: TimingQueue::new(),
@@ -64,7 +61,7 @@ impl Scheduler {
         func: fn(&mut M) -> (),
     ) {
         // is this okay??
-        let type_punned_function: fn(*mut ()) -> () = unsafe { std::mem::transmute(func) };
+        let _type_punned_function: fn(*mut ()) -> () = unsafe { std::mem::transmute(func) };
         let void_function_handle = VoidFunctionHandle::new(handle, func);
         let schedule = self.schedule(schedule);
         schedule.insert(void_function_handle, timing); // todo! return a key that contains the schedule, to allow for deregistering.

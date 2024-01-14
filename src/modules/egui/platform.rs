@@ -5,11 +5,11 @@ use egui::{
     Context, Key, Pos2,
 };
 use egui_wgpu::renderer::ScreenDescriptor;
-use std::{collections::HashMap, fmt::format};
+use std::collections::HashMap;
 use winit::{
     dpi::PhysicalSize,
     event::{
-        Event, TouchPhase,
+        TouchPhase,
         WindowEvent::{self, *},
     },
     keyboard::{KeyCode, ModifiersState, PhysicalKey},
@@ -51,7 +51,7 @@ pub struct Platform {
 fn screen_rect(physical_size: PhysicalSize<u32>, pixels_per_point: f32) -> egui::Rect {
     egui::Rect::from_min_size(
         Pos2::default(),
-        vec2(physical_size.width as f32, physical_size.height as f32) / pixels_per_point as f32,
+        vec2(physical_size.width as f32, physical_size.height as f32) / pixels_per_point,
     )
 }
 
@@ -504,7 +504,7 @@ fn winit_to_egui_modifiers(modifiers: ModifiersState) -> egui::Modifiers {
 }
 
 #[inline]
-fn egui_to_winit_cursor_icon(icon: egui::CursorIcon) -> Option<winit::window::CursorIcon> {
+fn _unused_egui_to_winit_cursor_icon(icon: egui::CursorIcon) -> Option<winit::window::CursorIcon> {
     use egui::CursorIcon::*;
 
     match icon {
@@ -548,7 +548,7 @@ fn egui_to_winit_cursor_icon(icon: egui::CursorIcon) -> Option<winit::window::Cu
 
 /// We only want printable characters and ignore all special keys.
 #[inline]
-fn is_printable(chr: char) -> bool {
+fn _unused_is_printable(chr: char) -> bool {
     let is_in_private_use_area = ('\u{e000}'..='\u{f8ff}').contains(&chr)
         || ('\u{f0000}'..='\u{ffffd}').contains(&chr)
         || ('\u{100000}'..='\u{10fffd}').contains(&chr);

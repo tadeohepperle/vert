@@ -1,9 +1,8 @@
-use glam::{vec2, Mat4, Vec2, Vec3};
-use wgpu::BindGroupDescriptor;
+
+
 
 use crate::{
-    elements::{buffer::ToRaw, Camera3D, UniformBuffer},
-    modules::WinitMain,
+    elements::{Camera3D, UniformBuffer},
     utils::Timing,
     Dependencies, Handle, Module,
 };
@@ -29,7 +28,7 @@ impl Module for MainCamera3D {
     type Config = ();
     type Dependencies = Deps;
 
-    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
         let camera_3d = Camera3D::new(deps.ctx.size.width, deps.ctx.size.height);
         let uniform = UniformBuffer::new(camera_3d, &deps.ctx.device);
 
@@ -80,9 +79,9 @@ impl Module for MainCamera3D {
 impl Prepare for MainCamera3D {
     fn prepare(
         &mut self,
-        device: &wgpu::Device,
+        _device: &wgpu::Device,
         queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
+        _encoder: &mut wgpu::CommandEncoder,
     ) {
         self.uniform.update_raw_and_buffer(queue);
     }

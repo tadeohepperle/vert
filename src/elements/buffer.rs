@@ -1,9 +1,6 @@
-use std::{borrow::Cow, marker::PhantomData, mem::size_of};
+use std::{borrow::Cow, marker::PhantomData};
 
-use wgpu::{
-    util::{BufferInitDescriptor, DeviceExt},
-    BufferDescriptor,
-};
+use wgpu::util::{BufferInitDescriptor, DeviceExt};
 
 use crate::utils::next_pow2_number;
 
@@ -166,7 +163,6 @@ impl IndexBuffer {
 
 #[derive(Debug)]
 pub struct GrowableBuffer<T: bytemuck::Pod + bytemuck::Zeroable> {
-    min_cap: usize,
     /// This is tracked in addition to having the len in the data, to have the possibility of clearing data at the end of frame without losing len information.
     /// See Gizmos and other immediate geometry.
     buffer_len: usize,
@@ -186,7 +182,6 @@ impl<T: bytemuck::Pod + bytemuck::Zeroable> GrowableBuffer<T> {
         });
 
         GrowableBuffer {
-            min_cap,
             buffer_len: 0,
             buffer_cap: min_cap,
             buffer,

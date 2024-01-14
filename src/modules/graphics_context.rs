@@ -1,9 +1,9 @@
-use std::sync::Arc;
+
 
 use crate::{utils::Timing, Dependencies};
 use glam::DVec2;
 use wgpu::SurfaceTexture;
-use winit::{dpi::PhysicalSize, window::Window};
+use winit::{dpi::PhysicalSize};
 
 use crate::{modules::WinitMain, Handle, Module};
 
@@ -36,7 +36,7 @@ impl Module for GraphicsContext {
 
     type Dependencies = Deps;
 
-    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
         let tokio = deps.tokio;
         let graphics_context =
             tokio.block_on(async move { initialize_graphics_context(deps).await })?;

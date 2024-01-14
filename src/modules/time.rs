@@ -27,7 +27,7 @@ impl Module for Time {
     type Config = ();
     type Dependencies = Handle<Scheduler>;
 
-    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
         let mut delta_times = VecDeque::new();
         delta_times.push_back(Duration::from_millis(10));
         Ok(Time {

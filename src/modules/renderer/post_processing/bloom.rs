@@ -3,11 +3,11 @@ use std::borrow::Cow;
 use wgpu::{BlendComponent, BlendFactor, BlendOperation, BlendState};
 
 use crate::{
-    elements::{texture::rgba_bind_group_layout, Color},
+    elements::{texture::rgba_bind_group_layout},
     modules::{
         input::ResizeEvent,
         renderer::{screen_texture::HdrTexture, HDR_COLOR_FORMAT},
-        GraphicsContext, Input, MainScreenSize, Renderer, ScreenSize,
+        GraphicsContext, Input, MainScreenSize, Renderer,
     },
     utils::Timing,
     Dependencies, Handle, Module,
@@ -79,7 +79,7 @@ impl Module for Bloom {
             include_str!("bloom.wgsl"),
             &deps.ctx.device,
             &deps.screen_size,
-            &deps.renderer.screen_vertex_shader(),
+            deps.renderer.screen_vertex_shader(),
         );
 
         let bloom = Bloom {
@@ -374,7 +374,7 @@ impl BloomPipelines {
 
         let fragment_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Bloom Shader"),
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(shader_wgsl)).into(),
+            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(shader_wgsl)),
         });
 
         let create_pipeline = |label: &str,

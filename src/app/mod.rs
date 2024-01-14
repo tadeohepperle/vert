@@ -59,6 +59,12 @@ pub struct AppBuilder {
     main_module: Option<AddedMainModule>,
 }
 
+impl Default for AppBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AppBuilder {
     pub fn new() -> Self {
         AppBuilder {
@@ -201,12 +207,10 @@ impl AppBuilder {
             main_module: added_main_module.module_id,
         };
 
-        let result = (added_main_module.run_main_module_fn)(&app);
-
         // todo!() dealloc modules and configs bumps
         // Also: cross fingers that no references to them are around after main module main.
 
-        result
+        (added_main_module.run_main_module_fn)(&app)
     }
 }
 
@@ -288,6 +292,7 @@ fn instantiation_order(modules: &HashMap<ModuleId, AddedModule>) -> anyhow::Resu
     Ok(order)
 }
 
+#[allow(dead_code)]
 struct AddedModule {
     dependencies: Vec<ModuleId>,
     module_id: ModuleId,
@@ -376,7 +381,6 @@ fn run_main_module<M: MainModule>(app: &App) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod test {
-    use std::path::Component;
 
     use super::{instantiation_order, AppBuilder, Handle, MainModule, Module};
 
@@ -389,12 +393,12 @@ mod test {
     impl Module for RendererSettings {
         type Config = ();
         type Dependencies = ();
-        fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+        fn new(_config: Self::Config, _deps: Self::Dependencies) -> anyhow::Result<Self> {
             println!("New RendererSettings created");
             Ok(RendererSettings)
         }
 
-        fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
+        fn intialize(_handle: Handle<Self>) -> anyhow::Result<()> {
             println!("RendererSettings Initialized");
             Ok(())
         }
@@ -405,17 +409,18 @@ mod test {
     impl Module for GraphicsContext {
         type Config = ();
         type Dependencies = ();
-        fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+        fn new(_config: Self::Config, _deps: Self::Dependencies) -> anyhow::Result<Self> {
             println!("New GraphicsContext created");
             Ok(GraphicsContext)
         }
 
-        fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
+        fn intialize(_handle: Handle<Self>) -> anyhow::Result<()> {
             println!("GraphicsContext Initialized");
             Ok(())
         }
     }
 
+    #[allow(dead_code)]
     struct Renderer {
         ctx: Handle<GraphicsContext>,
         settings: Handle<RendererSettings>,
@@ -424,12 +429,12 @@ mod test {
     impl Module for Renderer {
         type Config = ();
         type Dependencies = (Handle<RendererSettings>, Handle<GraphicsContext>);
-        fn new(config: Self::Config, (settings, ctx): Self::Dependencies) -> anyhow::Result<Self> {
+        fn new(_config: Self::Config, (settings, ctx): Self::Dependencies) -> anyhow::Result<Self> {
             println!("New Renderer created");
             Ok(Renderer { settings, ctx })
         }
 
-        fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
+        fn intialize(_handle: Handle<Self>) -> anyhow::Result<()> {
             println!("Renderer Initialized");
             Ok(())
         }
@@ -439,7 +444,7 @@ mod test {
     impl Module for C {
         type Config = ();
         type Dependencies = Handle<A>;
-        fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+        fn new(_config: Self::Config, _deps: Self::Dependencies) -> anyhow::Result<Self> {
             Ok(C)
         }
     }
@@ -448,7 +453,7 @@ mod test {
     impl Module for A {
         type Config = ();
         type Dependencies = Handle<B>;
-        fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+        fn new(_config: Self::Config, _deps: Self::Dependencies) -> anyhow::Result<Self> {
             Ok(A)
         }
     }
@@ -457,11 +462,12 @@ mod test {
     impl Module for B {
         type Config = ();
         type Dependencies = Handle<A>;
-        fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+        fn new(_config: Self::Config, _deps: Self::Dependencies) -> anyhow::Result<Self> {
             Ok(B)
         }
     }
 
+    #[allow(dead_code)]
     struct LineRenderer {
         renderer: Handle<Renderer>,
     }
@@ -469,12 +475,12 @@ mod test {
     impl Module for LineRenderer {
         type Config = ();
         type Dependencies = Handle<Renderer>;
-        fn new(config: Self::Config, renderer: Self::Dependencies) -> anyhow::Result<Self> {
+        fn new(_config: Self::Config, renderer: Self::Dependencies) -> anyhow::Result<Self> {
             println!("New LineRenderer created");
             Ok(LineRenderer { renderer })
         }
 
-        fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
+        fn intialize(_handle: Handle<Self>) -> anyhow::Result<()> {
             println!("LineRenderer Initialized");
             Ok(())
         }
@@ -487,14 +493,14 @@ mod test {
 
         type Dependencies = ();
 
-        fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+        fn new(_config: Self::Config, _deps: Self::Dependencies) -> anyhow::Result<Self> {
             println!("New MainMod created.");
             Ok(MainMod {})
         }
     }
 
     impl MainModule for MainMod {
-        fn main(&mut self, app: &super::App) -> anyhow::Result<()> {
+        fn main(&mut self, _app: &super::App) -> anyhow::Result<()> {
             println!("Running Main");
             Ok(())
         }

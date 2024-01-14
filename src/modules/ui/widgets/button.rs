@@ -6,10 +6,9 @@ use crate::{
     elements::Color,
     modules::{
         arenas::Key,
-        input::{MouseButtonState, PressState},
         ui::{
             board::{
-                Align, Board, BorderRadius, ContainerId, DivStyle,
+                Align, Board, BorderRadius, ContainerId,
                 HotActive::{self, *},
                 Id, Len, MainAlign, Text,
             },
@@ -50,9 +49,9 @@ pub struct ButtonResponse {
 impl Widget for Button {
     type Response<'a> = ButtonResponse;
 
-    fn add_to_board<'a>(
+    fn add_to_board(
         self,
-        board: &'a mut Board,
+        board: &mut Board,
         id: Id,
         parent: Option<ContainerId>,
     ) -> ButtonResponse {

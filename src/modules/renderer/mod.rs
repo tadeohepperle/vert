@@ -1,10 +1,9 @@
-use std::sync::Arc;
+
 
 use crate::{
-    app::{self, ModuleId, UntypedHandle},
     elements::Color,
     utils::{Timing, TimingQueue},
-    Dependencies, Handle, Module, Plugin,
+    Dependencies, Handle, Module,
 };
 
 use self::{
@@ -15,7 +14,7 @@ use self::{
 
 use super::{input::ResizeEvent, GraphicsContext, Input, Schedule, Scheduler};
 use log::error;
-use wgpu::{CommandEncoder, RenderPass};
+
 
 pub mod main_pass_renderer;
 pub mod post_processing;
@@ -172,7 +171,7 @@ impl Renderer {
         self.surface_renderers.insert(handle, timing); // todo! maybe return key, to deregister later.
     }
 
-    fn resize(&mut self, new_size: ResizeEvent) {
+    fn resize(&mut self, _new_size: ResizeEvent) {
         //Note: new_size not used because it is taken from the graphics context, which gets the new screen size before.
         self.depth_texture.recreate(&self.deps.ctx);
         self.hdr_msaa_texture = HdrTexture::create_screen_sized(&self.deps.ctx, MSAA_SAMPLE_COUNT);
@@ -288,11 +287,11 @@ pub trait VertexT: 'static + Sized {
     const ATTRIBUTES: &'static [Attribute];
 
     /// We pass in `empty_vec`, because Rust does not have super let lifetimes yet... sigh...
-    fn vertex_buffer_layout<'a>(
+    fn vertex_buffer_layout(
         shader_location_offset: usize,
         is_instance: bool,
-        empty_vec: &'a mut Vec<wgpu::VertexAttribute>,
-    ) -> wgpu::VertexBufferLayout<'a> {
+        empty_vec: &mut Vec<wgpu::VertexAttribute>,
+    ) -> wgpu::VertexBufferLayout<'_> {
         let mut shader_location_offset: u32 = shader_location_offset as u32;
         if !is_instance {
             assert_eq!(shader_location_offset, 0)
@@ -316,12 +315,12 @@ pub trait VertexT: 'static + Sized {
         } else {
             wgpu::VertexStepMode::Vertex
         };
-        let layout = wgpu::VertexBufferLayout {
+        
+        wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Self>() as u64,
             step_mode,
             attributes: empty_vec,
-        };
-        layout
+        }
     }
 }
 

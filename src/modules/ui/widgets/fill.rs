@@ -24,12 +24,12 @@ pub struct VFill {
 impl Widget for HFill {
     type Response<'a> = ();
 
-    fn add_to_board<'a>(
+    fn add_to_board(
         self,
-        board: &'a mut Board,
+        board: &mut Board,
         id: Id,
         parent: Option<ContainerId>,
-    ) -> Self::Response<'a> {
+    ) -> Self::Response<'_> {
         board.add_div(id, parent).width(self.width);
     }
 }
@@ -37,12 +37,12 @@ impl Widget for HFill {
 impl Widget for VFill {
     type Response<'a> = ();
 
-    fn add_to_board<'a>(
+    fn add_to_board(
         self,
-        board: &'a mut Board,
+        board: &mut Board,
         id: Id,
         parent: Option<ContainerId>,
-    ) -> Self::Response<'a> {
+    ) -> Self::Response<'_> {
         board.add_div(id, parent).height(self.height);
     }
 }

@@ -1,8 +1,7 @@
-use wgpu::BindGroupDescriptor;
+
 
 use crate::{
-    elements::{buffer::ToRaw, Camera3D, UniformBuffer},
-    modules::WinitMain,
+    elements::{buffer::ToRaw, UniformBuffer},
     utils::Timing,
     Dependencies, Handle, Module,
 };
@@ -28,7 +27,7 @@ impl Module for MainScreenSize {
     type Config = ();
     type Dependencies = Deps;
 
-    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
         let width = deps.ctx.size.width;
         let height = deps.ctx.size.height;
         let scale_factor = deps.ctx.scale_factor;
@@ -88,9 +87,9 @@ impl Module for MainScreenSize {
 impl Prepare for MainScreenSize {
     fn prepare(
         &mut self,
-        device: &wgpu::Device,
+        _device: &wgpu::Device,
         queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
+        _encoder: &mut wgpu::CommandEncoder,
     ) {
         self.uniform.update_raw_and_buffer(queue);
     }

@@ -1,9 +1,9 @@
 use crate::{
-    app::{FunctionHandle, ModuleId, RefFunctionHandle},
+    app::{RefFunctionHandle},
     utils::{Timing, TimingQueue},
     Handle, MainModule, Module,
 };
-use anyhow::anyhow;
+
 use winit::{
     dpi::PhysicalSize,
     event::{Event, WindowEvent},
@@ -50,7 +50,7 @@ impl Module for WinitMain {
         let event_loop = EventLoop::new().unwrap();
 
         let monitor = event_loop.primary_monitor().unwrap();
-        let video_mode = monitor.video_modes().next();
+        let _video_mode = monitor.video_modes().next();
         // let size = video_mode
         //     .clone()
         //     .map_or(PhysicalSize::new(800, 600), |vm| vm.size());
@@ -74,7 +74,7 @@ impl Module for WinitMain {
 }
 
 impl MainModule for WinitMain {
-    fn main(&mut self, app: &crate::App) -> anyhow::Result<()> {
+    fn main(&mut self, _app: &crate::App) -> anyhow::Result<()> {
         let event_loop = self.event_loop.take().unwrap();
         event_loop.run(move |event, window_target| {
             // check what kinds of events received:

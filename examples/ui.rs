@@ -1,17 +1,15 @@
-use std::time::Duration;
 
-use glam::{dvec2, vec2, vec3, Vec2};
+
+use glam::{dvec2};
 use vert::{
     elements::{Color, Rect, Transform},
     modules::{
-        arenas::Key,
         batteries::{FlyCam, GraphicsSettingsController},
-        renderer::main_pass_renderer::{text_renderer::DrawText, ui_rect::UiRect},
+        renderer::main_pass_renderer::{ui_rect::UiRect},
         ui::{
-            font_cache::FontSize, Align, Axis, Board, BoardInput, BorderRadius, Button, DivStyle,
-            Id, Len, MainAlign, Text,
+            font_cache::FontSize, Align, Axis, Board, BoardInput, BorderRadius, Button, Len, MainAlign, Text,
         },
-        DefaultDependencies, DefaultModules, MainPassRenderer, Schedule,
+        DefaultDependencies, DefaultModules, Schedule,
     },
     utils::Timing,
     AppBuilder, Module,
@@ -36,7 +34,7 @@ impl Module for MyApp {
 
     type Dependencies = DefaultDependencies;
 
-    fn new(config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
         deps.bloom.settings_mut().activated = false;
         deps.ui
             .ui_renderer

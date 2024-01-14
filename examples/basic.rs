@@ -1,9 +1,9 @@
-use glam::{vec2, vec3, Vec2};
+use glam::{Vec2};
 use vert::{
-    elements::{Color, Rect, Transform},
+    elements::{Color, Transform},
     modules::{
         batteries::{FlyCam, GraphicsSettingsController},
-        renderer::main_pass_renderer::{text_renderer::DrawText, ui_rect::UiRect},
+        renderer::main_pass_renderer::{text_renderer::DrawText},
         DefaultDependencies, DefaultModules, Schedule,
     },
     utils::Timing,
@@ -28,7 +28,7 @@ impl Module for MyApp {
 
     type Dependencies = DefaultDependencies;
 
-    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
         Ok(MyApp { deps })
     }
 

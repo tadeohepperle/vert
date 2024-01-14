@@ -3,7 +3,7 @@ use std::vec;
 use log::warn;
 use wgpu::BufferUsages;
 use wgpu::MultisampleState;
-use wgpu::RenderPipelineDescriptor;
+
 use wgpu::ShaderModule;
 use wgpu::ShaderModuleDescriptor;
 
@@ -63,7 +63,7 @@ impl Module for UiRenderer {
     type Config = ();
     type Dependencies = Deps;
 
-    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
         let device = &deps.ctx.device;
         let rect_buffer = GrowableBuffer::new(device, 256, BufferUsages::VERTEX);
         let glyph_buffer = GrowableBuffer::new(device, 512, BufferUsages::VERTEX);
@@ -126,7 +126,7 @@ impl Prepare for UiRenderer {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
+        _encoder: &mut wgpu::CommandEncoder,
     ) {
         // recreate the pipelines if watching some file:
         if let Some(watcher) = &self.shader_watcher {
@@ -162,7 +162,7 @@ impl Prepare for UiRenderer {
 }
 
 impl MainPassRenderer for UiRenderer {
-    fn render<'pass, 'encoder>(&'encoder self, render_pass: &'pass mut wgpu::RenderPass<'encoder>) {
+    fn render<'encoder>(&'encoder self, render_pass: &mut wgpu::RenderPass<'encoder>) {
         assert!(self.collected_batches.is_empty()); // only information left should be in draw_batches.
                                                     // println!("render UiRenderer");
         render_pass.set_bind_group(0, self.deps.main_screen.bind_group(), &[]);
@@ -283,7 +283,7 @@ fn create_pipeline<I: VertexT>(
             buffers: vertex_buffers_layout,
         },
         fragment: Some(wgpu::FragmentState {
-            module: &shader_module,
+            module: shader_module,
             entry_point: fragment_entry,
             targets: &[Some(wgpu::ColorTargetState {
                 format: HDR_COLOR_FORMAT,

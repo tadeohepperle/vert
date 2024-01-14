@@ -3,11 +3,10 @@ use std::f32::consts::PI;
 use crate::{
     elements::camera3d::{Projection, ProjectionKind},
     modules::{
-        AcesToneMapping, Bloom, DefaultDependencies, MainCamera3D, Renderer, Schedule, Scheduler,
+        DefaultDependencies, Schedule,
         ToneMappingSettings,
     },
-    utils::Timing,
-    Dependencies, Handle, Module,
+    utils::Timing, Handle, Module,
 };
 
 pub struct GraphicsSettingsController {
@@ -40,8 +39,8 @@ impl Module for GraphicsSettingsController {
 
     type Dependencies = DefaultDependencies;
 
-    fn new(config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
-        let mut camera_settings = CameraSettings {
+    fn new(_config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
+        let camera_settings = CameraSettings {
             is_ortho: false,
             ortho_y_height: 16.0,
             perspective_fovy_degrees: 50.0,

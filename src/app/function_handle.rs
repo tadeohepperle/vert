@@ -2,6 +2,7 @@ use super::{Handle, Module, ModuleId, UntypedHandle};
 
 /// Combines a Handle to a module with a function that can be called on that module.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct FunctionHandle<E> {
     module_id: ModuleId,
     handle: UntypedHandle,

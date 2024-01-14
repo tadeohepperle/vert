@@ -104,7 +104,7 @@ impl Module for TextRenderer {
 
     type Dependencies = Deps;
 
-    fn new(config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
         let image = RgbaImage::new(TEXT_ATLAS_SIZE, TEXT_ATLAS_SIZE);
         let atlas_texture = Texture::from_image(&deps.ctx.device, &deps.ctx.queue, &image);
         let atlas_texture = BindableTexture::new(&deps.ctx.device, atlas_texture);
@@ -129,9 +129,9 @@ impl Module for TextRenderer {
 impl Prepare for TextRenderer {
     fn prepare(
         &mut self,
-        device: &wgpu::Device,
+        _device: &wgpu::Device,
         queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
+        _encoder: &mut wgpu::CommandEncoder,
     ) {
         // Update the atlas texture if new glyphs have been rasterized this frame:
         if !self.rasterizer.atlas_texture_writes.is_empty() {
@@ -421,7 +421,7 @@ fn update_texture_region(texture: &Texture, image: &RgbaImage, offset: IVec2, qu
                 z: 0,
             },
         },
-        &image,
+        image,
         wgpu::ImageDataLayout {
             offset: 0,
             bytes_per_row: Some(4 * image.width()),

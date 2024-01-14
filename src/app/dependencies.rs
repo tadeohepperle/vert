@@ -13,7 +13,6 @@ impl Dependencies for () {
 
     fn from_untyped_handles(ptrs: &[UntypedHandle]) -> Self {
         assert_eq!(ptrs.len(), 0);
-        ()
     }
 }
 
@@ -47,6 +46,7 @@ impl<A: Dependencies, B: Dependencies> Dependencies for (A, B) {
     }
 }
 
+// todo!() write macro to implement dependencies for more than arity 2 tuples
 macro_rules! implement_dependencies_t {
     ( $(),*) => {};
 }

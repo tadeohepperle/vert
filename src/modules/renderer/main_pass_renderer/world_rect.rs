@@ -1,12 +1,11 @@
 use std::{
     ops::Range,
-    sync::{LazyLock, Mutex, OnceLock},
 };
 
-use image::RgbaImage;
-use log::{error, info, warn};
+
+use log::{warn};
 use wgpu::{
-    BufferUsages, ColorTargetState, FragmentState, MultisampleState, RenderPipelineDescriptor,
+    BufferUsages, FragmentState, MultisampleState, RenderPipelineDescriptor,
     ShaderModuleDescriptor, VertexState,
 };
 
@@ -14,12 +13,12 @@ use crate::{
     elements::{
         immediate_geometry::TexturedInstancesQueue,
         texture::{create_white_px_texture, rgba_bind_group_layout},
-        BindableTexture, Color, GrowableBuffer, ToRaw, Transform, TransformRaw,
+        BindableTexture, GrowableBuffer, ToRaw, Transform, TransformRaw,
     },
     modules::{
         arenas::{Key, OwnedKey},
         renderer::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT},
-        Arenas, Attribute, GraphicsContext, MainCamera3D, MainScreenSize, Prepare, Renderer,
+        Arenas, Attribute, GraphicsContext, MainCamera3D, Prepare, Renderer,
         VertexT,
     },
     utils::Timing,
@@ -87,7 +86,7 @@ impl Module for WorldRectRenderer {
 
     type Dependencies = Deps;
 
-    fn new(config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
         let white_texture = create_white_px_texture(&deps.ctx.device, &deps.ctx.queue);
         let white_px_texture_key = deps.arenas.insert(white_texture);
         let pipeline =
@@ -116,7 +115,7 @@ impl Prepare for WorldRectRenderer {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
+        _encoder: &mut wgpu::CommandEncoder,
     ) {
         // todo! queue.clear should handle z-sorting back to front. Then disable z-buffer writes.
         let (instances, ranges) = self.queue.clear();
@@ -126,7 +125,7 @@ impl Prepare for WorldRectRenderer {
 }
 
 impl MainPassRenderer for WorldRectRenderer {
-    fn render<'pass, 'encoder>(&'encoder self, render_pass: &'pass mut wgpu::RenderPass<'encoder>) {
+    fn render<'encoder>(&'encoder self, render_pass: &mut wgpu::RenderPass<'encoder>) {
         if self.instance_ranges.is_empty() {
             return;
         }

@@ -132,7 +132,7 @@ impl Module for Gizmos {
 
     type Dependencies = Deps;
 
-    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
         let vertex_buffer = GrowableBuffer::new(&deps.ctx.device, 256, BufferUsages::VERTEX);
         let pipeline = create_pipeline(&deps.ctx.device, &deps.main_cam);
 
@@ -159,7 +159,7 @@ impl Prepare for Gizmos {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
+        _encoder: &mut wgpu::CommandEncoder,
     ) {
         self.vertex_buffer
             .prepare(&self.vertex_queue, device, queue);
@@ -168,7 +168,7 @@ impl Prepare for Gizmos {
 }
 
 impl MainPassRenderer for Gizmos {
-    fn render<'pass, 'encoder>(&'encoder self, render_pass: &'pass mut wgpu::RenderPass<'encoder>) {
+    fn render<'encoder>(&'encoder self, render_pass: &mut wgpu::RenderPass<'encoder>) {
         if self.vertex_buffer.buffer_len() == 0 {
             return;
         }
@@ -214,7 +214,9 @@ fn create_pipeline(device: &wgpu::Device, main_cam: &MainCamera3D) -> wgpu::Rend
         push_constant_ranges: &[],
     });
 
-    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+    
+
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some(&format!("{label} ShaderModule")),
         layout: Some(&layout),
         vertex: VertexState {
@@ -255,7 +257,5 @@ fn create_pipeline(device: &wgpu::Device, main_cam: &MainCamera3D) -> wgpu::Rend
             ..Default::default()
         },
         multiview: None,
-    });
-
-    pipeline
+    })
 }

@@ -81,6 +81,12 @@ pub struct TexturedInstancesQueue<T: bytemuck::Pod> {
     pub instances: Vec<(T, Key<BindableTexture>)>,
 }
 
+impl<T: bytemuck::Pod> Default for TexturedInstancesQueue<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T: bytemuck::Pod> TexturedInstancesQueue<T> {
     #[inline(always)]
     pub fn add(&mut self, instance: T, texture: Key<BindableTexture>) {
@@ -98,13 +104,13 @@ impl<T: bytemuck::Pod> TexturedInstancesQueue<T> {
             return (vec![], vec![]);
         }
 
-        textured_instances.sort_by(|(_, tex1), (_, tex2)| tex1.cmp(&tex2));
+        textured_instances.sort_by(|(_, tex1), (_, tex2)| tex1.cmp(tex2));
 
         let mut instances: Vec<T> = vec![];
         let mut texture_groups: Vec<(Range<u32>, Key<BindableTexture>)> = vec![];
 
         let mut last_start_idx: usize = 0;
-        let mut last_texture: Key<BindableTexture> = textured_instances.first().unwrap().1.clone();
+        let mut last_texture: Key<BindableTexture> = textured_instances.first().unwrap().1;
 
         for (i, (instance, texture)) in textured_instances.into_iter().enumerate() {
             instances.push(instance);

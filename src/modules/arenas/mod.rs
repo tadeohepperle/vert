@@ -1,9 +1,7 @@
-use crate::{elements::BindableTexture, utils::ChillCell, Module};
+use crate::{utils::ChillCell, Module};
 use slotmap::SlotMap;
 use std::{
     any::TypeId,
-    borrow::BorrowMut,
-    cell::RefCell,
     collections::HashMap,
     ops::{DerefMut, Index, IndexMut},
 };
@@ -22,8 +20,14 @@ impl Module for Arenas {
     type Config = ();
     type Dependencies = ();
 
-    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, _deps: Self::Dependencies) -> anyhow::Result<Self> {
         Ok(Arenas::new())
+    }
+}
+
+impl Default for Arenas {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

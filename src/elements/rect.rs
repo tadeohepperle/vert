@@ -97,24 +97,24 @@ impl Aabb {
     };
 }
 
-impl Into<Aabb> for Rect {
-    fn into(self) -> Aabb {
+impl From<Rect> for Aabb {
+    fn from(val: Rect) -> Self {
         Aabb {
-            min_x: self.min_x,
-            min_y: self.min_y,
-            max_x: self.min_x + self.width,
-            max_y: self.min_y + self.height,
+            min_x: val.min_x,
+            min_y: val.min_y,
+            max_x: val.min_x + val.width,
+            max_y: val.min_y + val.height,
         }
     }
 }
 
-impl Into<Rect> for Aabb {
-    fn into(self) -> Rect {
+impl From<Aabb> for Rect {
+    fn from(val: Aabb) -> Self {
         Rect {
-            min_x: self.min_x,
-            min_y: self.min_y,
-            width: self.max_x - self.min_x,
-            height: self.max_y - self.min_y,
+            min_x: val.min_x,
+            min_y: val.min_y,
+            width: val.max_x - val.min_x,
+            height: val.max_y - val.min_y,
         }
     }
 }

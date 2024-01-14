@@ -3,41 +3,33 @@
 //! The board represents a screen, card or anything. Elements can be added in an immediate mode API.
 
 use std::{
-    borrow::{Borrow, Cow},
-    cell::{Cell, RefCell, UnsafeCell},
+    borrow::Cow,
+    cell::Cell,
     collections::{
         hash_map::{Entry, OccupiedEntry},
         HashMap,
     },
     fmt::Debug,
     hash::{Hash, Hasher},
-    iter::Map,
-    marker::PhantomData,
     ops::{Add, Deref, DerefMut, Mul, Sub},
 };
 
 use crate::{
     elements::{rect::Aabb, BindableTexture, Color, Rect},
-    ext::{glam::Vec2, winit::event::MouseButton},
-    modules::{
-        arenas::Key,
-        input::{MouseButtonState, PressState},
-        Egui, Input,
-    },
+    ext::glam::Vec2,
+    modules::{arenas::Key, input::MouseButtonState, Input},
     utils::ChillCell,
 };
-use egui::{ahash::HashSet, Color32, Pos2, Stroke, Ui};
-use etagere::euclid::default;
+use egui::Ui;
+
 use fontdue::{
-    layout::{HorizontalAlign, Layout, VerticalAlign},
+    layout::{HorizontalAlign, VerticalAlign},
     Font,
 };
-use glam::{dvec2, vec2, DVec2, IVec2};
+use glam::{dvec2, DVec2, IVec2};
 use rand::Rng;
-use smallvec::{smallvec, SmallVec};
 
 use super::{
-    batching::{get_batches, BatchingResult},
     font_cache::{FontCache, FontSize, TextLayoutResult},
     widgets::Widget,
 };
@@ -51,7 +43,7 @@ pub struct ContainerId {
 }
 
 impl From<()> for ContainerId {
-    fn from(value: ()) -> Self {
+    fn from(_value: ()) -> Self {
         ContainerId::NONE
     }
 }
@@ -61,10 +53,6 @@ impl ContainerId {
     const NONE: ContainerId = ContainerId {
         _priv: Id(u64::MAX),
     };
-
-    fn is_none(&self) -> bool {
-        *self == ContainerId::NONE
-    }
 
     pub fn id(&self) -> Id {
         self._priv
@@ -223,20 +211,16 @@ impl Board {
         }
     }
 
-    pub fn add<'a, W: Widget>(
-        &'a mut self,
+    pub fn add<W: Widget>(
+        &mut self,
         widget: W,
         id: impl Into<Id>,
         parent: Option<ContainerId>,
-    ) -> W::Response<'a> {
+    ) -> W::Response<'_> {
         widget.add_to_board(self, id.into(), parent)
     }
 
-    pub fn add_div<'a>(
-        &'a mut self,
-        id: impl Into<Id>,
-        parent: Option<ContainerId>,
-    ) -> DivResponse<'a> {
+    pub fn add_div(&mut self, id: impl Into<Id>, parent: Option<ContainerId>) -> DivResponse<'_> {
         let id: Id = id.into();
         let (comm, entry) = self._add_div(id, None, parent);
         let div_id = ContainerId { _priv: id };
@@ -247,12 +231,12 @@ impl Board {
         }
     }
 
-    pub fn add_text_div<'a>(
-        &'a mut self,
+    pub fn add_text_div(
+        &mut self,
         text: Text,
         id: impl Into<Id>,
         parent: Option<ContainerId>,
-    ) -> TextDivResponse<'a> {
+    ) -> TextDivResponse<'_> {
         let id: Id = id.into();
         let (comm, entry): (Comm, OccupiedEntry<'_, Id, Div>) =
             self._add_div(id, Some(text), parent);
@@ -1391,7 +1375,7 @@ pub(super) fn offset_dvec2(offset_x: Len, offset_y: Len, parent_size: DVec2) -> 
     }
 }
 
-pub fn egui_inspect_board(ctx: &mut egui::Context, board: &mut Board) {
+fn _unsued_egui_inspect_board(ctx: &mut egui::Context, board: &mut Board) {
     fn str_split(debug: &dyn Debug) -> String {
         let div_str = format!("{debug:?}");
         let mut div_str2 = String::new();

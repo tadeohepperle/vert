@@ -2,7 +2,7 @@ use crate::{
     elements::Color,
     modules::ui::{
         board::{
-            Align, Axis, Board, BorderRadius, ContainerId, DivStyle, HotActive, Id, Len, MainAlign,
+            Align, Axis, Board, BorderRadius, ContainerId, HotActive, Id, Len, MainAlign,
             Text,
         },
         widgets::next_hot_active,
@@ -28,12 +28,12 @@ impl<'v> Slider<'v> {
 impl<'v> Widget for Slider<'v> {
     type Response<'a> = ();
 
-    fn add_to_board<'a>(
+    fn add_to_board(
         self,
-        board: &'a mut Board,
+        board: &mut Board,
         id: Id,
         parent: Option<ContainerId>,
-    ) -> Self::Response<'a> {
+    ) -> Self::Response<'_> {
         const SLIDER_CONTAINER_WIDTH: f64 = 120.0;
         const SLIDER_WIDTH: f64 = 100.0;
         const KNOB_WIDTH: f64 = 16.0;

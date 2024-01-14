@@ -1,6 +1,6 @@
 use std::{cell::UnsafeCell, fmt::Debug, ops::DerefMut};
 
-use crate::elements::BindableTexture;
+
 
 use super::{Dependencies, Module, ModuleId};
 
@@ -68,7 +68,7 @@ impl UntypedHandle {
     #[inline]
     pub(crate) fn typed<T: Module>(&self) -> Handle<T> {
         Handle {
-            ptr: unsafe { std::mem::transmute(self.ptr) },
+            ptr: unsafe { &*(self.ptr as *const std::cell::UnsafeCell<T>) },
         }
     }
 

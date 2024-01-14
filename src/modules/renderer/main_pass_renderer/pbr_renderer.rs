@@ -1,6 +1,6 @@
 use glam::Vec3;
 
-use crate::elements::{Color, IndexBuffer, ToRaw, VertexBuffer};
+use crate::elements::{Color, IndexBuffer, VertexBuffer};
 
 pub struct PbrRenderer {
     sun: DirectionalLight,

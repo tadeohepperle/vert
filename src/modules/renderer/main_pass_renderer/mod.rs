@@ -25,7 +25,7 @@ use crate::{
 
 pub trait MainPassRenderer {
     /// The renderpass here is expected to be 4xMSAA and has HDR_COLOR_FORMAT as its format.
-    fn render<'pass, 'encoder>(&'encoder self, render_pass: &'pass mut wgpu::RenderPass<'encoder>);
+    fn render<'encoder>(&'encoder self, render_pass: &mut wgpu::RenderPass<'encoder>);
 }
 
 pub(super) struct MainPassRendererHandle {
@@ -54,8 +54,8 @@ impl MainPassRendererHandle {
         fn render<R: MainPassRenderer>(obj: *const (), render_pass: *const ()) {
             unsafe {
                 <R as MainPassRenderer>::render(
-                    std::mem::transmute(obj),
-                    std::mem::transmute(render_pass),
+                    &*(obj as *const R),
+                    &mut *(render_pass as *mut wgpu::RenderPass<'_>),
                 );
             }
         }

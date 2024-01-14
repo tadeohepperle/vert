@@ -67,7 +67,7 @@ impl DepthTexture {
 pub struct HdrTexture {
     texture: BindableTexture,
     /// for MSAA
-    sample_count: u32,
+    _unused_sample_count: u32,
 }
 
 impl HdrTexture {
@@ -177,7 +177,7 @@ impl HdrTexture {
                 texture,
                 bind_group,
             },
-            sample_count,
+            _unused_sample_count: sample_count,
         }
     }
 }

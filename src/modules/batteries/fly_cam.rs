@@ -1,5 +1,5 @@
 use crate::{
-    modules::{Egui, Input, MainCamera3D, Schedule, Scheduler, Time},
+    modules::{Input, MainCamera3D, Schedule, Scheduler, Time},
     utils::Timing,
     Dependencies, Handle, Module,
 };
@@ -21,7 +21,7 @@ impl Module for FlyCam {
 
     type Dependencies = Deps;
 
-    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
         Ok(FlyCam { deps })
     }
 

@@ -1,13 +1,12 @@
 use std::{
     ops::Range,
-    sync::{LazyLock, Mutex, OnceLock},
 };
 
-use glam::Vec2;
-use image::RgbaImage;
-use log::{error, info, warn};
+
+
+use log::{warn};
 use wgpu::{
-    BufferUsages, ColorTargetState, FragmentState, MultisampleState, RenderPipelineDescriptor,
+    BufferUsages, FragmentState, MultisampleState, RenderPipelineDescriptor,
     ShaderModuleDescriptor, VertexState,
 };
 
@@ -67,7 +66,7 @@ impl Module for UiRectRenderer {
 
     type Dependencies = Deps;
 
-    fn new(config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
         let white_texture = create_white_px_texture(&deps.ctx.device, &deps.ctx.queue);
         let white_px_texture_key = deps.arenas.insert(white_texture);
 
@@ -97,7 +96,7 @@ impl Prepare for UiRectRenderer {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
+        _encoder: &mut wgpu::CommandEncoder,
     ) {
         // todo! queue.clear should handle z-sorting back to front. Then disable z-buffer writes.
         let (instances, ranges) = self.queue.clear();
@@ -107,7 +106,7 @@ impl Prepare for UiRectRenderer {
 }
 
 impl MainPassRenderer for UiRectRenderer {
-    fn render<'pass, 'encoder>(&'encoder self, render_pass: &'pass mut wgpu::RenderPass<'encoder>) {
+    fn render<'encoder>(&'encoder self, render_pass: &mut wgpu::RenderPass<'encoder>) {
         if self.instance_ranges.is_empty() {
             return;
         }

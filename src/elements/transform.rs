@@ -1,4 +1,4 @@
-use std::{f32::consts::PI, mem::size_of};
+use std::{f32::consts::PI};
 
 use glam::{vec3, Affine3A, Mat4, Quat, Vec3};
 

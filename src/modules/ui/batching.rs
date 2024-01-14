@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use fontdue::Font;
-use glam::vec2;
+
 use wgpu::VertexFormat;
 
 use crate::{
@@ -9,13 +9,7 @@ use crate::{
     modules::{arenas::Key, Attribute, VertexT},
 };
 
-use super::{
-    board::{
-        offset_dvec2, Board, BorderRadius, CachedTextLayout, Div, DivContent, DivTexture, Text,
-        TextEntry,
-    },
-    font_cache::{FontSize, TextLayoutResult},
-};
+use super::board::{Board, BorderRadius, Div, DivContent, DivTexture, TextEntry};
 
 /// Warning: call only after layout has been performed on the billboard (for all rects and the text in them)
 pub fn get_batches(board: &Board) -> BatchingResult {
@@ -44,7 +38,7 @@ pub fn get_batches(board: &Board) -> BatchingResult {
     }
 
     // sort them and then do batching accordingly: each sequence of Rects is a Rect Batch, each sequence of texts of the same font is a text batch.
-    sort_primitives.sort_by(|a, b| a.z_index().cmp(&b.z_index()));
+    sort_primitives.sort_by_key(|a| a.z_index());
 
     // create continous batches that refer to either a bunch of rect or glyph instances.
     let mut rects: Vec<RectRaw> = vec![];
@@ -56,9 +50,10 @@ pub fn get_batches(board: &Board) -> BatchingResult {
         let batch = match first {
             SortPrimitive::Rect { .. } => BatchRegion::Rect(0..0),
             SortPrimitive::Text { text, .. } => BatchRegion::Text(0..0, text.text.font),
-            SortPrimitive::TexturedRect { div, div_texture } => {
-                BatchRegion::TexturedRect(0..0, div_texture.texture)
-            }
+            SortPrimitive::TexturedRect {
+                div: _,
+                div_texture,
+            } => BatchRegion::TexturedRect(0..0, div_texture.texture),
         };
         batches.push(batch);
     }
@@ -101,7 +96,7 @@ pub fn get_batches(board: &Board) -> BatchingResult {
                 };
                 textured_rects.push(rect_raw_textured);
             }
-            SortPrimitive::Text { div, text } => {
+            SortPrimitive::Text { div: _, text } => {
                 // todo! add text pos to glyphs
                 let text_pos = text.c_pos.get();
                 for (pos, uv) in text
@@ -164,7 +159,10 @@ impl<'a> SortPrimitive<'a> {
         match self {
             SortPrimitive::Rect { div } => div.z_index.get(),
             SortPrimitive::Text { div, .. } => div.z_index.get() + 16,
-            SortPrimitive::TexturedRect { div, div_texture } => div.z_index.get(),
+            SortPrimitive::TexturedRect {
+                div,
+                div_texture: _,
+            } => div.z_index.get(),
         }
     }
 
@@ -172,9 +170,10 @@ impl<'a> SortPrimitive<'a> {
     fn batch_key(&self) -> u64 {
         match self {
             SortPrimitive::Rect { .. } => u64::MAX,
-            SortPrimitive::TexturedRect { div, div_texture } => {
-                div_texture.texture.as_u64_xor_type()
-            }
+            SortPrimitive::TexturedRect {
+                div: _,
+                div_texture,
+            } => div_texture.texture.as_u64_xor_type(),
             SortPrimitive::Text { text, .. } => {
                 text.text.font.map(|e| e.as_u64_xor_type()).unwrap_or(0)
             }
@@ -206,6 +205,12 @@ pub struct BatchingResult {
     pub textured_rects: Vec<RectRawTextured>,
     pub glyphs: Vec<GlyphRaw>,
     pub batches: Vec<BatchRegion>,
+}
+
+impl Default for BatchingResult {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl BatchingResult {
