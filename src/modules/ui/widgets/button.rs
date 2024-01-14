@@ -14,6 +14,7 @@ use crate::{
                 Id, Len, MainAlign, Text,
             },
             font_cache::FontSize,
+            Padding,
         },
     },
 };
@@ -63,8 +64,7 @@ impl Widget for Button {
                 string: self.text,
                 font: self.font,
                 size: FontSize(24),
-                offset_x: Len::ZERO,
-                offset_y: Len::Px(-4.0),
+                ..Default::default()
             },
             id,
             parent,
@@ -72,10 +72,9 @@ impl Widget for Button {
 
         let mouse_in_rect = btn.mouse_in_rect();
 
-        btn.width = Len::Px(200.0);
-        btn.height = Len::Content;
+        btn.width(Len::px(200.0));
         // add padding
-        btn.main_align = MainAlign::Center;
+        btn.main_align = MainAlign::Start;
         btn.cross_align = Align::Center;
 
         btn.color = self.color;
@@ -83,6 +82,7 @@ impl Widget for Button {
         btn.border_radius = BorderRadius::all(16.0);
         btn.border_thickness = 10.0;
         btn.border_softness = 16.0;
+        btn.padding = Padding::new().top(Len::px(8.0)).bottom(Len::px(16.0));
 
         let next_hot_active = next_hot_active(hot_active, mouse_in_rect, left_button);
         let clicked = hot_active == Active && next_hot_active == Hot;

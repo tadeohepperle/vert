@@ -82,8 +82,7 @@ impl MyApp {
 
         let mut parent = self.ui.add_div("Parent", None);
 
-        parent.width = Len::PARENT;
-        parent.height = Len::CONTENT;
+        parent.width(Len::PARENT);
         parent.axis = Axis::X;
         parent.main_align = MainAlign::SpaceBetween;
         parent.cross_align = Align::Center;
@@ -122,8 +121,8 @@ impl MyApp {
         // );
 
         let mut purp_parent = self.ui.add_div("Purple Parent", parent);
-        purp_parent.width = Len::Px(100.0);
-        purp_parent.height = Len::Px(200.0);
+        purp_parent.width(Len::px(100.0));
+        purp_parent.height(Len::px(200.0));
         purp_parent.axis = Axis::Y;
         purp_parent.main_align = MainAlign::Center;
         purp_parent.cross_align = Align::Center;
@@ -135,22 +134,22 @@ impl MyApp {
         let purp_parent = Some(purp_parent.id);
 
         let mut c1 = self.ui.add_div("child 1 in purple", purp_parent);
-        c1.width = Len::Px(50.0);
-        c1.height = Len::Px(50.0);
+        c1.width(Len::px(50.0));
+        c1.height(Len::px(50.0));
         c1.main_align = MainAlign::Center;
         c1.cross_align = Align::Center;
-        c1.style().color = Color::GREEN;
+        c1.color = Color::GREEN;
 
         let mut c2 = self.ui.add_div("child 2 in purple", purp_parent);
-        c2.width = Len::Px(70.0);
-        c2.height = Len::Px(30.0);
+        c2.width(Len::px(70.0));
+        c2.height(Len::px(30.0));
         c2.main_align = MainAlign::Center;
         c2.cross_align = Align::Center;
         c2.color = Color::WHITE;
 
         let mut other = self.ui.add_div("other", parent);
-        other.width = Len::Px(100.0);
-        other.height = Len::Px(20.0);
+        other.width(Len::px(100.0));
+        other.height(Len::px(20.0));
         other.color = Color::BLACK;
 
         let mut text_div = self.ui.add_text_div(
@@ -158,16 +157,16 @@ impl MyApp {
                 color: Color::new(6.0, 2.0, 2.0),
                 string: "Hover me please, I will show you something!".into(),
                 size: FontSize(48),
-                offset_x: Len::Px(30.0),
-                offset_y: Len::Px(30.0),
+                offset_x: Len::px(30.0),
+                offset_y: Len::px(30.0),
                 ..Default::default()
             },
             "text div",
             parent,
         );
 
-        text_div.width = Len::Px(300.0);
-        text_div.height = Len::Px(400.0);
+        text_div.width(Len::px(300.0));
+        text_div.height(Len::px(400.0));
 
         text_div.color = Color::YELLOW;
         text_div.border_radius = BorderRadius::all(20.0);
@@ -189,17 +188,15 @@ impl MyApp {
         if text_div.mouse_in_rect() {
             let mut green_square = self.ui.add_div(2112213232, parent);
 
-            green_square.width = Len::Px(40.0);
-            green_square.height = Len::Px(40.0);
+            green_square.width(Len::px(40.0));
+            green_square.height(Len::px(40.0));
             green_square.color = Color::GREEN;
-            green_square.offset_x = Len::Px(total_time.sin() * 20.0);
-            green_square.offset_y = Len::Px(total_time2.cos() * 20.0);
+            green_square.offset_x = Len::px(total_time.sin() * 20.0);
+            green_square.offset_y = Len::px(total_time2.cos() * 20.0);
         }
 
         let mut container2 = self.ui.add_div("Container 2", parent);
-
-        container2.width = Len::CONTENT;
-        container2.height = Len::PARENT;
+        container2.height(Len::PARENT);
         container2.main_align = MainAlign::SpaceAround;
         container2.cross_align = Align::Center;
 

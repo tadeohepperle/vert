@@ -6,7 +6,7 @@ pub mod batching;
 mod board;
 pub use board::{
     Align, Axis, Board, BoardInput, BoardPhase, BorderRadius, ContainerId, Div, DivStyle,
-    DivTexture, HotActive, Id, Len, MainAlign, Text,
+    DivTexture, HotActive, Id, Len, MainAlign, Padding, Text,
 };
 
 pub mod font_cache;

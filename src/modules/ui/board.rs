@@ -13,7 +13,7 @@ use std::{
     hash::{Hash, Hasher},
     iter::Map,
     marker::PhantomData,
-    ops::{Add, Deref, DerefMut, Mul},
+    ops::{Add, Deref, DerefMut, Mul, Sub},
 };
 
 use crate::{
@@ -324,6 +324,7 @@ impl Board {
                     c_size: Cell::new(DVec2::ZERO),
                     c_pos: Cell::new(DVec2::ZERO),
                     c_content_size: Cell::new(DVec2::ZERO),
+                    c_padding: Cell::new(ComputedPadding::ZERO),
                 });
 
                 // rect not known yet.
@@ -387,10 +388,6 @@ impl<'a> DerefMut for DivResponse<'a> {
 impl<'a> DivResponse<'a> {
     pub fn mouse_in_rect(&self) -> bool {
         self.comm.mouse_in_rect
-    }
-
-    pub fn style(&mut self) -> &mut DivStyle {
-        &mut self.entry.get_mut().style
     }
 }
 
@@ -493,12 +490,9 @@ impl<'a> Layouter<'a> {
             let top_div = self.divs.get(id).unwrap();
             // set the size of each div in the tree:
             _ = self.get_and_set_size(top_div, top_level_size);
-
-            let top_div_content_size = top_div.c_content_size.get();
             let offset = offset_dvec2(
                 top_div.style.offset_x,
                 top_div.style.offset_y,
-                top_div_content_size,
                 top_level_size,
             );
             top_div.c_pos.set(offset);
@@ -514,54 +508,76 @@ impl<'a> Layouter<'a> {
     /// 2. figure out own size and content size
     /// 3. sache own size and content size in the div, then return own size.
     fn get_and_set_size(&mut self, div: &Div, parent_max_size: DVec2) -> DVec2 {
-        enum LenMode {
-            Fixed(f64),
-            Content,
-        }
+        // fixed width
+        let mut fixed_width: Option<f64> = None;
+        let mut fixed_height: Option<f64> = None;
 
-        use LenMode::*;
-        fn len_mode(len: Len, parent_size_px: f64) -> LenMode {
-            match len {
-                Len::Px(px) => Fixed(px),
-                Len::Parent(f) => Fixed(f * parent_size_px),
-                Len::Content => Content,
-            }
-        }
+        if let Some(width) = div.style.width {
+            fixed_width = Some(width.fixed(parent_max_size.x));
+        };
 
-        let fixed_w = len_mode(div.style.width, parent_max_size.x);
-        let fixed_h = len_mode(div.style.height, parent_max_size.y);
+        if let Some(height) = div.style.height {
+            fixed_height = Some(height.fixed(parent_max_size.y));
+        };
+
+        let padding = &div.style.padding;
 
         let own_size: DVec2;
         let content_size: DVec2;
+        let mut c_padding: ComputedPadding = ComputedPadding::ZERO;
         // None values indicate, that the size value is not known yet.
-        match (fixed_w, fixed_h) {
-            (Fixed(x), Fixed(y)) => {
+        match (fixed_width, fixed_height) {
+            (Some(x), Some(y)) => {
+                // both x and y are fixed, padding and own size can be calculated in advance
                 own_size = dvec2(x, y);
-                content_size = self.get_and_set_content_size(div, own_size);
+
+                padding.compute_x(own_size.x, &mut c_padding);
+                padding.compute_y(own_size.y, &mut c_padding);
+                let max_size = own_size - dvec2(c_padding.width(), c_padding.height());
+
+                content_size = self.get_and_set_content_size(div, max_size);
             }
-            (Fixed(x), Content) => {
+            (Some(x), None) => {
                 // x is fixed, y height is the sum/max of children height (depending on axis y/x)
-                let max_size = dvec2(x, parent_max_size.y);
+                padding.compute_x(x, &mut c_padding);
 
+                let max_size = dvec2(x - c_padding.width(), parent_max_size.y);
                 content_size = self.get_and_set_content_size(div, max_size);
-                own_size = dvec2(x, content_size.y);
+
+                padding.compute_y_from_content(content_size.y, &mut c_padding);
+
+                // in y direction add the padding on top of the content size:
+                own_size = dvec2(x, content_size.y + c_padding.height());
             }
-            (Content, Fixed(y)) => {
+            (None, Some(y)) => {
                 // y is fixed, x width is the sum/max of children width (depending on axis y/x)
-                let max_size = dvec2(parent_max_size.x, y);
+                padding.compute_y(y, &mut c_padding);
 
+                let max_size = dvec2(parent_max_size.x, y);
                 content_size = self.get_and_set_content_size(div, max_size);
-                own_size = dvec2(content_size.x, y);
+
+                padding.compute_x_from_content(content_size.x, &mut c_padding);
+
+                // in x direction add the padding on top of the content size:
+                own_size = dvec2(content_size.x + c_padding.width(), y);
             }
-            (Content, Content) => {
+            (None, None) => {
                 // nothing is fixed, x width and y height are the sum/max of children widths and heights (depending on axis y/x)
                 content_size = self.get_and_set_content_size(div, parent_max_size);
-                own_size = dvec2(content_size.x, content_size.y);
+
+                padding.compute_x_from_content(content_size.x, &mut c_padding);
+                padding.compute_y_from_content(content_size.y, &mut c_padding);
+
+                own_size = dvec2(
+                    content_size.x + c_padding.width(),
+                    content_size.y + c_padding.height(),
+                );
             }
         }
 
         div.c_size.set(own_size);
         div.c_content_size.set(content_size);
+        div.c_padding.set(c_padding);
 
         own_size
     }
@@ -727,10 +743,21 @@ impl<'a> Layouter<'a> {
                 return;
             }
 
-            let div_pos = div.c_pos.get();
+            // get cached values from the previous layout step (sizing)
             let div_size = div.c_size.get();
-            let (main_size, cross_size) = A::disassemble(div_size);
+            let div_pos = div.c_pos.get();
             let content_size = div.c_content_size.get();
+            let div_padding = div.c_padding.get();
+
+            // redefine div_size and div_pos to be the inner size of the div (div size - padding) and the
+            // top left corner of the inner area instead of the top left corner of the div itself
+            let div_size = dvec2(
+                div_size.x - div_padding.width(),
+                div_size.y - div_padding.height(),
+            ); // div size - padding size on all sides
+            let div_pos = div_pos + dvec2(div_padding.left, div_padding.top);
+
+            let (main_size, cross_size) = A::disassemble(div_size);
             let (main_content_size, cross_content_size) = A::disassemble(content_size);
             let (mut main_offset, main_step) = main_offset_and_step(
                 div.style.main_align,
@@ -753,8 +780,7 @@ impl<'a> Layouter<'a> {
                 DivContent::Text(t) => {
                     let cross = calc_cross_offset(cross_size, cross_content_size);
                     let text_pos = A::assemble(main_offset, cross);
-                    let text_offset =
-                        offset_dvec2(t.text.offset_x, t.text.offset_y, content_size, div_size);
+                    let text_offset = offset_dvec2(t.text.offset_x, t.text.offset_y, div_size);
                     t.c_pos.set(text_pos + text_offset + div_pos);
                 }
                 DivContent::Children(children) => {
@@ -777,12 +803,8 @@ impl<'a> Layouter<'a> {
                             main_offset += ch_main_size + main_step;
                         }
 
-                        let ch_offset = offset_dvec2(
-                            ch.style.offset_x,
-                            ch.style.offset_y,
-                            ch.c_content_size.get(),
-                            div_size,
-                        );
+                        let ch_offset =
+                            offset_dvec2(ch.style.offset_x, ch.style.offset_y, div_size);
 
                         ch.c_pos.set(ch_rel_pos + ch_offset + div_pos);
                         sel.set_child_positions(ch);
@@ -858,7 +880,7 @@ impl<'a> Layouter<'a> {
 
 #[derive(Debug)]
 pub struct Div {
-    pub(crate) content: DivContent,
+    pub(super) content: DivContent,
     pub(crate) style: DivStyle,
     // last_frame is reset every frame.
     last_frame: u64,
@@ -868,6 +890,7 @@ pub struct Div {
     pub(crate) c_size: Cell<DVec2>,
     pub(crate) c_content_size: Cell<DVec2>,
     pub(crate) c_pos: Cell<DVec2>,
+    pub(crate) c_padding: Cell<ComputedPadding>,
 }
 
 impl Div {
@@ -900,15 +923,19 @@ impl Div {
 
 #[derive(Debug)]
 pub struct DivStyle {
-    // Determines width of Self
-    pub width: Len,
-    /// Determines height of Self
-    pub height: Len,
-    /// Determines how children are layed out.
+    /// None means, the div has a non-fixed width, the children dictate the size of this div
+    pub width: Option<Len>,
+    /// None means, the div has a non-fixed height, the children dictate the size of this div
+    pub height: Option<Len>,
+    /// Determines how children are layed out: X = horizontally, Y = vertically.
     pub axis: Axis,
     pub main_align: MainAlign,
     pub cross_align: Align,
+    pub padding: Padding,
     /// true = in CSS `position: absolute;`
+    /// Since we do not have attributes top, right, left, bottom,
+    /// the position is the same as if this was the single child of the div.
+    /// Place it last if
     pub absolute: bool,
     // todo! translation, absolute, padding, margin
     pub color: Color,
@@ -919,38 +946,224 @@ pub struct DivStyle {
     pub offset_y: Len,
     // set to 0.0 for very crisp inner border. set to 20.0 for like an inset shadow effect.
     pub border_softness: f32,
-    // todo: margin and padding
-    /// Note: z_bias is multiplied with 1024 when determining the final z_index and should be a rather small number.
-    pub z_bias: i32,
     pub texture: Option<DivTexture>,
+}
+
+impl Default for DivStyle {
+    fn default() -> Self {
+        Self {
+            width: None,
+            height: None,
+            axis: Axis::Y,
+            padding: Default::default(),
+            main_align: MainAlign::Start,
+            cross_align: Align::Start,
+            absolute: false,
+            color: Color::TRANSPARENT,
+            border_radius: BorderRadius::default(),
+            border_thickness: 0.0,
+            border_softness: 0.0,
+            border_color: Color::TRANSPARENT,
+            offset_x: Len::ZERO,
+            offset_y: Len::ZERO,
+            texture: None,
+        }
+    }
+}
+
+impl DivStyle {
+    #[inline]
+    pub fn width(&mut self, width: Len) {
+        self.width = Some(width);
+    }
+
+    #[inline]
+    pub fn height(&mut self, height: Len) {
+        self.height = Some(height);
+    }
+}
+
+/// Padding always goes to the inside. Padding never affects a divs width or height, IF the width or height is fixed (not None).
+/// Padding is added on top of size of children if the Div has a non-fixed size.
+///
+/// The parent fraction component of the Len value considers the size of the div itself and not the parent of the div
+#[derive(Debug, Default)]
+pub struct Padding {
+    pub left: Len,
+    pub right: Len,
+    pub top: Len,
+    pub bottom: Len,
+}
+
+impl Padding {
+    pub fn new() -> Self {
+        Padding {
+            left: Len::ZERO,
+            right: Len::ZERO,
+            top: Len::ZERO,
+            bottom: Len::ZERO,
+        }
+    }
+
+    pub fn left(mut self, len: Len) -> Self {
+        self.left = len;
+        self
+    }
+
+    pub fn right(mut self, len: Len) -> Self {
+        self.right = len;
+        self
+    }
+
+    pub fn top(mut self, len: Len) -> Self {
+        self.top = len;
+        self
+    }
+
+    pub fn bottom(mut self, len: Len) -> Self {
+        self.bottom = len;
+        self
+    }
+
+    pub fn horizontal(mut self, len: Len) -> Self {
+        self.left = len;
+        self.right = len;
+        self
+    }
+
+    pub fn vertical(mut self, len: Len) -> Self {
+        self.top = len;
+        self.bottom = len;
+        self
+    }
+
+    /// how big is the padding in total (left + right) and (top + bottom)
+    ///
+    /// cache the results in the ComputedPadding struct
+    #[inline]
+    fn compute_x(&self, div_width_px: f64, computed: &mut ComputedPadding) {
+        computed.left = self.left.fixed(div_width_px);
+        computed.right = self.right.fixed(div_width_px);
+    }
+
+    /// how big is the padding in total (left + right) and (top + bottom)
+    ///
+    /// cache the results in the ComputedPadding struct
+    #[inline]
+    fn compute_y(&self, div_height_px: f64, computed: &mut ComputedPadding) {
+        computed.top = self.top.fixed(div_height_px);
+        computed.bottom = self.bottom.fixed(div_height_px);
+    }
+
+    /// compute the padding in x direction by just knowing the contents width.
+    ///
+    /// calculates the parent_size in x direction as well and returns it.
+    #[inline]
+    fn compute_x_from_content(&self, content_width_px: f64, computed: &mut ComputedPadding) -> f64 {
+        /*
+        Idea: first compute the parent size:
+
+        example:
+        - if child is found to be 80px
+        - padding on the left side is 5px + 0.05 parent fraction on each side.
+        - padding on the right is 10px flat
+        then the parent needs to be 100px tall. Because we then: 80px + 10px + 5px + 0.05 * 100px  = 100px;
+
+        Formula:
+
+        parent                                    = content + left px + right px + left fract * parent + right fract * parent.
+        parent * (1.0 - left fract - right fract) = content + left px + right px
+        parent                                    = (content + left px + right px) / (1.0 - left fract - right fract)
+
+        */
+        let parent_width_px = (content_width_px + self.left.px + self.right.px)
+            / (1.0 - self.left.parent_fraction - self.right.parent_fraction); // make sure left and right do not add up to 0.
+                                                                              // make sure left and right do not add up to 0.
+
+        computed.left = self.left.px + self.left.parent_fraction * parent_width_px;
+        computed.right = self.right.px + self.right.parent_fraction * parent_width_px;
+
+        parent_width_px
+    }
+
+    /// compute the padding in x direction by just knowing the contents height.
+    ///
+    /// calculates the parent size in y direction as well and returns it.
+    #[inline]
+    fn compute_y_from_content(
+        &self,
+        content_height_px: f64,
+        computed: &mut ComputedPadding,
+    ) -> f64 {
+        let parent_height_px = (content_height_px + self.top.px + self.bottom.px)
+            / (1.0 - self.top.parent_fraction - self.bottom.parent_fraction); // make sure left and right do not add up to 0.
+                                                                              // make sure left and right do not add up to 0.
+
+        computed.top = self.top.px + self.top.parent_fraction * parent_height_px;
+        computed.bottom = self.bottom.px + self.bottom.parent_fraction * parent_height_px;
+
+        parent_height_px
+    }
+
+    // #[inline]
+    // pub fn fixed_size_from_content(&self, content_size_px: &DVec2) -> DVec2 {
+    //     DVec2 {
+    //         x: self.fixed_width_from_content(content_size_px.x),
+    //         y: self.fixed_height_from_content(content_size_px.y),
+    //     }
+    // }
+
+    //     /// how big precisely in px is this padding, if we know how big the content is, that it wraps.
+    //     #[inline]
+    //     pub fn fixed_width_from_content(&self, content_width_px: f64) -> f64 {
+    //        let len = self.left + self.right;
+
+    //         //
+
+    //         // example
+
+    //         let px = len.px;
+
+    //     }
+
+    //     #[inline]
+    //     pub fn fixed_height_from_content(&self, content_height_px: f64) -> f64 {
+    //         let len = self.bottom + self.top;
+    //         todo!()
+    //     }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct ComputedPadding {
+    left: f64,
+    right: f64,
+    top: f64,
+    bottom: f64,
+}
+
+impl ComputedPadding {
+    #[inline]
+    fn width(&self) -> f64 {
+        self.left + self.right
+    }
+
+    #[inline]
+    fn height(&self) -> f64 {
+        self.top + self.bottom
+    }
+
+    const ZERO: ComputedPadding = ComputedPadding {
+        left: 0.0,
+        right: 0.0,
+        top: 0.0,
+        bottom: 0.0,
+    };
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct DivTexture {
     pub texture: Key<BindableTexture>,
     pub uv: Aabb,
-}
-
-impl Default for DivStyle {
-    fn default() -> Self {
-        Self {
-            width: Len::CONTENT,
-            height: Len::CONTENT,
-            axis: Axis::Y,
-            main_align: MainAlign::Start,
-            cross_align: Align::Start,
-            absolute: false,
-            color: Color::TRANSPARENT,
-            border_radius: BorderRadius::default(),
-            z_bias: 0,
-            border_thickness: 0.0,
-            border_softness: 0.0,
-            border_color: Color::TRANSPARENT,
-            offset_x: Len::Px(0.0),
-            offset_y: Len::Px(0.0),
-            texture: None,
-        }
-    }
 }
 
 /// todo! make BorderRadius have not only f32 pixels but also PercentOfParent(f32).
@@ -984,7 +1197,7 @@ impl BorderRadius {
 }
 
 #[derive(Debug)]
-pub enum DivContent {
+pub(super) enum DivContent {
     Text(TextEntry),
     Children(Vec<Id>),
 }
@@ -1032,8 +1245,8 @@ impl Default for Text {
             string: "Placeholder".into(),
             font: None,
             size: FontSize(24),
-            offset_x: Len::Px(0.0),
-            offset_y: Len::Px(0.0),
+            offset_x: Len::ZERO,
+            offset_y: Len::ZERO,
         }
     }
 }
@@ -1091,62 +1304,91 @@ pub enum Align {
     End,
 }
 
-/// Crazy idea: what, if instead of having this as an enum, we instead have a struct
-/// with all three of those and just use the f64 as a weight!
-/// So len would be a linear function of these 3 things!
-/// That would for allow for some crazy layouts, like 10px + 2 times the size of children.
-/// Then we also do not need margin and padding anymore.
-///
-/// Only question is then: how do we pass some max size to the children when determining the size?
-///
-/// Because right now there is a split:
-/// Px(f64) / ParentFraction(f64) -> Parent dictates exact px size of children
-/// ChildrenFraction(f64) -> Children take as much space as they need and then the parent determines its own size based on the childrens size.
+/// An explicitly set Length
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Len {
-    Px(f64),
-    Parent(f64), // fraction of parent
-    Content,
+pub struct Len {
+    pub px: f64,
+    /// Fraction of the size of the parent, subtracting the parents inner padding (this differs from e.g. CSS!).
+    ///
+    /// E.g. if the parent is 80x60 px big, but has 10px padding on each side and the child size is Len::parent(1.0),
+    /// then the child will be 60x40 px big.
+    pub parent_fraction: f64,
+}
+
+impl Default for Len {
+    fn default() -> Self {
+        Len::ZERO
+    }
 }
 
 impl Len {
-    pub const ZERO: Len = Len::Px(0.0);
-    pub const PARENT: Len = Len::Parent(1.0);
-    pub const CONTENT: Len = Len::Content;
+    pub const ZERO: Len = Len {
+        px: 0.0,
+        parent_fraction: 0.0,
+    };
+    pub const PARENT: Len = Len {
+        px: 0.0,
+        parent_fraction: 1.0,
+    };
+
+    pub fn px(px: f64) -> Self {
+        Len {
+            px,
+            parent_fraction: 0.0,
+        }
+    }
+
+    pub fn parent(parent_fraction: f64) -> Self {
+        Len {
+            px: 0.0,
+            parent_fraction,
+        }
+    }
+
+    fn fixed(&self, parent_size_px: f64) -> f64 {
+        self.px + self.parent_fraction * parent_size_px
+    }
+}
+
+impl Sub for Len {
+    type Output = Len;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Len {
+            px: self.px - rhs.px,
+            parent_fraction: self.parent_fraction - rhs.parent_fraction,
+        }
+    }
+}
+
+impl Add for Len {
+    type Output = Len;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Len {
+            px: self.px + rhs.px,
+            parent_fraction: self.parent_fraction + rhs.parent_fraction,
+        }
+    }
 }
 
 impl Mul<f64> for Len {
     type Output = Len;
 
     fn mul(self, rhs: f64) -> Self::Output {
-        match self {
-            Len::Px(e) => Len::Px(e * rhs),
-            Len::Parent(e) => Len::Parent(e * rhs),
-            Len::Content => Len::Content,
+        Len {
+            px: self.px * rhs,
+            parent_fraction: self.parent_fraction * rhs,
         }
     }
 }
 
 /// Warning: assumes the content_size is set already on this div
-pub(super) fn offset_dvec2(
-    offset_x: Len,
-    offset_y: Len,
-    content_size: DVec2,
-    parent_size: DVec2,
-) -> DVec2 {
-    let x: f64 = match offset_x {
-        Len::Px(x) => x,
-        Len::Parent(f) => parent_size.x * f,
-        Len::Content => content_size.x,
-    };
-
-    let y: f64 = match offset_y {
-        Len::Px(x) => x,
-        Len::Parent(f) => parent_size.y * f,
-        Len::Content => content_size.y,
-    };
-
-    dvec2(x, y)
+pub(super) fn offset_dvec2(offset_x: Len, offset_y: Len, parent_size: DVec2) -> DVec2 {
+    DVec2 {
+        x: offset_x.fixed(parent_size.x),
+        y: offset_y.fixed(parent_size.y),
+    }
 }
 
 pub fn egui_inspect_board(ctx: &mut egui::Context, board: &mut Board) {

@@ -30,7 +30,7 @@ impl Widget for HFill {
         id: Id,
         parent: Option<ContainerId>,
     ) -> Self::Response<'a> {
-        board.add_div(id, parent).width = self.width;
+        board.add_div(id, parent).width(self.width);
     }
 }
 
@@ -43,6 +43,6 @@ impl Widget for VFill {
         id: Id,
         parent: Option<ContainerId>,
     ) -> Self::Response<'a> {
-        board.add_div(id, parent).height = self.height;
+        board.add_div(id, parent).height(self.height);
     }
 }

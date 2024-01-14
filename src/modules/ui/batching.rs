@@ -24,11 +24,17 @@ pub fn get_batches(board: &Board) -> BatchingResult {
     let mut sort_primitives: Vec<SortPrimitive> = vec![];
     for div in board.iter_divs() {
         // add the div itself as a primitive (textured vs untextured)
-        match &div.style.texture {
-            Some(div_texture) => {
-                sort_primitives.push(SortPrimitive::TexturedRect { div, div_texture })
+
+        // cull rects that are transparent
+        if div.style.color.a > 0.0 {
+            match &div.style.texture {
+                Some(div_texture) => {
+                    sort_primitives.push(SortPrimitive::TexturedRect { div, div_texture })
+                }
+                None => {
+                    sort_primitives.push(SortPrimitive::Rect { div });
+                }
             }
-            None => sort_primitives.push(SortPrimitive::Rect { div }),
         };
 
         if let DivContent::Text(text) = &div.content {

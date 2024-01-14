@@ -44,16 +44,14 @@ impl<'v> Widget for Slider<'v> {
         let knob_hot_active = board.hot_active(knob_id);
 
         let mut parent = board.add_div(id + 237, parent);
-        let style = parent.style();
-        style.axis = Axis::Y;
-        style.width = Len::Px(SLIDER_CONTAINER_WIDTH);
-        style.cross_align = Align::Center;
-
+        parent.axis = Axis::Y;
+        parent.width(Len::px(SLIDER_CONTAINER_WIDTH));
+        parent.cross_align = Align::Center;
         let parent = Some(parent.id);
 
         let mut slider = board.add_div(id, parent);
-        slider.width = Len::Px(SLIDER_WIDTH);
-        slider.height = Len::Px(20.0);
+        slider.width(Len::px(SLIDER_WIDTH));
+        slider.height(Len::px(20.0));
         slider.axis = Axis::X;
         slider.main_align = MainAlign::Start;
         slider.cross_align = Align::Center;
@@ -63,27 +61,23 @@ impl<'v> Widget for Slider<'v> {
 
         // slider bar
 
-        let mut d = board.add_div(id + 1, slider);
-        let style = d.style();
-        style.width = Len::PARENT;
-        style.height = Len::Px(8.0);
-        style.color = Color::GREY;
-        style.color = Color::from_hex("#32a852");
-        style.border_radius = BorderRadius::all(4.0);
-        style.border_thickness = 1.0;
+        let mut bar = board.add_div(id + 1, slider);
+        bar.width(Len::PARENT);
+        bar.height(Len::px(8.0));
+        bar.color = Color::GREY;
+        bar.color = Color::from_hex("#32a852");
+        bar.border_radius = BorderRadius::all(4.0);
+        bar.border_thickness = 1.0;
 
         const PX_TOTAL_RANGE: f64 = SLIDER_WIDTH - KNOB_WIDTH;
         let px_delta = board.input().cursor_delta.x;
 
         // knob
         let mut knob = board.add_div(knob_id, slider);
-        let style = knob.style();
-
-        style.width = Len::Px(KNOB_WIDTH);
-        style.height = Len::Px(KNOB_WIDTH);
-        style.absolute = true;
-
-        style.border_radius = BorderRadius::all(KNOB_WIDTH as f32 / 2.0);
+        knob.width(Len::px(KNOB_WIDTH));
+        knob.height(Len::px(KNOB_WIDTH));
+        knob.absolute = true;
+        knob.border_radius = BorderRadius::all(KNOB_WIDTH as f32 / 2.0);
 
         let knob_next_hot_active =
             next_hot_active(knob_hot_active, knob.mouse_in_rect(), left_mouse_button);
@@ -98,23 +92,22 @@ impl<'v> Widget for Slider<'v> {
             *self.value = self.value.clamp(self.min, self.max);
         }
 
-        let style = knob.style();
-        style.color = match knob_next_hot_active {
+        knob.color = match knob_next_hot_active {
             HotActive::Nil => Color::BLACK,
             HotActive::Hot => Color::from_hex("#4d528a"),
             HotActive::Active => Color::from_hex("#4f5dff"),
         };
         if knob_next_hot_active == HotActive::Nil && !slider_hovered {
-            style.border_color = Color::from_hex("#444455");
-            style.border_thickness = 1.0;
+            knob.border_color = Color::from_hex("#444455");
+            knob.border_thickness = 1.0;
         } else {
-            style.border_color = Color::from_hex("#ffffff");
-            style.border_thickness = 2.0;
+            knob.border_color = Color::from_hex("#ffffff");
+            knob.border_thickness = 2.0;
         };
 
         // compute the desired knob position
         let fraction = ((*self.value - self.min) / value_range) as f64;
-        style.offset_x = Len::Px(fraction * PX_TOTAL_RANGE);
+        knob.offset_x = Len::px(fraction * PX_TOTAL_RANGE);
         board.set_hot_active(knob_id, knob_next_hot_active);
 
         let mut text_div = board.add_text_div(
@@ -128,8 +121,7 @@ impl<'v> Widget for Slider<'v> {
             id + 4,
             parent,
         );
-        text_div.width = Len::PARENT;
-        text_div.height = Len::CONTENT;
+        text_div.width(Len::PARENT);
         text_div.main_align = MainAlign::Center;
     }
 }
