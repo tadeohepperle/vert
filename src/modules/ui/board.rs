@@ -13,17 +13,17 @@ use std::{
     hash::{Hash, Hasher},
     iter::Map,
     marker::PhantomData,
-    ops::{Add, Deref, DerefMut},
+    ops::{Add, Deref, DerefMut, Mul},
 };
 
 use crate::{
     elements::{rect::Aabb, BindableTexture, Color, Rect},
+    ext::{glam::Vec2, winit::event::MouseButton},
     modules::{
         arenas::Key,
         input::{MouseButtonState, PressState},
         Egui, Input,
     },
-    prelude::{glam::Vec2, winit::event::MouseButton},
     utils::ChillCell,
 };
 use egui::{ahash::HashSet, Color32, Pos2, Stroke, Ui};
@@ -50,7 +50,22 @@ pub struct ContainerId {
     _priv: Id,
 }
 
+impl From<()> for ContainerId {
+    fn from(value: ()) -> Self {
+        ContainerId::NONE
+    }
+}
+
 impl ContainerId {
+    ///  Warning: this is an illegal value!
+    const NONE: ContainerId = ContainerId {
+        _priv: Id(u64::MAX),
+    };
+
+    fn is_none(&self) -> bool {
+        *self == ContainerId::NONE
+    }
+
     pub fn id(&self) -> Id {
         self._priv
     }
@@ -99,6 +114,7 @@ pub struct Board {
     top_level_size: DVec2,
     top_level_children: Vec<Id>,
     divs: HashMap<Id, Div>,
+    divs_added_this_frame: usize,
 
     // experimental:
     hot_active: HotActiveWithId,
@@ -203,6 +219,7 @@ impl Board {
             top_level_size: board_size,
             top_level_children: vec![],
             hot_active: HotActiveWithId::None,
+            divs_added_this_frame: 0,
         }
     }
 
@@ -217,14 +234,13 @@ impl Board {
 
     pub fn add_div<'a>(
         &'a mut self,
-        props: DivProps,
         id: impl Into<Id>,
         parent: Option<ContainerId>,
-    ) -> ContainerResponse<'a> {
+    ) -> DivResponse<'a> {
         let id: Id = id.into();
-        let (comm, entry) = self._add_div(props, id, None, parent);
+        let (comm, entry) = self._add_div(id, None, parent);
         let div_id = ContainerId { _priv: id };
-        ContainerResponse {
+        DivResponse {
             id: div_id,
             comm,
             entry,
@@ -233,58 +249,45 @@ impl Board {
 
     pub fn add_text_div<'a>(
         &'a mut self,
-        mut props: DivProps,
         text: Text,
         id: impl Into<Id>,
         parent: Option<ContainerId>,
-    ) -> TextResponse<'a> {
+    ) -> TextDivResponse<'a> {
         let id: Id = id.into();
-        // So main axis is always X for text
-        props.axis = Axis::X;
         let (comm, entry): (Comm, OccupiedEntry<'_, Id, Div>) =
-            self._add_div(props, id, Some(text), parent);
-        TextResponse { comm, entry }
+            self._add_div(id, Some(text), parent);
+        TextDivResponse { comm, entry }
     }
 
     fn _add_div<'a>(
         &'a mut self,
-        props: DivProps,
         id: Id,
         text: Option<Text>,
         parent: Option<ContainerId>,
     ) -> (Comm, OccupiedEntry<'a, Id, Div>) {
+        //Node: opt!() currently we need to do two hash table resolves, which (might be??) the bulk of the work? Not sure, probably totally Fine.
+        self.divs_added_this_frame += 1;
         // go into the parent and register the child:
-        let parent_z_index: i32;
-        let parent_children: usize;
-
         if let Some(parent) = parent {
             let parent = self.divs.get_mut(&parent._priv).expect("Invalid Parent...");
             match &mut parent.content {
                 DivContent::Text { .. } => panic!("Invalid Parent... Text Div cannnot be parent"),
-                DivContent::Children(children) => {
-                    parent_children = children.len();
-                    children.push(id)
-                }
+                DivContent::Children(children) => children.push(id),
             };
-            parent_z_index = parent.z_index.get();
         } else {
             self.top_level_children.push(id);
-            parent_z_index = 0;
-            parent_children = 0;
         };
 
-        let z_index = parent_z_index + 1 + parent_children as i32;
-
+        // Note: This is super naive and should be changed in the future.
+        let z_index = self.divs_added_this_frame as i32;
         let rect: Option<Rect>;
         let entry: OccupiedEntry<'a, Id, Div>;
         match self.divs.entry(id) {
             Entry::Occupied(mut e) => {
                 let div = e.get_mut();
-
                 if div.last_frame == self.last_frame {
                     panic!("Div with id {id:?} inserted twice in one frame!");
                 }
-                div.props = props;
                 div.last_frame = self.last_frame;
 
                 match text {
@@ -311,7 +314,6 @@ impl Board {
             }
             Entry::Vacant(vacant) => {
                 entry = vacant.insert_entry(Div {
-                    props,
                     z_index: Cell::new(z_index),
                     last_frame: self.last_frame,
                     style: DivStyle::default(),
@@ -352,6 +354,7 @@ impl Board {
 
         // Remove Nodes that have not been added/updated this frame
         self.divs.retain(|_, v| v.last_frame == self.last_frame);
+        self.divs_added_this_frame = 0;
         self.last_frame += 1;
 
         // Perform Layout (set sizes and positions for all divs in the tree)
@@ -360,14 +363,14 @@ impl Board {
     }
 }
 
-pub struct ContainerResponse<'a> {
+pub struct DivResponse<'a> {
     /// to be used as a parent for another div
     pub id: ContainerId,
     comm: Comm,
     pub entry: OccupiedEntry<'a, Id, Div>,
 }
 
-impl<'a> Deref for ContainerResponse<'a> {
+impl<'a> Deref for DivResponse<'a> {
     type Target = DivStyle;
 
     fn deref(&self) -> &Self::Target {
@@ -375,13 +378,13 @@ impl<'a> Deref for ContainerResponse<'a> {
     }
 }
 
-impl<'a> DerefMut for ContainerResponse<'a> {
+impl<'a> DerefMut for DivResponse<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.entry.get_mut().style
     }
 }
 
-impl<'a> ContainerResponse<'a> {
+impl<'a> DivResponse<'a> {
     pub fn mouse_in_rect(&self) -> bool {
         self.comm.mouse_in_rect
     }
@@ -391,12 +394,12 @@ impl<'a> ContainerResponse<'a> {
     }
 }
 
-pub struct TextResponse<'a> {
+pub struct TextDivResponse<'a> {
     comm: Comm,
     pub entry: OccupiedEntry<'a, Id, Div>,
 }
 
-impl<'a> TextResponse<'a> {
+impl<'a> TextDivResponse<'a> {
     pub fn mouse_in_rect(&self) -> bool {
         self.comm.mouse_in_rect
     }
@@ -413,7 +416,7 @@ impl<'a> TextResponse<'a> {
     }
 }
 
-impl<'a> Deref for TextResponse<'a> {
+impl<'a> Deref for TextDivResponse<'a> {
     type Target = DivStyle;
 
     fn deref(&self) -> &Self::Target {
@@ -421,7 +424,7 @@ impl<'a> Deref for TextResponse<'a> {
     }
 }
 
-impl<'a> DerefMut for TextResponse<'a> {
+impl<'a> DerefMut for TextDivResponse<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.entry.get_mut().style
     }
@@ -513,20 +516,20 @@ impl<'a> Layouter<'a> {
     fn get_and_set_size(&mut self, div: &Div, parent_max_size: DVec2) -> DVec2 {
         enum LenMode {
             Fixed(f64),
-            ChildBound(f64),
+            Content,
         }
 
         use LenMode::*;
         fn len_mode(len: Len, parent_size_px: f64) -> LenMode {
             match len {
                 Len::Px(px) => Fixed(px),
-                Len::ParentFraction(f) => Fixed(f * parent_size_px),
-                Len::ContentFraction(f) => ChildBound(f),
+                Len::Parent(f) => Fixed(f * parent_size_px),
+                Len::Content => Content,
             }
         }
 
-        let fixed_w = len_mode(div.props.width, parent_max_size.x);
-        let fixed_h = len_mode(div.props.height, parent_max_size.y);
+        let fixed_w = len_mode(div.style.width, parent_max_size.x);
+        let fixed_h = len_mode(div.style.height, parent_max_size.y);
 
         let own_size: DVec2;
         let content_size: DVec2;
@@ -536,24 +539,24 @@ impl<'a> Layouter<'a> {
                 own_size = dvec2(x, y);
                 content_size = self.get_and_set_content_size(div, own_size);
             }
-            (Fixed(x), ChildBound(ch_fact_y)) => {
+            (Fixed(x), Content) => {
                 // x is fixed, y height is the sum/max of children height (depending on axis y/x)
                 let max_size = dvec2(x, parent_max_size.y);
 
                 content_size = self.get_and_set_content_size(div, max_size);
-                own_size = dvec2(x, content_size.y * ch_fact_y);
+                own_size = dvec2(x, content_size.y);
             }
-            (ChildBound(ch_fact_x), Fixed(y)) => {
+            (Content, Fixed(y)) => {
                 // y is fixed, x width is the sum/max of children width (depending on axis y/x)
                 let max_size = dvec2(parent_max_size.x, y);
 
                 content_size = self.get_and_set_content_size(div, max_size);
-                own_size = dvec2(content_size.x * ch_fact_x, y);
+                own_size = dvec2(content_size.x, y);
             }
-            (ChildBound(ch_fact_x), ChildBound(ch_fact_y)) => {
+            (Content, Content) => {
                 // nothing is fixed, x width and y height are the sum/max of children widths and heights (depending on axis y/x)
                 content_size = self.get_and_set_content_size(div, parent_max_size);
-                own_size = dvec2(content_size.x * ch_fact_x, content_size.y * ch_fact_y);
+                own_size = dvec2(content_size.x, content_size.y);
             }
         }
 
@@ -577,7 +580,7 @@ impl<'a> Layouter<'a> {
             }
             DivContent::Children(children) => {
                 content_size =
-                    self.get_and_set_child_sizes(children, content_max_size, div.props.axis);
+                    self.get_and_set_child_sizes(children, content_max_size, div.style.axis);
             }
         }
         div.c_content_size.set(content_size);
@@ -600,7 +603,7 @@ impl<'a> Layouter<'a> {
                     let child_size = self.get_and_set_size(c, parent_max_size);
 
                     // children with absolute positioning should not contribute to the size of the parent.
-                    if !c.props.absolute {
+                    if !c.style.absolute {
                         all_children_size.x += child_size.x;
                         all_children_size.y = all_children_size.y.max(child_size.y);
                     }
@@ -611,7 +614,7 @@ impl<'a> Layouter<'a> {
                     let child_size = self.get_and_set_size(c, parent_max_size);
 
                     // children with absolute positioning should not contribute to the size of the parent.
-                    if !c.props.absolute {
+                    if !c.style.absolute {
                         all_children_size.x = all_children_size.x.max(child_size.x);
                         all_children_size.y += child_size.y;
                     }
@@ -672,7 +675,7 @@ impl<'a> Layouter<'a> {
     ///
     /// Expects that sizes and child_sizes of all divs have already been computed.
     fn set_child_positions(&self, div: &Div) {
-        match div.props.axis {
+        match div.style.axis {
             Axis::X => _monomorphized_set_child_positions::<XMain>(self, div),
             Axis::Y => _monomorphized_set_child_positions::<YMain>(self, div),
         }
@@ -730,13 +733,13 @@ impl<'a> Layouter<'a> {
             let content_size = div.c_content_size.get();
             let (main_content_size, cross_content_size) = A::disassemble(content_size);
             let (mut main_offset, main_step) = main_offset_and_step(
-                div.props.main_align,
+                div.style.main_align,
                 main_size,
                 main_content_size,
                 n_children,
             );
 
-            let calc_cross_offset = match div.props.cross_align {
+            let calc_cross_offset = match div.style.cross_align {
                 Align::Start => |_: f64, _: f64| -> f64 { 0.0 },
                 Align::Center => |cross_parent: f64, cross_item: f64| -> f64 {
                     (cross_parent - cross_item) * 0.5
@@ -761,10 +764,10 @@ impl<'a> Layouter<'a> {
                         let cross = calc_cross_offset(cross_size, ch_cross_size);
 
                         let ch_rel_pos: DVec2;
-                        if ch.props.absolute {
+                        if ch.style.absolute {
                             // for absolute positioning just position the widget roughly like it was the only one.
                             let main_offset = main_offset_of_absolute_div(
-                                div.props.main_align,
+                                div.style.main_align,
                                 main_size,
                                 ch_main_size,
                             );
@@ -856,7 +859,6 @@ impl<'a> Layouter<'a> {
 #[derive(Debug)]
 pub struct Div {
     pub(crate) content: DivContent,
-    pub(crate) props: DivProps,
     pub(crate) style: DivStyle,
     // last_frame is reset every frame.
     last_frame: u64,
@@ -898,6 +900,17 @@ impl Div {
 
 #[derive(Debug)]
 pub struct DivStyle {
+    // Determines width of Self
+    pub width: Len,
+    /// Determines height of Self
+    pub height: Len,
+    /// Determines how children are layed out.
+    pub axis: Axis,
+    pub main_align: MainAlign,
+    pub cross_align: Align,
+    /// true = in CSS `position: absolute;`
+    pub absolute: bool,
+    // todo! translation, absolute, padding, margin
     pub color: Color,
     pub border_color: Color,
     pub border_radius: BorderRadius,
@@ -921,6 +934,12 @@ pub struct DivTexture {
 impl Default for DivStyle {
     fn default() -> Self {
         Self {
+            width: Len::CONTENT,
+            height: Len::CONTENT,
+            axis: Axis::Y,
+            main_align: MainAlign::Start,
+            cross_align: Align::Start,
+            absolute: false,
             color: Color::TRANSPARENT,
             border_radius: BorderRadius::default(),
             z_bias: 0,
@@ -1047,34 +1066,6 @@ impl Debug for CachedTextLayout {
     }
 }
 
-#[derive(Debug)]
-pub struct DivProps {
-    // Determines width of Self
-    pub width: Len,
-    /// Determines height of Self
-    pub height: Len,
-    /// Determines how children are layed out.
-    pub axis: Axis,
-    pub main_align: MainAlign,
-    pub cross_align: Align,
-    /// true = in CSS `position: absolute;`
-    pub absolute: bool,
-    // todo! translation, absolute, padding, margin
-}
-
-impl Default for DivProps {
-    fn default() -> Self {
-        Self {
-            width: Len::CONTENT,
-            height: Len::CONTENT,
-            axis: Axis::Y,
-            main_align: MainAlign::Start,
-            cross_align: Align::Start,
-            absolute: false,
-        }
-    }
-}
-
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum Axis {
     X,
@@ -1114,14 +1105,26 @@ pub enum Align {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Len {
     Px(f64),
-    ParentFraction(f64),
-    ContentFraction(f64),
+    Parent(f64), // fraction of parent
+    Content,
 }
 
 impl Len {
     pub const ZERO: Len = Len::Px(0.0);
-    pub const PARENT: Len = Len::ParentFraction(1.0);
-    pub const CONTENT: Len = Len::ContentFraction(1.0);
+    pub const PARENT: Len = Len::Parent(1.0);
+    pub const CONTENT: Len = Len::Content;
+}
+
+impl Mul<f64> for Len {
+    type Output = Len;
+
+    fn mul(self, rhs: f64) -> Self::Output {
+        match self {
+            Len::Px(e) => Len::Px(e * rhs),
+            Len::Parent(e) => Len::Parent(e * rhs),
+            Len::Content => Len::Content,
+        }
+    }
 }
 
 /// Warning: assumes the content_size is set already on this div
@@ -1133,14 +1136,14 @@ pub(super) fn offset_dvec2(
 ) -> DVec2 {
     let x: f64 = match offset_x {
         Len::Px(x) => x,
-        Len::ParentFraction(f) => parent_size.x * f,
-        Len::ContentFraction(f) => content_size.x * f,
+        Len::Parent(f) => parent_size.x * f,
+        Len::Content => content_size.x,
     };
 
     let y: f64 = match offset_y {
         Len::Px(x) => x,
-        Len::ParentFraction(f) => parent_size.y * f,
-        Len::ContentFraction(f) => content_size.y * f,
+        Len::Parent(f) => parent_size.y * f,
+        Len::Content => content_size.y,
     };
 
     dvec2(x, y)

@@ -2,8 +2,8 @@ use crate::{
     elements::Color,
     modules::ui::{
         board::{
-            Align, Axis, Board, BorderRadius, ContainerId, DivProps, DivStyle, HotActive, Id, Len,
-            MainAlign, Text,
+            Align, Axis, Board, BorderRadius, ContainerId, DivStyle, HotActive, Id, Len, MainAlign,
+            Text,
         },
         widgets::next_hot_active,
     },
@@ -43,47 +43,30 @@ impl<'v> Widget for Slider<'v> {
 
         let knob_hot_active = board.hot_active(knob_id);
 
-        let parent = board
-            .add_div(
-                DivProps {
-                    axis: Axis::Y,
-                    width: Len::Px(SLIDER_CONTAINER_WIDTH),
-                    cross_align: Align::Center,
-                    ..Default::default()
-                },
-                id + 237,
-                parent,
-            )
-            .id;
+        let mut parent = board.add_div(id + 237, parent);
+        let style = parent.style();
+        style.axis = Axis::Y;
+        style.width = Len::Px(SLIDER_CONTAINER_WIDTH);
+        style.cross_align = Align::Center;
 
-        let slider = board.add_div(
-            DivProps {
-                width: Len::Px(SLIDER_WIDTH),
-                height: Len::Px(20.0),
-                axis: Axis::X,
-                main_align: MainAlign::Start,
-                cross_align: Align::Center,
-                absolute: false,
-            },
-            id,
-            Some(parent),
-        );
+        let parent = Some(parent.id);
+
+        let mut slider = board.add_div(id, parent);
+        slider.width = Len::Px(SLIDER_WIDTH);
+        slider.height = Len::Px(20.0);
+        slider.axis = Axis::X;
+        slider.main_align = MainAlign::Start;
+        slider.cross_align = Align::Center;
 
         let slider_hovered = slider.mouse_in_rect();
-        let slider = slider.id;
+        let slider = Some(slider.id);
 
         // slider bar
 
-        let mut d = board.add_div(
-            DivProps {
-                width: Len::PARENT,
-                height: Len::Px(8.0),
-                ..Default::default()
-            },
-            id + 1,
-            Some(slider),
-        );
+        let mut d = board.add_div(id + 1, slider);
         let style = d.style();
+        style.width = Len::PARENT;
+        style.height = Len::Px(8.0);
         style.color = Color::GREY;
         style.color = Color::from_hex("#32a852");
         style.border_radius = BorderRadius::all(4.0);
@@ -93,17 +76,14 @@ impl<'v> Widget for Slider<'v> {
         let px_delta = board.input().cursor_delta.x;
 
         // knob
-        let mut knob = board.add_div(
-            DivProps {
-                width: Len::Px(KNOB_WIDTH),
-                height: Len::Px(KNOB_WIDTH),
-                absolute: true,
-                ..Default::default()
-            },
-            knob_id,
-            Some(slider),
-        );
-        knob.style().border_radius = BorderRadius::all(KNOB_WIDTH as f32 / 2.0);
+        let mut knob = board.add_div(knob_id, slider);
+        let style = knob.style();
+
+        style.width = Len::Px(KNOB_WIDTH);
+        style.height = Len::Px(KNOB_WIDTH);
+        style.absolute = true;
+
+        style.border_radius = BorderRadius::all(KNOB_WIDTH as f32 / 2.0);
 
         let knob_next_hot_active =
             next_hot_active(knob_hot_active, knob.mouse_in_rect(), left_mouse_button);
@@ -137,13 +117,7 @@ impl<'v> Widget for Slider<'v> {
         style.offset_x = Len::Px(fraction * PX_TOTAL_RANGE);
         board.set_hot_active(knob_id, knob_next_hot_active);
 
-        board.add_text_div(
-            DivProps {
-                width: Len::PARENT,
-                height: Len::CONTENT,
-                main_align: MainAlign::Center,
-                ..Default::default()
-            },
+        let mut text_div = board.add_text_div(
             Text {
                 color: Color::DARKGREY,
                 string: format!("{:.2}", self.value).into(),
@@ -152,7 +126,10 @@ impl<'v> Widget for Slider<'v> {
                 ..Default::default()
             },
             id + 4,
-            Some(parent),
+            parent,
         );
+        text_div.width = Len::PARENT;
+        text_div.height = Len::CONTENT;
+        text_div.main_align = MainAlign::Center;
     }
 }

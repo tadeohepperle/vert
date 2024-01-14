@@ -8,8 +8,8 @@ use vert::{
         batteries::{FlyCam, GraphicsSettingsController},
         renderer::main_pass_renderer::{text_renderer::DrawText, ui_rect::UiRect},
         ui::{
-            font_cache::FontSize, Align, Axis, Board, BoardInput, BorderRadius, Button, DivProps,
-            DivStyle, Id, Len, MainAlign, Text,
+            font_cache::FontSize, Align, Axis, Board, BoardInput, BorderRadius, Button, DivStyle,
+            Id, Len, MainAlign, Text,
         },
         DefaultDependencies, DefaultModules, MainPassRenderer, Schedule,
     },
@@ -80,20 +80,16 @@ impl MyApp {
             self.deps.ui.fonts.atlas_texture(),
         );
 
-        let mut parent = self.ui.add_div(
-            DivProps {
-                width: Len::PARENT,
-                height: Len::CONTENT,
-                axis: Axis::X,
-                main_align: MainAlign::SpaceBetween,
-                cross_align: Align::Center,
-                absolute: false,
-            },
-            "Parent",
-            None,
-        );
-        parent.style().color = Color::RED.alpha(0.2);
-        let parent = parent.id;
+        let mut parent = self.ui.add_div("Parent", None);
+
+        parent.width = Len::PARENT;
+        parent.height = Len::CONTENT;
+        parent.axis = Axis::X;
+        parent.main_align = MainAlign::SpaceBetween;
+        parent.cross_align = Align::Center;
+        parent.color = Color::RED.alpha(0.2);
+
+        let parent = Some(parent.id);
 
         // let text = self.ui.add_text_div(
         //     DivProps::default(),
@@ -125,83 +121,39 @@ impl MyApp {
         //     Some(parent),
         // );
 
-        let mut purp_parent = self.ui.add_div(
-            DivProps {
-                width: Len::Px(100.0),
-                height: Len::Px(200.0),
-                axis: Axis::Y,
-                main_align: MainAlign::Center,
-                cross_align: Align::Center,
-                absolute: false,
-            },
-            "Purple Parent",
-            Some(parent),
-        );
+        let mut purp_parent = self.ui.add_div("Purple Parent", parent);
+        purp_parent.width = Len::Px(100.0);
+        purp_parent.height = Len::Px(200.0);
+        purp_parent.axis = Axis::Y;
+        purp_parent.main_align = MainAlign::Center;
+        purp_parent.cross_align = Align::Center;
+        purp_parent.color = Color::PURPLE.alpha(0.5);
+        purp_parent.border_radius = BorderRadius::all(20.0);
+        purp_parent.border_color = Color::GREEN;
+        purp_parent.border_thickness = 6.0;
+        purp_parent.border_softness = 1.0;
+        let purp_parent = Some(purp_parent.id);
 
-        let style = purp_parent.style();
-        style.color = Color::PURPLE.alpha(0.5);
-        style.border_radius = BorderRadius::all(20.0);
-        style.border_color = Color::GREEN;
-        style.border_thickness = 6.0;
-        style.border_softness = 1.0;
+        let mut c1 = self.ui.add_div("child 1 in purple", purp_parent);
+        c1.width = Len::Px(50.0);
+        c1.height = Len::Px(50.0);
+        c1.main_align = MainAlign::Center;
+        c1.cross_align = Align::Center;
+        c1.style().color = Color::GREEN;
 
-        let purp_parent = purp_parent.id;
+        let mut c2 = self.ui.add_div("child 2 in purple", purp_parent);
+        c2.width = Len::Px(70.0);
+        c2.height = Len::Px(30.0);
+        c2.main_align = MainAlign::Center;
+        c2.cross_align = Align::Center;
+        c2.color = Color::WHITE;
 
-        let mut d = self.ui.add_div(
-            DivProps {
-                width: Len::Px(50.0),
-                height: Len::Px(50.0),
-                axis: Axis::Y,
-                main_align: MainAlign::Center,
-                cross_align: Align::Center,
-                absolute: false,
-            },
-            "child 1 in purple",
-            Some(purp_parent),
-        );
-        d.style().color = Color::GREEN;
-
-        self.ui
-            .add_div(
-                DivProps {
-                    width: Len::Px(50.0),
-                    height: Len::Px(50.0),
-                    axis: Axis::Y,
-                    main_align: MainAlign::Center,
-                    cross_align: Align::Center,
-                    absolute: false,
-                },
-                "child 2 in purple",
-                Some(purp_parent),
-            )
-            .style()
-            .color = Color::WHITE;
-
-        self.ui
-            .add_div(
-                DivProps {
-                    width: Len::Px(100.0),
-                    height: Len::Px(20.0),
-                    axis: Axis::Y,
-                    main_align: MainAlign::Start,
-                    cross_align: Align::Start,
-                    absolute: false,
-                },
-                "other",
-                Some(parent),
-            )
-            .style()
-            .color = Color::BLACK;
+        let mut other = self.ui.add_div("other", parent);
+        other.width = Len::Px(100.0);
+        other.height = Len::Px(20.0);
+        other.color = Color::BLACK;
 
         let mut text_div = self.ui.add_text_div(
-            DivProps {
-                width: Len::Px(300.0),
-                height: Len::Px(400.0),
-                axis: Axis::Y,
-                main_align: MainAlign::Start,
-                cross_align: Align::Start,
-                absolute: false,
-            },
             Text {
                 color: Color::new(6.0, 2.0, 2.0),
                 string: "Hover me please, I will show you something!".into(),
@@ -211,13 +163,15 @@ impl MyApp {
                 ..Default::default()
             },
             "text div",
-            Some(parent),
+            parent,
         );
 
-        let style = text_div.style();
-        style.color = Color::YELLOW;
-        style.border_radius = BorderRadius::all(20.0);
-        style.border_thickness = 20.0;
+        text_div.width = Len::Px(300.0);
+        text_div.height = Len::Px(400.0);
+
+        text_div.color = Color::YELLOW;
+        text_div.border_radius = BorderRadius::all(20.0);
+        text_div.border_thickness = 20.0;
 
         // can immediately edit the style and text without a 1-frame lag:
         // 1 frame lag only applies to the layout rect (DivProps) itself.
@@ -233,40 +187,23 @@ impl MyApp {
         let total_time = self.deps.time.total().as_secs_f64() * 4.0;
         let total_time2 = self.deps.time.total().as_secs_f64() * 9.7;
         if text_div.mouse_in_rect() {
-            let mut green_square = self.ui.add_div(
-                DivProps {
-                    width: Len::Px(40.0),
-                    height: Len::Px(40.0),
-                    axis: Axis::Y,
-                    main_align: MainAlign::Start,
-                    cross_align: Align::Start,
-                    absolute: false,
-                },
-                2112213232,
-                Some(parent),
-            );
+            let mut green_square = self.ui.add_div(2112213232, parent);
 
-            let style = green_square.style();
-            style.color = Color::GREEN;
-            style.offset_x = Len::Px(total_time.sin() * 20.0);
-            style.offset_y = Len::Px(total_time2.cos() * 20.0);
+            green_square.width = Len::Px(40.0);
+            green_square.height = Len::Px(40.0);
+            green_square.color = Color::GREEN;
+            green_square.offset_x = Len::Px(total_time.sin() * 20.0);
+            green_square.offset_y = Len::Px(total_time2.cos() * 20.0);
         }
 
-        let container2 = self
-            .ui
-            .add_div(
-                DivProps {
-                    width: Len::CONTENT,
-                    height: Len::PARENT,
-                    axis: Axis::Y,
-                    main_align: MainAlign::SpaceAround,
-                    cross_align: Align::Center,
-                    absolute: false,
-                },
-                "Container 2",
-                Some(parent),
-            )
-            .id;
+        let mut container2 = self.ui.add_div("Container 2", parent);
+
+        container2.width = Len::CONTENT;
+        container2.height = Len::PARENT;
+        container2.main_align = MainAlign::SpaceAround;
+        container2.cross_align = Align::Center;
+
+        let container2 = Some(container2.id);
 
         {
             let clicked = self
@@ -277,7 +214,7 @@ impl MyApp {
                         ..Default::default()
                     },
                     "my button",
-                    Some(container2),
+                    container2,
                 )
                 .clicked;
             if clicked {
@@ -293,7 +230,7 @@ impl MyApp {
                         ..Default::default()
                     },
                     "my button 2",
-                    Some(container2),
+                    container2,
                 )
                 .clicked;
             if clicked {
@@ -309,7 +246,7 @@ impl MyApp {
                         ..Default::default()
                     },
                     "my button 3",
-                    Some(container2),
+                    container2,
                 )
                 .clicked;
             if clicked {

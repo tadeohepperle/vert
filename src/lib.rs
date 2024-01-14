@@ -10,11 +10,8 @@ pub mod modules;
 pub mod utils;
 
 pub use app::{App, AppBuilder, Dependencies, Handle, MainModule, Module, Plugin};
-pub use modules::WinitMain;
 
-pub mod prelude {
-    pub use super::app::*;
-    pub use super::modules;
+pub mod ext {
     pub use anyhow;
     pub use bytemuck;
     pub use egui;

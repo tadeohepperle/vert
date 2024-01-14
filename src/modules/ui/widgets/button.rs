@@ -9,7 +9,7 @@ use crate::{
         input::{MouseButtonState, PressState},
         ui::{
             board::{
-                Align, Board, BorderRadius, ContainerId, DivProps, DivStyle,
+                Align, Board, BorderRadius, ContainerId, DivStyle,
                 HotActive::{self, *},
                 Id, Len, MainAlign, Text,
             },
@@ -58,13 +58,6 @@ impl Widget for Button {
         let hot_active = board.hot_active(id);
         let left_button = board.input().mouse_buttons.left();
         let mut btn = board.add_text_div(
-            DivProps {
-                width: Len::Px(200.0),
-                height: Len::ContentFraction(1.5),
-                main_align: MainAlign::Center,
-                cross_align: Align::Center,
-                ..Default::default()
-            },
             Text {
                 color: self.text_color,
                 string: self.text,
@@ -76,20 +69,27 @@ impl Widget for Button {
             id,
             parent,
         );
+
         let mouse_in_rect = btn.mouse_in_rect();
-        let style = btn.style();
-        style.color = self.color;
-        style.border_color = Color::BLACK;
-        style.border_radius = BorderRadius::all(16.0);
-        style.border_thickness = 10.0;
-        style.border_softness = 16.0;
+
+        btn.width = Len::Px(200.0);
+        btn.height = Len::Content;
+        // add padding
+        btn.main_align = MainAlign::Center;
+        btn.cross_align = Align::Center;
+
+        btn.color = self.color;
+        btn.border_color = Color::BLACK;
+        btn.border_radius = BorderRadius::all(16.0);
+        btn.border_thickness = 10.0;
+        btn.border_softness = 16.0;
 
         let next_hot_active = next_hot_active(hot_active, mouse_in_rect, left_button);
         let clicked = hot_active == Active && next_hot_active == Hot;
 
         // we can now update the style immediately. Using the hot_active only on insertion instead of next_hot_active
         // would always be 1 frame behind. Just add a 150ms of workload on each frame (7fps) and you will feel the different.
-        style.color = match next_hot_active {
+        btn.color = match next_hot_active {
             HotActive::Nil => self.color,
             HotActive::Hot => self.hover_color,
             HotActive::Active => self.click_color,

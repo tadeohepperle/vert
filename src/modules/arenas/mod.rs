@@ -59,12 +59,15 @@ impl Arenas {
         OwnedKey(key)
     }
 
+    /// This consumes the OwnedKey, to make it impossible to use it later.
     pub fn remove<A: 'static + Sized>(&mut self, key: OwnedKey<A>) -> Option<A> {
         self._any_arena_internal::<A>().remove(key.0)
     }
 
-    pub fn get_mut<A: 'static + Sized>(&self, key: OwnedKey<A>) -> Option<&mut A> {
-        self._any_arena_internal::<A>().get_mut(key.0)
+    pub fn get_mut<A: 'static + Sized>(&self, key: &OwnedKey<A>) -> &mut A {
+        self._any_arena_internal::<A>()
+            .get_mut(key.0)
+            .expect("owned key resource always present")
     }
 
     pub fn get<A: 'static + Sized>(&self, key: Key<A>) -> Option<&A> {

@@ -2,8 +2,9 @@ use wgpu::BindGroupDescriptor;
 
 use crate::{
     elements::{buffer::ToRaw, Camera3D, UniformBuffer},
+    modules::WinitMain,
     utils::Timing,
-    Dependencies, Handle, Module, WinitMain,
+    Dependencies, Handle, Module,
 };
 
 use super::{input::ResizeEvent, GraphicsContext, Input, Prepare, Renderer};

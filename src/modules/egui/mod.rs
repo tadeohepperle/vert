@@ -4,7 +4,7 @@ use egui_wgpu::renderer::ScreenDescriptor;
 
 use winit::{dpi::PhysicalSize, event::WindowEvent};
 
-use crate::{modules::Schedule, utils::Timing, Dependencies, Handle, Module, WinitMain};
+use crate::{modules::Schedule, modules::WinitMain, utils::Timing, Dependencies, Handle, Module};
 
 use self::platform::{Platform, PlatformDescriptor};
 

@@ -10,8 +10,8 @@ use vert::{
         renderer::main_pass_renderer::{text_renderer::DrawText, ui_rect::UiRect},
         ui::{
             font_cache::FontSize, next_hot_active, Align, Axis, Board, BoardInput, BorderRadius,
-            Button, ContainerId, DivProps, DivStyle, DivTexture, HotActive, Id, Len, MainAlign,
-            Slider, Text, Widget,
+            Button, ContainerId, DivStyle, DivTexture, HotActive, Id, Len, MainAlign, Slider, Text,
+            Widget,
         },
         DefaultDependencies, DefaultModules, MainPassRenderer, Schedule,
     },
@@ -82,44 +82,27 @@ impl MyApp {
             dvec2(size.width as f64, size.height as f64),
         );
 
-        let mut parent = self.ui.add_div(
-            DivProps {
-                width: Len::PARENT,
-                height: Len::PARENT,
-                axis: Axis::X,
-                main_align: MainAlign::Center,
-                cross_align: Align::Center,
-                absolute: false,
-            },
-            "Parent",
-            None,
-        );
-
+        let mut parent = self.ui.add_div("Parent", None);
+        parent.width = Len::PARENT;
+        parent.height = Len::PARENT;
+        parent.axis = Axis::X;
+        parent.main_align = MainAlign::Center;
+        parent.cross_align = Align::Center;
         parent.color = Color::RED.alpha(0.2);
-        let parent = parent.id;
+        let parent = Some(parent.id);
 
         // show some image in the UI
-        let mut img = self.ui.add_div(
-            DivProps {
-                width: Len::Px(200.0),
-                height: Len::Px(200.0),
-                ..Default::default()
-            },
-            "img",
-            Some(parent),
-        );
-
+        let mut img = self.ui.add_div("img", parent);
+        img.width = Len::Px(200.0);
+        img.height = Len::Px(200.0);
         img.texture = Some(DivTexture {
             texture: self.image_key.key(),
             uv: Aabb::UNIT,
         });
 
         // sow the slider
-        self.ui.add(
-            Slider::new(&mut self.value, 0.0, 400.0),
-            "slider",
-            Some(parent),
-        );
+        self.ui
+            .add(Slider::new(&mut self.value, 0.0, 400.0), "slider", parent);
 
         self.ui.end_frame(&mut self.deps.ui.fonts);
         self.deps.ui.ui_renderer.draw_ui_board(&self.ui);

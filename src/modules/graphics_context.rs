@@ -5,7 +5,7 @@ use glam::DVec2;
 use wgpu::SurfaceTexture;
 use winit::{dpi::PhysicalSize, window::Window};
 
-use crate::{Handle, Module, WinitMain};
+use crate::{modules::WinitMain, Handle, Module};
 
 use super::{input::ResizeEvent, Input, TokioRuntime};
 

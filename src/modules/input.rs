@@ -11,8 +11,9 @@ use winit::{
 
 use crate::{
     app::{FunctionHandle, ModuleId, UntypedHandle},
+    modules::WinitMain,
     utils::{Timing, TimingQueue},
-    Dependencies, Handle, Module, WinitMain,
+    Dependencies, Handle, Module,
 };
 
 use super::{winit_main, Schedule, Scheduler};

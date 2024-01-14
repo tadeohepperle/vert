@@ -1,24 +1,24 @@
 use crate::modules::ui::{
     board::{Board, ContainerId, Id},
-    DivProps, Len,
+    Len,
 };
 
 use super::Widget;
 
-pub fn h_fill(len: Len) -> HFill {
-    HFill { len }
+pub fn h_fill(width: Len) -> HFill {
+    HFill { width }
 }
 
-pub fn v_fill(len: Len) -> VFill {
-    VFill { len }
+pub fn v_fill(height: Len) -> VFill {
+    VFill { height }
 }
 
 pub struct HFill {
-    len: Len,
+    width: Len,
 }
 
 pub struct VFill {
-    len: Len,
+    height: Len,
 }
 
 impl Widget for HFill {
@@ -30,14 +30,7 @@ impl Widget for HFill {
         id: Id,
         parent: Option<ContainerId>,
     ) -> Self::Response<'a> {
-        board.add_div(
-            DivProps {
-                width: self.len,
-                ..Default::default()
-            },
-            id,
-            parent,
-        );
+        board.add_div(id, parent).width = self.width;
     }
 }
 
@@ -50,13 +43,6 @@ impl Widget for VFill {
         id: Id,
         parent: Option<ContainerId>,
     ) -> Self::Response<'a> {
-        board.add_div(
-            DivProps {
-                height: self.len,
-                ..Default::default()
-            },
-            id,
-            parent,
-        );
+        board.add_div(id, parent).height = self.height;
     }
 }

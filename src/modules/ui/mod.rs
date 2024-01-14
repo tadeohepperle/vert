@@ -5,7 +5,7 @@ use self::{font_cache::FontCache, ui_renderer::UiRenderer};
 pub mod batching;
 mod board;
 pub use board::{
-    Align, Axis, Board, BoardInput, BoardPhase, BorderRadius, ContainerId, Div, DivProps, DivStyle,
+    Align, Axis, Board, BoardInput, BoardPhase, BorderRadius, ContainerId, Div, DivStyle,
     DivTexture, HotActive, Id, Len, MainAlign, Text,
 };
 

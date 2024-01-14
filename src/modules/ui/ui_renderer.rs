@@ -38,7 +38,6 @@ use super::font_cache::FontCache;
 
 pub struct UiRenderer {
     shader_watcher: Option<ShaderFileWatcher>,
-    shader_module: ShaderModule,
     glyph_pipeline: wgpu::RenderPipeline,
     rect_pipeline: wgpu::RenderPipeline,
     textured_rect_pipeline: wgpu::RenderPipeline,
@@ -85,7 +84,6 @@ impl Module for UiRenderer {
 
         Ok(UiRenderer {
             shader_watcher,
-            shader_module,
             glyph_pipeline,
             rect_pipeline,
             textured_rect_pipeline,
