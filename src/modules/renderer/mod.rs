@@ -1,5 +1,3 @@
-
-
 use crate::{
     elements::Color,
     utils::{Timing, TimingQueue},
@@ -14,7 +12,6 @@ use self::{
 
 use super::{input::ResizeEvent, GraphicsContext, Input, Schedule, Scheduler};
 use log::error;
-
 
 pub mod main_pass_renderer;
 pub mod post_processing;
@@ -35,7 +32,7 @@ pub struct RendererDependencies {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RendererSettings {
-    clear_color: Color,
+    pub clear_color: Color,
 }
 
 impl Default for RendererSettings {
@@ -127,6 +124,10 @@ impl Renderer {
     pub fn register_prepare<R: Module + Prepare>(&mut self, handle: Handle<R>) {
         let trait_obj_ref: &'static mut dyn Prepare = handle.get_mut();
         self.prepare.push(trait_obj_ref);
+    }
+
+    pub fn settings_mut(&mut self) -> &mut RendererSettings {
+        &mut self.settings
     }
 
     pub fn register_main_pass_renderer<R: Module + MainPassRenderer>(
@@ -315,7 +316,7 @@ pub trait VertexT: 'static + Sized {
         } else {
             wgpu::VertexStepMode::Vertex
         };
-        
+
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Self>() as u64,
             step_mode,

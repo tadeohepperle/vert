@@ -18,6 +18,7 @@ pub mod ext {
     pub use fontdue;
     pub use glam;
     pub use slotmap;
+    pub use tokio;
     pub use wgpu;
     pub use winit;
     pub use winit::keyboard::*;

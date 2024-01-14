@@ -24,3 +24,9 @@ impl Module for TokioRuntime {
         Ok(Self { rt })
     }
 }
+
+impl TokioRuntime {
+    pub fn runtime(&self) -> &tokio::runtime::Runtime {
+        &self.rt
+    }
+}

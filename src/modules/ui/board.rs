@@ -196,7 +196,6 @@ impl Board {
     }
 
     pub fn new(board_size: DVec2) -> Self {
-        println!("new Board created");
         let last_frame = 0;
 
         Board {
@@ -1016,6 +1015,14 @@ impl Padding {
     }
 
     pub fn vertical(mut self, len: Len) -> Self {
+        self.top = len;
+        self.bottom = len;
+        self
+    }
+
+    pub fn all(mut self, len: Len) -> Self {
+        self.left = len;
+        self.right = len;
         self.top = len;
         self.bottom = len;
         self
