@@ -1,13 +1,12 @@
-
-
-use glam::{dvec2};
+use glam::dvec2;
 use vert::{
     elements::{Color, Rect, Transform},
     modules::{
         batteries::{FlyCam, GraphicsSettingsController},
-        renderer::main_pass_renderer::{ui_rect::UiRect},
+        renderer::main_pass_renderer::ui_rect::UiRect,
         ui::{
-            font_cache::FontSize, Align, Axis, Board, BoardInput, BorderRadius, Button, Len, MainAlign, Text,
+            font_cache::FontSize, Align, Axis, Board, BoardInput, BorderRadius, Button, Len,
+            MainAlign, Text,
         },
         DefaultDependencies, DefaultModules, Schedule,
     },

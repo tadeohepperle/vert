@@ -1,13 +1,9 @@
-
-
-use glam::{dvec2};
+use glam::dvec2;
 use vert::{
     elements::{Color, Transform},
     modules::{
-        batteries::{GraphicsSettingsController},
-        ui::{
-            Align, Board, BoardInput, Len, MainAlign, Padding,
-        },
+        batteries::GraphicsSettingsController,
+        ui::{Align, Board, BoardInput, Len, MainAlign, Padding},
         DefaultDependencies, DefaultModules, Schedule,
     },
     utils::Timing,

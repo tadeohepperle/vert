@@ -1,4 +1,4 @@
-use std::{f32::consts::PI};
+use std::f32::consts::PI;
 
 use glam::{vec3, Affine3A, Mat4, Quat, Vec3};
 
@@ -14,6 +14,12 @@ pub struct Transform {
 }
 
 impl Transform {
+    pub const ZERO: Transform = Transform {
+        position: Vec3::ZERO,
+        rotation: Quat::IDENTITY,
+        scale: Vec3::ONE,
+    };
+
     /// New Transform from Position
     pub fn new(x: f32, y: f32, z: f32) -> Self {
         Transform {

@@ -17,6 +17,7 @@ pub mod ext {
     pub use egui;
     pub use fontdue;
     pub use glam;
+    pub use image;
     pub use slotmap;
     pub use tokio;
     pub use wgpu;
