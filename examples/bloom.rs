@@ -3,40 +3,31 @@
 use std::{f32::consts::PI, sync::Arc};
 
 use glam::{vec2, vec3};
-use vert_framework::{
+use vert::{
     app::App,
-    batteries::{GraphicsSettingsController, SimpleCamController, SpawnSomeCubes},
-    flow::Flow,
+    elements::{Color, Transform},
     modules::{
-        assets::fetchable_asset::{AssetSource, ImageAsset},
-        graphics::{
-            elements::{
-                buffer::ToRaw,
-                color::Color,
-                texture::{BindableTexture, Texture},
-                transform::Transform,
-            },
-            shader::{
-                color_mesh::ColorMeshRenderer,
-                text::{DrawText, TextRenderer},
-            },
-            statics::camera::Projection,
-        },
-        Modules,
+        batteries::{FlyCam, GraphicsSettingsController},
+        renderer::main_pass_renderer::text_renderer::DrawText,
+        DefaultDependencies, DefaultModules,
     },
-    state::StateT,
+    utils::Timing,
+    Module,
 };
 
 pub struct MyState {
     blue_cubes: Vec<Transform>,
     black_cubes: Vec<Transform>,
     camera_orthographic: bool,
+    deps: DefaultDependencies,
 }
 
-impl StateT for MyState {
-    async fn initialize(modules: &mut Modules) -> anyhow::Result<Self> {
-        modules.add_battery(SimpleCamController);
-        modules.add_battery(GraphicsSettingsController::new());
+impl Module for MyState {
+    type Config = ();
+
+    type Dependencies = DefaultDependencies;
+
+    fn new(config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
         let mut blue_cubes: Vec<Transform> = vec![];
         let mut black_cubes: Vec<Transform> = vec![];
 
@@ -58,22 +49,31 @@ impl StateT for MyState {
         }
 
         // use a very high energy green to get a nice background bloom
-        modules.graphics_settings_mut().clear_color = Color::new(2.0, 8.0, 2.0);
+        deps.renderer.settings_mut().clear_color = Color::new(2.0, 8.0, 2.0);
 
         Ok(MyState {
             black_cubes,
             blue_cubes,
             camera_orthographic: false,
+            deps,
         })
     }
 
-    fn update(&mut self, modules: &mut Modules) -> Flow {
+    fn intialize(handle: vert::Handle<Self>) -> anyhow::Result<()> {
+        let mut scheduler = handle.deps.scheduler;
+        scheduler.register_update(handle, Timing::DEFAULT, Self::update);
+        Ok(())
+    }
+}
+
+impl MyState {
+    fn update(&mut self) {
         // /////////////////////////////////////////////////////////////////////////////
         // Draw some stuff (some things that are very bright)
         // /////////////////////////////////////////////////////////////////////////////
 
-        let oscillator = ((modules.time().total_secs() * 10.0).sin() + 1.0) / 2.0;
-        let oscillator2 = modules.time().total_secs().sin() * 0.3;
+        let oscillator = ((self.deps.time.total().as_secs_f32() * 10.0).sin() + 1.0) / 2.0;
+        let oscillator2 = self.deps.time.total().as_secs_f32().sin() * 0.3;
 
         // let the text face the camera
         let text_rotation = {
@@ -83,7 +83,7 @@ impl StateT for MyState {
             t
         };
 
-        TextRenderer::draw_3d_text(
+        self.deps.text.draw_world_text(
             DrawText {
                 text: "Vert".into(),
                 font_layout_size: 100.0,
@@ -98,7 +98,8 @@ impl StateT for MyState {
             },
             text_rotation,
         );
-        TextRenderer::draw_3d_text(
+
+        self.deps.text.draw_world_text(
             DrawText {
                 text: "Game Engine".into(),
                 font_layout_size: 64.0,
@@ -115,13 +116,20 @@ impl StateT for MyState {
             c.rotation.x = oscillator2;
         }
 
-        ColorMeshRenderer::draw_cubes(&self.blue_cubes, None);
-        ColorMeshRenderer::draw_cubes(&self.black_cubes, None);
-
-        Flow::Continue
+        self.deps
+            .color_mesh
+            .draw_cubes(&self.blue_cubes, Some(Color::from_hex("#02050d")));
+        self.deps
+            .color_mesh
+            .draw_cubes(&self.black_cubes, Some(Color::from_hex("#000000")));
     }
 }
 
 fn main() {
-    App::<MyState>::run().unwrap();
+    let mut app = vert::AppBuilder::new();
+    app.add_plugin(DefaultModules);
+    app.add::<GraphicsSettingsController>();
+    app.add::<FlyCam>();
+    app.add::<MyState>();
+    app.run();
 }

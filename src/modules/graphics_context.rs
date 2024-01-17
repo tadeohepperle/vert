@@ -1,9 +1,7 @@
-
-
 use crate::{utils::Timing, Dependencies};
 use glam::DVec2;
 use wgpu::SurfaceTexture;
-use winit::{dpi::PhysicalSize};
+use winit::dpi::PhysicalSize;
 
 use crate::{modules::WinitMain, Handle, Module};
 
@@ -115,7 +113,9 @@ async fn initialize_graphics_context(deps: Deps) -> anyhow::Result<GraphicsConte
         .request_device(
             &wgpu::DeviceDescriptor {
                 label: None,
-                features: wgpu::Features::MULTIVIEW | wgpu::Features::PUSH_CONSTANTS,
+                features: wgpu::Features::MULTIVIEW
+                    | wgpu::Features::PUSH_CONSTANTS
+                    | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
                 limits: wgpu::Limits {
                     max_push_constant_size: 16,
                     ..Default::default()

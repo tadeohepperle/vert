@@ -19,7 +19,7 @@ pub trait Module: 'static + Sized {
     /// E.g. the LineRenderer could register its own handle (Handle<LineRenderer>) with a general Renderer module,
     /// if a `Handle<Renderer>` was part of the `Self::Dependencies` and cached in the `new` function.
     /// E.g. LineRenderer could have a field `renderer: Handle<Renderer>` that is populated in `new`.
-    fn intialize(_handle: Handle<Self>) -> anyhow::Result<()> {
+    fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
         Ok(())
     }
 }

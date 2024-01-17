@@ -1,9 +1,9 @@
-use glam::{Vec2};
+use glam::Vec2;
 use vert::{
     elements::{Color, Transform},
     modules::{
         batteries::{FlyCam, GraphicsSettingsController},
-        renderer::main_pass_renderer::{text_renderer::DrawText},
+        renderer::main_pass_renderer::text_renderer::DrawText,
         DefaultDependencies, DefaultModules, Schedule,
     },
     utils::Timing,
