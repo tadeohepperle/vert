@@ -2,23 +2,28 @@ use std::vec;
 
 use log::warn;
 use wgpu::BufferUsages;
-use wgpu::MultisampleState;
 
+
+use wgpu::Operations;
+use wgpu::RenderPassColorAttachment;
+
+use wgpu::RenderPassDescriptor;
 use wgpu::ShaderModule;
 use wgpu::ShaderModuleDescriptor;
 
+use crate::modules::renderer::SdrSurfaceRenderer;
 use crate::Dependencies;
 
 use crate::elements::texture::rgba_bind_group_layout;
 use crate::elements::BindableTexture;
 use crate::elements::GrowableBuffer;
-use crate::modules::renderer::DEPTH_FORMAT;
-use crate::modules::renderer::HDR_COLOR_FORMAT;
-use crate::modules::renderer::MSAA_SAMPLE_COUNT;
+
+
+
 use crate::modules::ui::board::BoardPhase;
 use crate::modules::Arenas;
 use crate::modules::GraphicsContext;
-use crate::modules::MainPassRenderer;
+
 use crate::modules::MainScreenSize;
 use crate::modules::Prepare;
 use crate::modules::Renderer;
@@ -99,7 +104,7 @@ impl Module for UiRenderer {
     fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
         let mut renderer = handle.deps.renderer;
         renderer.register_prepare(handle);
-        renderer.register_main_pass_renderer(handle, Timing::LATE + 100);
+        renderer.register_surface_renderer(handle, Timing::DEFAULT);
         Ok(())
     }
 }
@@ -161,8 +166,22 @@ impl Prepare for UiRenderer {
     }
 }
 
-impl MainPassRenderer for UiRenderer {
-    fn render<'encoder>(&'encoder self, render_pass: &mut wgpu::RenderPass<'encoder>) {
+impl SdrSurfaceRenderer for UiRenderer {
+    fn render<'e>(&'e self, encoder: &'e mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
+        let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+            label: Some("Ui Render Pass"),
+            color_attachments: &[Some(RenderPassColorAttachment {
+                view,
+                resolve_target: None,
+                ops: Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
         assert!(self.collected_batches.is_empty()); // only information left should be in draw_batches.
                                                     // println!("render UiRenderer");
         render_pass.set_bind_group(0, self.deps.main_screen.bind_group(), &[]);
@@ -286,22 +305,25 @@ fn create_pipeline<I: VertexT>(
             module: shader_module,
             entry_point: fragment_entry,
             targets: &[Some(wgpu::ColorTargetState {
-                format: HDR_COLOR_FORMAT,
+                format: wgpu::TextureFormat::Bgra8UnormSrgb,
                 blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                 write_mask: wgpu::ColorWrites::ALL,
             })],
         }),
         primitive: Default::default(), // does not really matter because no index and vertex buffer
-        depth_stencil: Some(wgpu::DepthStencilState {
-            format: DEPTH_FORMAT,
-            depth_write_enabled: false,
-            depth_compare: wgpu::CompareFunction::Always,
-            stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
-        }),
-        multisample: MultisampleState {
-            count: MSAA_SAMPLE_COUNT,
-            ..Default::default()
+        depth_stencil: None,
+
+        //  Some(wgpu::DepthStencilState {
+        //     format: DEPTH_FORMAT,
+        //     depth_write_enabled: false,
+        //     depth_compare: wgpu::CompareFunction::Always,
+        //     stencil: wgpu::StencilState::default(),
+        //     bias: wgpu::DepthBiasState::default(),
+        // }),
+        multisample: wgpu::MultisampleState {
+            alpha_to_coverage_enabled: false,
+            count: 1,
+            mask: !0,
         },
         multiview: None,
     })

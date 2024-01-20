@@ -1,6 +1,6 @@
 [package]
 name = "vert"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Tadeo Hepperle"]
 description = "The 51th Rust Game Engine, to write the 6th Game in Rust"
@@ -13,15 +13,13 @@ tokio = { version = "1.34.0", features = ["macros", "rt-multi-thread", "fs", "fu
 glam = { version = "0.24.2", features = ["bytemuck"] }
 wgpu = { version = "0.18.0", features = ["naga"] }
 winit = { version = "0.29.3", features = ["rwh_05"] }
-egui = { git = "https://github.com/fornwall/egui.git", branch = "winit-0.29" }
-egui-wgpu = { git = "https://github.com/fornwall/egui.git", branch = "winit-0.29" }
-egui_demo_lib = { git = "https://github.com/fornwall/egui.git", branch = "winit-0.29" }
+egui = "0.25.0"
+egui-wgpu = "0.25.0"
 image = "0.24.7"
 anyhow = "1.0.75"
 smallvec = "1.11.2"
 rand = "0.8.5"
 bytemuck = { version = "1.14.0", features = ["derive"] }
-atomic_refcell = "0.1.13"
 reqwest = "0.11.22"
 fontdue = "0.8.0"
 etagere = "0.2.10"

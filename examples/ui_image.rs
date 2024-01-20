@@ -1,15 +1,10 @@
-
-
-
-use glam::{dvec2};
+use glam::dvec2;
 use vert::{
-    elements::{rect::Aabb, BindableTexture, Color, Texture, Transform},
+    elements::{rect::Aabb, BindableTexture, Texture, Transform},
     modules::{
-        arenas::{OwnedKey},
+        arenas::OwnedKey,
         batteries::{FlyCam, GraphicsSettingsController},
-        ui::{
-            Align, Axis, Board, BoardInput, DivTexture, Len, MainAlign, Slider,
-        },
+        ui::{Align, Axis, Board, BoardInput, DivTexture, Len, MainAlign, Slider},
         DefaultDependencies, DefaultModules, Schedule,
     },
     utils::Timing,
@@ -85,7 +80,7 @@ impl MyApp {
         parent.axis = Axis::X;
         parent.main_align = MainAlign::Center;
         parent.cross_align = Align::Center;
-        parent.color = Color::RED.alpha(0.2);
+        // parent.color = Color::RED.alpha(0.0);
         let parent = Some(parent.id);
 
         // show some image in the UI

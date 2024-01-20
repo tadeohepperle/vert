@@ -1,16 +1,15 @@
 use std::fmt::Debug;
 
-
 use glam::{vec2, Vec2};
 use smallvec::SmallVec;
 use winit::{
-    dpi::{PhysicalSize},
+    dpi::PhysicalSize,
     event::{ElementState, KeyEvent, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
 };
 
 use crate::{
-    app::{FunctionHandle},
+    app::FunctionHandle,
     modules::WinitMain,
     utils::{Timing, TimingQueue},
     Dependencies, Handle, Module,

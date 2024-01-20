@@ -1,10 +1,9 @@
 //! Run `RUST_LOG=INFO cargo run --example vert --release` to run this example.
 
-use std::{f32::consts::PI, sync::Arc};
+use std::f32::consts::PI;
 
 use glam::{vec2, vec3};
 use vert::{
-    app::App,
     elements::{Color, Transform},
     modules::{
         batteries::{FlyCam, GraphicsSettingsController},
@@ -27,7 +26,7 @@ impl Module for MyState {
 
     type Dependencies = DefaultDependencies;
 
-    fn new(config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(_config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
         let mut blue_cubes: Vec<Transform> = vec![];
         let mut black_cubes: Vec<Transform> = vec![];
 
@@ -131,5 +130,5 @@ fn main() {
     app.add::<GraphicsSettingsController>();
     app.add::<FlyCam>();
     app.add::<MyState>();
-    app.run();
+    _ = app.run();
 }

@@ -1,5 +1,5 @@
 use crate::{
-    app::{RefFunctionHandle},
+    app::RefFunctionHandle,
     utils::{Timing, TimingQueue},
     Handle, MainModule, Module,
 };

@@ -2,8 +2,7 @@ use crate::{
     elements::Color,
     modules::ui::{
         board::{
-            Align, Axis, Board, BorderRadius, ContainerId, HotActive, Id, Len, MainAlign,
-            Text,
+            Align, Axis, Board, BorderRadius, ContainerId, HotActive, Id, Len, MainAlign, Text,
         },
         widgets::next_hot_active,
     },
@@ -78,7 +77,6 @@ impl<'v> Widget for Slider<'v> {
         knob.height(Len::px(KNOB_WIDTH));
         knob.absolute = true;
         knob.border_radius = BorderRadius::all(KNOB_WIDTH as f32 / 2.0);
-
         let knob_next_hot_active =
             next_hot_active(knob_hot_active, knob.mouse_in_rect(), left_mouse_button);
 
@@ -101,7 +99,7 @@ impl<'v> Widget for Slider<'v> {
             knob.border_color = Color::from_hex("#444455");
             knob.border_thickness = 1.0;
         } else {
-            knob.border_color = Color::from_hex("#ffffff");
+            knob.border_color = Color::RED;
             knob.border_thickness = 2.0;
         };
 

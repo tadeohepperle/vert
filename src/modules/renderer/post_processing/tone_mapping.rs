@@ -1,5 +1,3 @@
-
-
 use wgpu::{PushConstantRange, ShaderStages};
 
 use crate::{

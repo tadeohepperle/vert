@@ -1,8 +1,6 @@
 use egui::{ClippedPrimitive, Context};
 
-
-
-use winit::{event::WindowEvent};
+use winit::event::WindowEvent;
 
 use crate::{modules::Schedule, modules::WinitMain, utils::Timing, Dependencies, Handle, Module};
 
@@ -78,7 +76,7 @@ impl Module for Egui {
 
         let mut renderer = handle.deps.renderer;
         renderer.register_prepare(handle);
-        renderer.register_surface_renderer(handle, Timing::DEFAULT);
+        renderer.register_surface_renderer(handle, Timing::LATE);
 
         let mut scheduler = handle.deps.scheduler;
         scheduler.register(handle, Schedule::Update, Timing::EARLY, Self::begin_frame);

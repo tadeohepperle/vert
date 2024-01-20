@@ -1,5 +1,3 @@
-
-
 use crate::{
     elements::{buffer::ToRaw, UniformBuffer},
     utils::Timing,

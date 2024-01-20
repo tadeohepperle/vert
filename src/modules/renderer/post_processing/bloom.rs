@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use wgpu::{BlendComponent, BlendFactor, BlendOperation, BlendState};
 
 use crate::{
-    elements::{texture::rgba_bind_group_layout},
+    elements::texture::rgba_bind_group_layout,
     modules::{
         input::ResizeEvent,
         renderer::{screen_texture::HdrTexture, HDR_COLOR_FORMAT},

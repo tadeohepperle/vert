@@ -1,6 +1,3 @@
-
-
-
 use crate::{
     elements::{Camera3D, UniformBuffer},
     utils::Timing,

@@ -1,9 +1,6 @@
-use std::{
-    ops::Range,
-};
+use std::ops::Range;
 
-
-use log::{warn};
+use log::warn;
 use wgpu::{
     BufferUsages, FragmentState, MultisampleState, RenderPipelineDescriptor,
     ShaderModuleDescriptor, VertexState,
@@ -18,8 +15,7 @@ use crate::{
     modules::{
         arenas::{Key, OwnedKey},
         renderer::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT},
-        Arenas, Attribute, GraphicsContext, MainCamera3D, Prepare, Renderer,
-        VertexT,
+        Arenas, Attribute, GraphicsContext, MainCamera3D, Prepare, Renderer, VertexT,
     },
     utils::Timing,
     Dependencies, Handle, Module,

@@ -1,10 +1,6 @@
-use std::{
-    ops::Range,
-};
+use std::ops::Range;
 
-
-
-use log::{warn};
+use log::warn;
 use wgpu::{
     BufferUsages, FragmentState, MultisampleState, RenderPipelineDescriptor,
     ShaderModuleDescriptor, VertexState,

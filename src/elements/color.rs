@@ -28,7 +28,7 @@ impl Color {
     pub const DARKGREY: Color = Color::new(0.1, 0.1, 0.15);
     pub const GREY: Color = Color::new(0.4, 0.4, 0.5);
     pub const RED: Color = Color::new(1.0, 0.0, 0.0);
-    pub const ORANGE: Color = Color::from_hex("#f27b35");
+    pub const ORANGE: Color = Color::new(1.0, 0.6, 0.0);
     pub const GREEN: Color = Color::new(0.0, 1.0, 0.0);
     pub const DARKGREEN: Color = Color::new(0.1, 0.3, 0.1);
     pub const BLUE: Color = Color::new(0.0, 0.0, 1.0);
@@ -41,7 +41,7 @@ impl Color {
         Color { r, g, b, a: 1.0 }
     }
 
-    pub const fn from_hex(hex: &str) -> Color {
+    pub fn from_hex(hex: &str) -> Color {
         const fn hex_digit_value(c: char) -> u8 {
             match c {
                 '0'..='9' => c as u8 - b'0',
@@ -61,16 +61,10 @@ impl Color {
         }
 
         if hex.len() == 7 {
-            let r = parse_hex_pair(hex, 1) as f32 / 255.0;
-            let g = parse_hex_pair(hex, 3) as f32 / 255.0;
-            let b = parse_hex_pair(hex, 5) as f32 / 255.0;
+            let r = color_map_to_srgb(parse_hex_pair(hex, 1));
+            let g = color_map_to_srgb(parse_hex_pair(hex, 3));
+            let b = color_map_to_srgb(parse_hex_pair(hex, 5));
             Color { r, g, b, a: 1.0 }
-        } else if hex.len() == 9 {
-            let r = parse_hex_pair(hex, 1) as f32 / 255.0;
-            let g = parse_hex_pair(hex, 3) as f32 / 255.0;
-            let b = parse_hex_pair(hex, 5) as f32 / 255.0;
-            let a = parse_hex_pair(hex, 7) as f32 / 255.0;
-            Color { r, g, b, a }
         } else {
             panic!("Cannot create Color! Expects a hex string")
         }
@@ -80,12 +74,6 @@ impl Color {
     ///
     /// srgb_color = ((rgb_color / 255 + 0.055) / 1.055) ^ 2.4
     pub fn u8_srgb(r: u8, g: u8, b: u8) -> Self {
-        /// srgb_color = ((rgb_color / 255 + 0.055) / 1.055) ^ 2.4
-        #[inline]
-        pub fn color_map_to_srgb(u: u8) -> f32 {
-            ((u as f32 / 255.0 + 0.055) / 1.055).powf(2.4)
-        }
-
         Color {
             r: color_map_to_srgb(r),
             g: color_map_to_srgb(g),
@@ -97,6 +85,12 @@ impl Color {
     pub const fn alpha(self, a: f32) -> Self {
         Self { a, ..self }
     }
+}
+
+/// srgb_color = ((rgb_color / 255 + 0.055) / 1.055) ^ 2.4
+#[inline]
+pub fn color_map_to_srgb(u: u8) -> f32 {
+    ((u as f32 / 255.0 + 0.055) / 1.055).powf(2.4)
 }
 
 impl From<Color> for wgpu::Color {

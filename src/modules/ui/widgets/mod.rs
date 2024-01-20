@@ -32,7 +32,7 @@ pub fn next_hot_active(
     button_press: PressState,
 ) -> HotActive {
     use HotActive::*;
-    
+
     match hot_active {
         Nil => {
             if mouse_in_rect {

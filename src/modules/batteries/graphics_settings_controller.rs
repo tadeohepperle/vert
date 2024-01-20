@@ -2,11 +2,9 @@ use std::f32::consts::PI;
 
 use crate::{
     elements::camera3d::{Projection, ProjectionKind},
-    modules::{
-        DefaultDependencies, Schedule,
-        ToneMappingSettings,
-    },
-    utils::Timing, Handle, Module,
+    modules::{DefaultDependencies, Schedule, ToneMappingSettings},
+    utils::Timing,
+    Handle, Module,
 };
 
 pub struct GraphicsSettingsController {

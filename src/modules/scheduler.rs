@@ -1,7 +1,5 @@
-
-
 use crate::{
-    app::{function_handle::VoidFunctionHandle},
+    app::function_handle::VoidFunctionHandle,
     utils::{Timing, TimingQueue},
     Handle, Module,
 };
