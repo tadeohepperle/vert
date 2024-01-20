@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     elements::Color,
     utils::{Timing, TimingQueue},
@@ -57,6 +59,7 @@ pub struct Renderer {
     hdr_resolve_target: HdrTexture,
 
     main_pass_renderers: TimingQueue<MainPassRendererHandle>,
+
     post_processing_effects: TimingQueue<PostProcessingEffectHandle>,
     tone_mapping: Option<PostProcessingEffectHandle>,
 
@@ -138,6 +141,27 @@ impl Renderer {
         let handle = MainPassRendererHandle::new(handle);
         self.main_pass_renderers.insert(handle, timing); // todo! maybe return key, to deregister later.
     }
+
+    /*
+
+    We could also just have nodes register themselves in a sort of render graph, that are then executed by
+    this renderer.
+    Our Arenas could be a good starting point for a render graph.
+    A module that want to be drawn needs to put itself into the arenas
+    the renderer can then pick up on these nodes.
+    The question is: how can we make sure, that the node is still existent when rendering happens?
+    We probably need to move all render data into the object saved in the arenas.
+
+    Lets say our game world wants to draw a stone:
+    - create a stonerenderer struct that holds all the data necessary for that tree.
+    - move the stonerenderer into the arena -> this returns an owned key
+    - the renderer goes over all objects in this renderer arena, sees the stone renderer as dyn Renderer
+
+    -> is this any different than just creating an Arc and sharing a Weak ptr to that arc with the renderer? Probably not.
+
+
+
+     */
 
     pub fn register_post_processing_effect<R: Module + PostProcessingEffect>(
         &mut self,

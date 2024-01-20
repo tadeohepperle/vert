@@ -5,3 +5,9 @@
 - Submodules that get inserted at Runtime.
 - remove msaa again and render ui on top of post processing.
 - currently there are multiple ways to render text: unify them (e.g. instant geometry text vs. ui boards)
+
+### Make module system independent of the rest of the code
+
+- the user should have the choice between using modules (static handles + automatic initialization)
+- or if they rather want to own a struct e.g. a graphicscontext.
+- then they need to take care of the initialization and lifetime of it themselves.

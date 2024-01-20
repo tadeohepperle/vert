@@ -169,13 +169,13 @@ impl Prepare for Gizmos {
 
 impl MainPassRenderer for Gizmos {
     fn render<'encoder>(&'encoder self, render_pass: &mut wgpu::RenderPass<'encoder>) {
-        if self.vertex_buffer.buffer_len() == 0 {
+        if self.vertex_buffer.len() == 0 {
             return;
         }
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_bind_group(0, self.deps.main_cam.bind_group(), &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.buffer().slice(..));
-        render_pass.draw(0..(self.vertex_buffer.buffer_len() as u32), 0..1);
+        render_pass.draw(0..self.vertex_buffer.len() as u32, 0..1);
     }
 }
 
@@ -214,8 +214,6 @@ fn create_pipeline(device: &wgpu::Device, main_cam: &MainCamera3D) -> wgpu::Rend
         push_constant_ranges: &[],
     });
 
-    
-
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some(&format!("{label} ShaderModule")),
         layout: Some(&layout),
@@ -248,7 +246,7 @@ fn create_pipeline(device: &wgpu::Device, main_cam: &MainCamera3D) -> wgpu::Rend
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_FORMAT,
             depth_write_enabled: false,
-            depth_compare: wgpu::CompareFunction::Less,
+            depth_compare: wgpu::CompareFunction::LessEqual,
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),

@@ -172,6 +172,21 @@ pub struct GrowableBuffer<T: bytemuck::Pod + bytemuck::Zeroable> {
 }
 
 impl<T: bytemuck::Pod + bytemuck::Zeroable> GrowableBuffer<T> {
+    pub fn new_from_data(device: &wgpu::Device, usage: wgpu::BufferUsages, data: &[T]) -> Self {
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            contents: bytemuck::cast_slice(&data),
+            usage: usage | wgpu::BufferUsages::COPY_DST,
+            label: None,
+        });
+
+        GrowableBuffer {
+            buffer_len: data.len(),
+            buffer_cap: data.len(),
+            buffer,
+            phantom: PhantomData,
+        }
+    }
+
     pub fn new(device: &wgpu::Device, min_cap: usize, usage: wgpu::BufferUsages) -> Self {
         let n_bytes = std::mem::size_of::<T>() * min_cap;
         let zeros = vec![0u8; n_bytes];
@@ -190,7 +205,7 @@ impl<T: bytemuck::Pod + bytemuck::Zeroable> GrowableBuffer<T> {
     }
 
     #[inline(always)]
-    pub fn buffer_len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.buffer_len
     }
 

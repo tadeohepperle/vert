@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{utils::Timing, Dependencies};
 use glam::DVec2;
 use wgpu::SurfaceTexture;
@@ -11,8 +13,8 @@ use super::{input::ResizeEvent, Input, TokioRuntime};
 pub struct GraphicsContext {
     pub instance: wgpu::Instance,
     pub adapter: wgpu::Adapter,
-    pub device: wgpu::Device,
-    pub queue: wgpu::Queue,
+    pub device: Arc<wgpu::Device>,
+    pub queue: Arc<wgpu::Queue>,
     pub surface: wgpu::Surface,
     pub surface_format: wgpu::TextureFormat,
     pub surface_config: wgpu::SurfaceConfiguration,
@@ -20,6 +22,22 @@ pub struct GraphicsContext {
     /// todo! add scale_factor to resize event and make sure it is updated.
     pub scale_factor: f64,
     deps: Deps,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GraphicsContextConfig {
+    pub features: wgpu::Features,
+}
+
+impl Default for GraphicsContextConfig {
+    fn default() -> Self {
+        Self {
+            features: wgpu::Features::MULTIVIEW
+                | wgpu::Features::PUSH_CONSTANTS
+                | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
+                | wgpu::Features::TEXTURE_BINDING_ARRAY,
+        }
+    }
 }
 
 #[derive(Debug, Dependencies)]
@@ -30,14 +48,14 @@ pub struct Deps {
 }
 
 impl Module for GraphicsContext {
-    type Config = ();
+    type Config = GraphicsContextConfig;
 
     type Dependencies = Deps;
 
-    fn new(_config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
         let tokio = deps.tokio;
         let graphics_context =
-            tokio.block_on(async move { initialize_graphics_context(deps).await })?;
+            tokio.block_on(async move { initialize_graphics_context(deps, config).await })?;
         Ok(graphics_context)
     }
 
@@ -92,7 +110,10 @@ impl GraphicsContext {
     }
 }
 
-async fn initialize_graphics_context(deps: Deps) -> anyhow::Result<GraphicsContext> {
+async fn initialize_graphics_context(
+    deps: Deps,
+    config: GraphicsContextConfig,
+) -> anyhow::Result<GraphicsContext> {
     let window = deps.winit.window();
 
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -113,9 +134,7 @@ async fn initialize_graphics_context(deps: Deps) -> anyhow::Result<GraphicsConte
         .request_device(
             &wgpu::DeviceDescriptor {
                 label: None,
-                features: wgpu::Features::MULTIVIEW
-                    | wgpu::Features::PUSH_CONSTANTS
-                    | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
+                features: config.features,
                 limits: wgpu::Limits {
                     max_push_constant_size: 16,
                     ..Default::default()
@@ -151,8 +170,8 @@ async fn initialize_graphics_context(deps: Deps) -> anyhow::Result<GraphicsConte
     let context = GraphicsContext {
         instance,
         adapter,
-        device,
-        queue,
+        device: Arc::new(device),
+        queue: Arc::new(queue),
         surface,
         surface_format,
         surface_config,

@@ -4,14 +4,14 @@ use std::ops::{Add, Sub};
 pub struct TimingQueue<T> {
     next_key: i32,
     /// sorted in ascending order according to their timing
-    entries: Vec<Entry<T>>,
+    pub entries: Vec<Entry<T>>,
 }
 
 #[derive(Debug, Clone)]
-struct Entry<T> {
-    timing: Timing,
-    key: EntryKey,
-    element: T,
+pub struct Entry<T> {
+    pub timing: Timing,
+    pub key: EntryKey,
+    pub element: T,
 }
 
 impl<T> Default for TimingQueue<T> {

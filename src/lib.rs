@@ -5,6 +5,7 @@
 #![feature(entry_insert)]
 
 pub mod app;
+pub mod assets;
 pub mod elements;
 pub mod modules;
 pub mod utils;

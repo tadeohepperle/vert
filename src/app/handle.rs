@@ -1,7 +1,5 @@
 use std::{cell::UnsafeCell, fmt::Debug, ops::DerefMut};
 
-
-
 use super::{Dependencies, Module, ModuleId};
 
 /// Warning: The Clone and Copy impls may be removed in the future? Are they safe to expose like that?
