@@ -2604,7 +2604,7 @@ dependencies = [
 
 [[package]]
 name = "vert-macros"
-version = "0.0.1"
+version = "0.1.1"
 dependencies = [
  "proc-macro2",
  "quote",
