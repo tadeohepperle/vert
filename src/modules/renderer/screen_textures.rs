@@ -16,9 +16,9 @@ pub struct ScreenTextures {
 
 impl ScreenTextures {
     pub fn new(ctx: &GraphicsContext) -> Self {
-        let depth_texture = DepthTexture::create(&ctx);
-        let hdr_msaa_texture = HdrTexture::create_screen_sized(&ctx, 4);
-        let hdr_resolve_target = HdrTexture::create_screen_sized(&ctx, 1);
+        let depth_texture = DepthTexture::create(ctx);
+        let hdr_msaa_texture = HdrTexture::create_screen_sized(ctx, 4);
+        let hdr_resolve_target = HdrTexture::create_screen_sized(ctx, 1);
         let screen_vertex_shader = ScreenVertexShader::new(&ctx.device);
 
         Self {

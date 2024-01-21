@@ -17,7 +17,7 @@ impl AcesToneMapping {
         let pipeline = create_pipeline(
             include_str!("tonemapping.wgsl"),
             &ctx.device,
-            &screen_vertex_shader,
+            screen_vertex_shader,
         );
         Self {
             enabled: true,
@@ -36,7 +36,6 @@ impl AcesToneMapping {
         input_texture: &wgpu::BindGroup,
         output_texture: &wgpu::TextureView,
     ) {
-        if !self.enabled {}
         let mut tone_mapping_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("AcesToneMapping"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {

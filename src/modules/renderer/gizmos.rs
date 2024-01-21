@@ -16,7 +16,6 @@ use crate::modules::renderer::HDR_COLOR_FORMAT;
 use crate::modules::renderer::MSAA_SAMPLE_COUNT;
 use crate::modules::GraphicsContext;
 
-use crate::utils::Timing;
 use crate::Prepare;
 
 // /////////////////////////////////////////////////////////////////////////////

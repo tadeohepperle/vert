@@ -32,6 +32,12 @@ pub struct Stats {
     pub std: f64,
 }
 
+impl Default for Time {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Time {
     pub fn new() -> Self {
         let mut delta_times = VecDeque::new();

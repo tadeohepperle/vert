@@ -1,8 +1,7 @@
 use crate::{
     elements::{buffer::ToRaw, UniformBuffer},
     modules::GraphicsContext,
-    utils::Timing,
-    Prepare, Resize, Resized,
+    Resize, Resized,
 };
 
 /// Very similar to MainCamera3D
@@ -14,8 +13,8 @@ pub struct ScreenGR {
 
 impl ScreenGR {
     pub fn new(ctx: &GraphicsContext, screen: &Screen) -> Self {
-        let width = ctx.size.width;
-        let height = ctx.size.height;
+        let _width = ctx.size.width;
+        let _height = ctx.size.height;
 
         let uniform = UniformBuffer::new(screen.to_raw(), &ctx.device);
 

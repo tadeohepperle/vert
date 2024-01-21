@@ -1,11 +1,9 @@
 use std::sync::Arc;
 
-use crate::utils::Timing;
 use glam::DVec2;
-use wgpu::{ShaderModuleDescriptor, SurfaceTexture};
+use wgpu::SurfaceTexture;
 use winit::{dpi::PhysicalSize, window::Window};
 
-use super::Input;
 use crate::{Resize, Resized};
 
 #[derive(Debug)]

@@ -94,6 +94,6 @@ impl From<&str> for AssetSource {
         if let Ok(url) = reqwest::Url::parse(value) {
             return AssetSource::Url(url);
         }
-        return AssetSource::File(PathBuf::from(value));
+        AssetSource::File(PathBuf::from(value))
     }
 }

@@ -3,12 +3,7 @@ use std::sync::Arc;
 
 pub use renderer::{AcesToneMapping, Attribute, Bloom, BloomSettings, VertexT};
 
-use winit::{
-    dpi::PhysicalSize,
-    event::{Event, WindowEvent},
-    event_loop::EventLoop,
-    window::{Window, WindowId},
-};
+use winit::{event::WindowEvent, window::Window};
 
 pub mod graphics_context;
 pub use graphics_context::{GraphicsContext, GraphicsContextConfig};

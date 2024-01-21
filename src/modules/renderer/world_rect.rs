@@ -18,7 +18,6 @@ use crate::{
         renderer::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT},
         Arenas, Attribute, GraphicsContext, VertexT,
     },
-    utils::Timing,
     Prepare,
 };
 

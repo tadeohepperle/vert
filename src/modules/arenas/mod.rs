@@ -136,15 +136,15 @@ impl<T: 'static + Sized> Default for Arena<T> {
 
 enum Never {}
 struct UntypedArena {
-    inner: SlotMap<Key<Never>, Never>,
+    _inner: SlotMap<Key<Never>, Never>,
 }
 
 impl UntypedArena {
-    fn into_typed<T: 'static + Sized>(self) -> Arena<T> {
+    fn _into_typed<T: 'static + Sized>(self) -> Arena<T> {
         unsafe { std::mem::transmute(self) }
     }
 
-    fn typed<T: 'static + Sized>(&self) -> &Arena<T> {
+    fn _typed<T: 'static + Sized>(&self) -> &Arena<T> {
         unsafe { std::mem::transmute(self) }
     }
 

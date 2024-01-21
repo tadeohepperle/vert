@@ -1,5 +1,4 @@
 use glam::{vec2, vec3, Mat4, Vec2, Vec3};
-use wgpu::BindGroupLayout;
 
 use crate::{elements::ToRaw, modules::GraphicsContext, Resize};
 

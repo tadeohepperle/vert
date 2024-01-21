@@ -1,14 +1,14 @@
 use std::time::Instant;
 
-use egui::{ClippedPrimitive, Context};
+use egui::ClippedPrimitive;
 
 use winit::{event::WindowEvent, window::Window};
 
-use crate::{utils::Timing, Prepare, ReceiveWindowEvent};
+use crate::{Prepare, ReceiveWindowEvent};
 
 use self::platform::{Platform, PlatformDescriptor};
 
-use super::{GraphicsContext, Time};
+use super::GraphicsContext;
 
 pub mod platform;
 

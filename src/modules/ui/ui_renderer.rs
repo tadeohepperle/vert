@@ -20,7 +20,7 @@ use crate::modules::Arenas;
 use crate::modules::GraphicsContext;
 
 use crate::utils::watcher::ShaderFileWatcher;
-use crate::utils::Timing;
+
 use crate::Prepare;
 
 use super::batching::get_batches;

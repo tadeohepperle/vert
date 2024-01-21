@@ -21,7 +21,6 @@ use crate::{
         arenas::{Key, OwnedKey},
         Arenas, GraphicsContext,
     },
-    Prepare,
 };
 
 use super::{ui_rect::UiRect, UiRectRenderer, WorldRectRenderer};
@@ -37,7 +36,7 @@ impl TextRenderer {
         arenas: &Arenas,
         ui_rect_renderer: &mut UiRectRenderer,
     ) {
-        let layout_result = self.rasterizer.layout_and_rasterize_text(&text, &arenas);
+        let layout_result = self.rasterizer.layout_and_rasterize_text(&text, arenas);
 
         for (pos, uv) in layout_result.glyph_pos_and_uv {
             ui_rect_renderer.draw_textured_rect(
@@ -59,7 +58,7 @@ impl TextRenderer {
         arenas: &Arenas,
         world_rect_renderer: &mut WorldRectRenderer,
     ) {
-        let layout_result = self.rasterizer.layout_and_rasterize_text(&text, &arenas);
+        let layout_result = self.rasterizer.layout_and_rasterize_text(&text, arenas);
 
         // center the text for 3d rendering:
 

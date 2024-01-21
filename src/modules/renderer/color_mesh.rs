@@ -12,7 +12,6 @@ use crate::{
         renderer::{Attribute, VertexT, DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT},
         GraphicsContext,
     },
-    utils::Timing,
     Prepare,
 };
 
@@ -82,7 +81,7 @@ pub struct ColorMeshRenderer {
 
 impl ColorMeshRenderer {
     pub fn new(ctx: &GraphicsContext, camera: &Camera3dGR) -> Self {
-        let device = &ctx.device;
+        let _device = &ctx.device;
         let pipeline = create_render_pipeline(&ctx.device, include_str!("color_mesh.wgsl"), camera);
 
         ColorMeshRenderer {

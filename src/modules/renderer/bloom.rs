@@ -6,9 +6,8 @@ use crate::{
     elements::{texture::rgba_bind_group_layout, ScreenGR},
     modules::{
         renderer::{screen_textures::HdrTexture, HDR_COLOR_FORMAT},
-        GraphicsContext, Input,
+        GraphicsContext,
     },
-    utils::Timing,
     Resize,
 };
 
@@ -70,7 +69,7 @@ impl Bloom {
         let bloom_pipelines = BloomPipelines::new(
             include_str!("bloom.wgsl"),
             &ctx.device,
-            &screen_vertex_shader,
+            screen_vertex_shader,
             screen,
         );
 

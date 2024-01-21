@@ -664,7 +664,7 @@ impl<'a> Layouter<'a> {
             text_entry.text.size.into(),
             &layout_settings,
             text_entry.text.font,
-            &self.arenas,
+            self.arenas,
         );
         // dbg!(&result);
         let text_size = result.total_rect.d_size();

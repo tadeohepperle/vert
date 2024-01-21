@@ -104,7 +104,6 @@ impl MyState {
                 pos: vec2(0.0, 100.0),
                 max_width: Some(400.0),
                 color: Color::new(10.0, 1.0, 1.0),
-                ..Default::default()
             },
             text_rotation,
             &self.mods.arenas,

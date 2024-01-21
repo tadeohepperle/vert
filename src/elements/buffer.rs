@@ -171,7 +171,7 @@ pub struct GrowableBuffer<T: bytemuck::Pod + bytemuck::Zeroable> {
 impl<T: bytemuck::Pod + bytemuck::Zeroable> GrowableBuffer<T> {
     pub fn new_from_data(device: &wgpu::Device, usage: wgpu::BufferUsages, data: &[T]) -> Self {
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            contents: bytemuck::cast_slice(&data),
+            contents: bytemuck::cast_slice(data),
             usage: usage | wgpu::BufferUsages::COPY_DST,
             label: None,
         });

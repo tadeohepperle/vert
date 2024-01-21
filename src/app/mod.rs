@@ -26,7 +26,7 @@ impl Try for UpdateFlow {
 
     type Residual = Self;
 
-    fn from_output(output: Self::Output) -> Self {
+    fn from_output(_output: Self::Output) -> Self {
         Self::Continue
     }
 
