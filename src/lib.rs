@@ -10,6 +10,7 @@ pub mod app;
 pub use app::{App, UpdateFlow, WinitConfig, WinitRunner};
 
 pub mod assets;
+pub mod batteries;
 pub mod elements;
 pub mod lifecycle;
 pub mod modules;

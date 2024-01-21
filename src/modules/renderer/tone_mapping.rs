@@ -36,6 +36,7 @@ impl AcesToneMapping {
         input_texture: &wgpu::BindGroup,
         output_texture: &wgpu::TextureView,
     ) {
+        if !self.enabled {}
         let mut tone_mapping_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("AcesToneMapping"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -53,6 +54,13 @@ impl AcesToneMapping {
 
         tone_mapping_pass.set_pipeline(&self.pipeline);
         tone_mapping_pass.set_bind_group(0, input_texture, &[]);
+        tone_mapping_pass.set_push_constants(
+            ShaderStages::FRAGMENT,
+            0,
+            bytemuck::cast_slice(&[PushContants {
+                enabled: if self.enabled { 1 } else { 0 },
+            }]),
+        );
         tone_mapping_pass.draw(0..3, 0..1);
     }
 }
@@ -103,4 +111,11 @@ fn create_pipeline(
     });
 
     pipeline
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
+pub struct PushContants {
+    // 0 is off, 1 is enabled
+    enabled: u32,
 }

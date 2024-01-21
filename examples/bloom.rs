@@ -1,32 +1,30 @@
 //! Run `RUST_LOG=INFO cargo run --example vert --release` to run this example.
 
-use std::f32::consts::PI;
+use std::{f32::consts::PI, sync::Arc};
 
 use glam::{vec2, vec3};
 use vert::{
+    batteries::{FlyCam, GraphicsSettingsController},
     elements::{Color, Transform},
-    modules::{
-        batteries::{FlyCam, GraphicsSettingsController},
-        renderer::main_pass_renderer::text_renderer::DrawText,
-        DefaultDependencies, DefaultModules,
-    },
-    utils::Timing,
-    Module,
+    modules::{renderer::text_renderer::DrawText, DefaultModules},
+    App, WinitConfig, WinitRunner,
 };
+
+fn main() {
+    let runner = WinitRunner::new(WinitConfig::default());
+    let mut my_state = MyState::new(runner.window());
+    _ = runner.run(&mut my_state);
+}
 
 pub struct MyState {
     blue_cubes: Vec<Transform>,
     black_cubes: Vec<Transform>,
-    camera_orthographic: bool,
-    deps: DefaultDependencies,
+    mods: DefaultModules,
+    graphics_controller: GraphicsSettingsController,
 }
 
-impl Module for MyState {
-    type Config = ();
-
-    type Dependencies = DefaultDependencies;
-
-    fn new(_config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
+impl MyState {
+    fn new(window: Arc<winit::window::Window>) -> Self {
         let mut blue_cubes: Vec<Transform> = vec![];
         let mut black_cubes: Vec<Transform> = vec![];
 
@@ -48,31 +46,29 @@ impl Module for MyState {
         }
 
         // use a very high energy green to get a nice background bloom
-        deps.renderer.settings_mut().clear_color = Color::new(2.0, 8.0, 2.0);
 
-        Ok(MyState {
+        let mut mods = DefaultModules::new(window).unwrap();
+        let graphics_controller = GraphicsSettingsController::new(&mut mods);
+        MyState {
             black_cubes,
             blue_cubes,
-            camera_orthographic: false,
-            deps,
-        })
+            mods,
+            graphics_controller,
+        }
     }
 
-    fn intialize(handle: vert::Handle<Self>) -> anyhow::Result<()> {
-        let mut scheduler = handle.deps.scheduler;
-        scheduler.register_update(handle, Timing::DEFAULT, Self::update);
-        Ok(())
-    }
-}
-
-impl MyState {
     fn update(&mut self) {
+        // move camera:
+
+        self.mods.gizmos.draw_xyz();
+        FlyCam.update(&mut self.mods);
+        self.graphics_controller.update(&mut self.mods);
         // /////////////////////////////////////////////////////////////////////////////
         // Draw some stuff (some things that are very bright)
         // /////////////////////////////////////////////////////////////////////////////
 
-        let oscillator = ((self.deps.time.total().as_secs_f32() * 10.0).sin() + 1.0) / 2.0;
-        let oscillator2 = self.deps.time.total().as_secs_f32().sin() * 0.3;
+        let oscillator = ((self.mods.time.total().as_secs_f32() * 10.0).sin() + 1.0) / 2.0;
+        let oscillator2 = self.mods.time.total().as_secs_f32().sin() * 0.3;
 
         // let the text face the camera
         let text_rotation = {
@@ -82,7 +78,7 @@ impl MyState {
             t
         };
 
-        self.deps.text.draw_world_text(
+        self.mods.text.draw_world_text(
             DrawText {
                 text: "Vert".into(),
                 font_layout_size: 100.0,
@@ -96,9 +92,11 @@ impl MyState {
                 ..Default::default()
             },
             text_rotation,
+            &self.mods.arenas,
+            &mut self.mods.world_rect,
         );
 
-        self.deps.text.draw_world_text(
+        self.mods.text.draw_world_text(
             DrawText {
                 text: "Game Engine".into(),
                 font_layout_size: 64.0,
@@ -109,26 +107,33 @@ impl MyState {
                 ..Default::default()
             },
             text_rotation,
+            &self.mods.arenas,
+            &mut self.mods.world_rect,
         );
 
         for c in self.blue_cubes.iter_mut() {
             c.rotation.x = oscillator2;
         }
 
-        self.deps
+        self.mods
             .color_mesh
             .draw_cubes(&self.blue_cubes, Some(Color::from_hex("#02050d")));
-        self.deps
+        self.mods
             .color_mesh
             .draw_cubes(&self.black_cubes, Some(Color::from_hex("#000000")));
     }
 }
 
-fn main() {
-    let mut app = vert::AppBuilder::new();
-    app.add_plugin(DefaultModules);
-    app.add::<GraphicsSettingsController>();
-    app.add::<FlyCam>();
-    app.add::<MyState>();
-    _ = app.run();
+impl App for MyState {
+    fn receive_window_event(&mut self, event: &winit::event::WindowEvent) {
+        self.mods.receive_window_event(event);
+    }
+
+    fn update(&mut self) -> vert::UpdateFlow {
+        self.mods.begin_frame()?;
+        self.update();
+        self.mods.prepare_and_render(Color::new(0.5, 5.0, 0.7));
+        self.mods.end_frame();
+        vert::UpdateFlow::Continue
+    }
 }

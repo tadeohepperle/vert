@@ -10,9 +10,6 @@ use winit::{
     window::{Window, WindowId},
 };
 
-pub mod batteries;
-pub use batteries::{FlyCam, GraphicsSettingsController};
-
 pub mod graphics_context;
 pub use graphics_context::{GraphicsContext, GraphicsContextConfig};
 
@@ -130,6 +127,7 @@ impl DefaultModules {
 
     pub fn begin_frame(&mut self) -> UpdateFlow {
         self.time.update();
+        self.egui.begin_frame();
 
         if self.input.close_requested() {
             return UpdateFlow::Exit("Close Requested".into());
@@ -137,6 +135,7 @@ impl DefaultModules {
         if let Some(resized) = self.input.resized() {
             self.ctx.resize(resized);
             self.camera.resize(resized);
+            self.screen_textures.resize(&self.ctx);
             self.screen.resize(resized);
             self.bloom.resize(resized);
         }
@@ -144,19 +143,22 @@ impl DefaultModules {
         UpdateFlow::Continue
     }
 
-    pub fn prepare_and_render(&mut self) {
+    pub fn prepare_and_render(&mut self, clear_color: Color) {
         let mut encoder = self.ctx.new_encoder();
-
         self.prepare(&mut encoder);
 
-        let (surface_texture, surface_texture_view) = self.ctx.new_surface_texture_and_view();
+        let (surface_texture, surface_view) = self.ctx.new_surface_texture_and_view();
 
         // Main Pass Render
-        let clear = Color::new(0.5, 0.5, 0.7);
         let mut render_pass = self
             .screen_textures
-            .new_hdr_target_render_pass(&mut encoder, clear);
+            .new_hdr_target_render_pass(&mut encoder, clear_color);
         self.color_mesh.render(&mut render_pass, &self.camera_gr);
+        self.world_rect
+            .render(&mut render_pass, &self.camera_gr, &self.arenas);
+        self.ui_rect
+            .render(&mut render_pass, &self.screen_gr, &self.arenas);
+        self.gizmos.render(&mut render_pass, &self.camera_gr);
 
         drop(render_pass);
 
@@ -171,8 +173,16 @@ impl DefaultModules {
         self.tone_mapping.apply(
             &mut encoder,
             self.screen_textures.hdr_resolve_target.bind_group(),
-            &surface_texture_view,
+            &surface_view,
         );
+        self.ui.render(
+            &mut encoder,
+            &surface_view,
+            &self.screen_gr,
+            &self.fonts,
+            &self.arenas,
+        );
+        self.egui.render(&mut encoder, &surface_view);
 
         self.ctx.queue.submit(std::iter::once(encoder.finish()));
         surface_texture.present();
@@ -183,6 +193,8 @@ impl DefaultModules {
         let queue = &self.ctx.queue;
         let arenas = &self.arenas;
 
+        self.egui.prepare(device, queue, encoder);
+
         self.camera_gr.prepare(queue, &self.camera);
         self.screen_gr.prepare(queue, &self.screen);
 
@@ -191,27 +203,16 @@ impl DefaultModules {
         self.text.prepare(queue, arenas);
         self.ui_rect.prepare(device, queue, encoder);
         self.world_rect.prepare(device, queue, encoder);
-        self.fonts.prepare(queue, arenas);
         self.ui.prepare(device, queue, encoder);
+        self.fonts.prepare(queue, arenas);
     }
 
     pub fn end_frame(&mut self) {
         self.input.end_frame();
     }
-}
 
-impl App for DefaultModules {
-    fn receive_window_event(&mut self, event: &WindowEvent) {
+    pub fn receive_window_event(&mut self, event: &WindowEvent) {
         self.input.receive_window_event(event);
         self.egui.receive_window_event(event);
-    }
-
-    fn update(&mut self) -> UpdateFlow {
-        self.begin_frame()?;
-        // user update logic goes here
-        println!("Warning: Using DefaultModules as your App does not do anything.
-        Define your own App trait implementation. You can reuse e.g. DefaultModules::begin_frame, DefaultModules::end_frame, etc. in your update function.");
-        self.prepare_and_render();
-        UpdateFlow::Continue
     }
 }

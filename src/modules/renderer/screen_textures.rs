@@ -58,6 +58,12 @@ impl ScreenTextures {
         });
         main_render_pass
     }
+
+    pub fn resize(&mut self, ctx: &GraphicsContext) {
+        self.depth_texture.recreate(ctx);
+        self.hdr_msaa_texture = HdrTexture::create_screen_sized(ctx, MSAA_SAMPLE_COUNT);
+        self.hdr_resolve_target = HdrTexture::create_screen_sized(ctx, 1);
+    }
 }
 
 use log::warn;

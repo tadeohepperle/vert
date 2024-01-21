@@ -68,7 +68,7 @@ impl Egui {
         self.platform.begin_frame(total_elapsed_seconds);
     }
 
-    fn render<'e>(&'e self, encoder: &'e mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
+    pub fn render<'e>(&'e self, encoder: &'e mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
         let color_attachment = wgpu::RenderPassColorAttachment {
             view,
             resolve_target: None,

@@ -1,72 +1,73 @@
+//! Run `RUST_LOG=INFO cargo run --example vert --release` to run this example.
+
 use glam::dvec2;
 use vert::{
+    batteries::{FlyCam, GraphicsSettingsController},
     elements::{Color, Rect, Transform},
     modules::{
-        batteries::{FlyCam, GraphicsSettingsController},
-        renderer::main_pass_renderer::ui_rect::UiRect,
+        renderer::ui_rect::UiRect,
         ui::{
-            font_cache::FontSize, Align, Axis, Board, BoardInput, BorderRadius, Button, Len,
-            MainAlign, Text,
+            Align, Axis, Board, BoardInput, BorderRadius, Button, FontSize, Len, MainAlign, Text,
         },
-        DefaultDependencies, DefaultModules, Schedule,
+        DefaultModules,
     },
-    utils::Timing,
-    AppBuilder, Module,
+    App, WinitConfig, WinitRunner,
 };
 
 fn main() {
-    let mut app = AppBuilder::new();
-    app.add_plugin(DefaultModules);
-    app.add::<FlyCam>();
-    app.add::<GraphicsSettingsController>();
-    app.add::<MyApp>();
-    app.run().unwrap();
+    let runner = WinitRunner::new(WinitConfig::default());
+    let mods = DefaultModules::new(runner.window()).unwrap();
+    let mut my_state = MyApp::new(mods);
+    _ = runner.run(&mut my_state);
 }
 
 struct MyApp {
-    deps: DefaultDependencies,
+    mods: DefaultModules,
     ui: Board,
+    graphics_settings: GraphicsSettingsController,
 }
 
-impl Module for MyApp {
-    type Config = ();
-
-    type Dependencies = DefaultDependencies;
-
-    fn new(_config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
-        deps.bloom.settings_mut().activated = false;
-        deps.ui
-            .ui_renderer
-            .watch_shader_file("./src/modules/ui/ui.wgsl");
-
-        Ok(MyApp {
-            deps,
-            ui: Board::new(dvec2(800.0, 800.0)),
-        })
+impl App for MyApp {
+    fn receive_window_event(&mut self, event: &winit::event::WindowEvent) {
+        self.mods.receive_window_event(event);
     }
 
-    fn intialize(handle: vert::Handle<Self>) -> anyhow::Result<()> {
-        let scheduler = handle.deps.scheduler.get_mut();
-        scheduler.register(handle, Schedule::Update, Timing::DEFAULT, Self::update);
-
-        Ok(())
+    fn update(&mut self) -> vert::UpdateFlow {
+        self.mods.begin_frame()?;
+        self.update();
+        self.mods.prepare_and_render(Color::new(0.0, 0.4, 0.4));
+        self.mods.end_frame();
+        vert::UpdateFlow::Continue
     }
 }
 
 impl MyApp {
+    fn new(mut mods: DefaultModules) -> Self {
+        mods.bloom.settings_mut().activated = false;
+        mods.ui.watch_shader_file("./src/modules/ui/ui.wgsl");
+        let graphics_settings = GraphicsSettingsController::new(&mut mods);
+        MyApp {
+            ui: Board::new(dvec2(800.0, 800.0)),
+            mods,
+            graphics_settings,
+        }
+    }
     fn update(&mut self) {
-        self.deps.gizmos.draw_xyz();
-        self.deps
+        FlyCam.update(&mut self.mods);
+        self.graphics_settings.update(&mut self.mods);
+
+        self.mods.gizmos.draw_xyz();
+        self.mods
             .color_mesh
             .draw_cubes(&[Transform::new(1.0, 1.0, 1.0)], None);
 
-        let size = self.deps.ctx.size;
+        let size = self.mods.ctx.size;
         self.ui.start_frame(
-            BoardInput::from_input_module(&self.deps.input),
+            BoardInput::from_input_module(&self.mods.input),
             dvec2(size.width as f64, size.height as f64),
         );
 
-        self.deps.world_rects.draw_textured_rect(
+        self.mods.world_rect.draw_textured_rect(
             UiRect {
                 pos: Rect::new(0.0, 0.0, 1024.0, 1024.0),
                 uv: Rect::UNIT,
@@ -74,7 +75,7 @@ impl MyApp {
                 border_radius: Default::default(),
             },
             Transform::default(),
-            self.deps.ui.fonts.atlas_texture(),
+            self.mods.fonts.atlas_texture(),
         );
 
         let mut parent = self.ui.add_div("Parent", None);
@@ -180,8 +181,8 @@ impl MyApp {
             text_div.text().color = Color::BLACK;
         }
 
-        let total_time = self.deps.time.total().as_secs_f64() * 4.0;
-        let total_time2 = self.deps.time.total().as_secs_f64() * 9.7;
+        let total_time = self.mods.time.total().as_secs_f64() * 4.0;
+        let total_time2 = self.mods.time.total().as_secs_f64() * 9.7;
         if text_div.mouse_in_rect() {
             let mut green_square = self.ui.add_div(2112213232, parent);
 
@@ -251,8 +252,8 @@ impl MyApp {
         // let mut ctx = self.deps.egui.context();
         // egui_inspect_board(&mut ctx, &mut self.ui);
 
-        self.ui.end_frame(&mut self.deps.ui.fonts);
-        self.deps.ui.ui_renderer.draw_ui_board(&self.ui);
+        self.ui.end_frame(&mut self.mods.fonts, &self.mods.arenas);
+        self.mods.ui.draw_ui_board(&self.ui);
         // std::thread::sleep(Duration::from_millis(150));
     }
 }

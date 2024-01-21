@@ -46,6 +46,18 @@ pub trait App {
 
 pub struct WinitConfig {
     pub window_name: &'static str,
+    pub width: u32,
+    pub height: u32,
+}
+
+impl Default for WinitConfig {
+    fn default() -> Self {
+        Self {
+            window_name: "Vert App",
+            width: 1200,
+            height: 700,
+        }
+    }
 }
 
 pub struct WinitRunner {
@@ -54,6 +66,10 @@ pub struct WinitRunner {
 }
 
 impl WinitRunner {
+    pub fn window(&self) -> Arc<Window> {
+        self.window.clone()
+    }
+
     pub fn new(config: WinitConfig) -> Self {
         let event_loop = EventLoop::new().unwrap();
 

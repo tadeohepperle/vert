@@ -89,7 +89,7 @@ impl UiRenderer {
         self.collected_batches.combine(batches);
     }
 
-    fn render<'e>(
+    pub fn render<'e>(
         &'e self,
         encoder: &'e mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,

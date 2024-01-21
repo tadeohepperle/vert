@@ -3,12 +3,9 @@ use std::fmt::Debug;
 use glam::{vec2, Vec2};
 use smallvec::SmallVec;
 use winit::{
-    dpi::PhysicalSize,
     event::{ElementState, KeyEvent, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
 };
-
-use crate::utils::{Timing, TimingQueue};
 
 use crate::{ReceiveWindowEvent, Resized};
 
