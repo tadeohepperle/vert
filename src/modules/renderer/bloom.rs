@@ -1,19 +1,18 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::Arc};
 
-use wgpu::{BlendComponent, BlendFactor, BlendOperation, BlendState};
+use wgpu::{BlendComponent, BlendFactor, BlendOperation, BlendState, Device};
 
 use crate::{
-    elements::texture::rgba_bind_group_layout,
+    elements::{texture::rgba_bind_group_layout, ScreenGR},
     modules::{
-        input::ResizeEvent,
-        renderer::{screen_texture::HdrTexture, HDR_COLOR_FORMAT},
-        GraphicsContext, Input, MainScreenSize, Renderer,
+        renderer::{screen_textures::HdrTexture, HDR_COLOR_FORMAT},
+        GraphicsContext, Input,
     },
     utils::Timing,
-    Dependencies, Handle, Module,
+    Resize,
 };
 
-use super::{PostProcessingEffect, ScreenVertexShader};
+use super::ScreenVertexShader;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BloomSettings {
@@ -56,73 +55,39 @@ pub struct Bloom {
     bloom_textures: BloomTextures,
     bloom_pipelines: BloomPipelines,
     settings: BloomSettings,
-    deps: Deps,
-}
-
-#[derive(Debug, Dependencies)]
-pub struct Deps {
-    renderer: Handle<Renderer>,
-    ctx: Handle<GraphicsContext>,
-    screen_size: Handle<MainScreenSize>,
-    input: Handle<Input>,
-}
-
-impl Module for Bloom {
-    type Config = BloomSettings;
-    type Dependencies = Deps;
-
-    fn new(settings: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
-        let width = deps.ctx.surface_config.width;
-        let height = deps.ctx.surface_config.height;
-        let bloom_textures = BloomTextures::create(&deps.ctx.device, width, height);
-        let bloom_pipelines = BloomPipelines::new(
-            include_str!("bloom.wgsl"),
-            &deps.ctx.device,
-            &deps.screen_size,
-            deps.renderer.screen_vertex_shader(),
-        );
-
-        let bloom = Bloom {
-            bloom_textures,
-            bloom_pipelines,
-            settings,
-            deps,
-        };
-
-        Ok(bloom)
-    }
-
-    fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
-        let mut renderer = handle.deps.renderer;
-        renderer.register_post_processing_effect(handle, Timing::DEFAULT);
-
-        let mut input = handle.deps.input;
-        input.register_resize_listener(handle, Self::resize, Timing::DEFAULT);
-        Ok(())
-    }
+    device: Arc<Device>,
 }
 
 impl Bloom {
-    pub fn settings_mut(&mut self) -> &mut BloomSettings {
-        &mut self.settings
+    pub fn new(
+        ctx: &GraphicsContext,
+        screen_vertex_shader: &ScreenVertexShader,
+        screen: &ScreenGR,
+    ) -> Self {
+        let width = ctx.surface_config.width;
+        let height = ctx.surface_config.height;
+        let bloom_textures = BloomTextures::create(&ctx.device, width, height);
+        let bloom_pipelines = BloomPipelines::new(
+            include_str!("bloom.wgsl"),
+            &ctx.device,
+            &screen_vertex_shader,
+            screen,
+        );
+
+        Bloom {
+            bloom_textures,
+            bloom_pipelines,
+            settings: Default::default(),
+            device: ctx.device.clone(),
+        }
     }
 
-    /// make sure this is called after graphics context is reconfigured
-    fn resize(&mut self, _event: ResizeEvent) {
-        // recreate the textures on the gpu with the appropriate sizes
-        let config = &self.deps.ctx.surface_config;
-        let width = config.width;
-        let height = config.height;
-        self.bloom_textures = BloomTextures::create(&self.deps.ctx.device, width, height);
-    }
-}
-
-impl PostProcessingEffect for Bloom {
-    fn apply<'e>(
+    pub fn apply<'e>(
         &'e mut self,
         encoder: &'e mut wgpu::CommandEncoder,
         input_texture: &wgpu::BindGroup,
         output_texture: &wgpu::TextureView,
+        screen: &ScreenGR,
     ) {
         if !self.settings.activated {
             return;
@@ -133,7 +98,7 @@ impl PostProcessingEffect for Bloom {
             encoder: &'e mut wgpu::CommandEncoder,
             input_texture: &'e wgpu::BindGroup,
             output_texture: &'e wgpu::TextureView,
-            screen_size: &'e MainScreenSize,
+            screen: &'e ScreenGR,
             pipeline: &'e wgpu::RenderPipeline,
         ) {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -151,12 +116,11 @@ impl PostProcessingEffect for Bloom {
                 occlusion_query_set: None,
             });
             pass.set_pipeline(pipeline);
-            pass.set_bind_group(0, screen_size.bind_group(), &[]);
+            pass.set_bind_group(0, screen.bind_group(), &[]);
             pass.set_bind_group(1, input_texture, &[]);
             pass.draw(0..3, 0..1);
         }
 
-        let screen_size = &self.deps.screen_size;
         // /////////////////////////////////////////////////////////////////////////////
         // downsample
         // /////////////////////////////////////////////////////////////////////////////
@@ -166,7 +130,7 @@ impl PostProcessingEffect for Bloom {
             encoder,
             input_texture,
             self.bloom_textures.b2.view(),
-            screen_size,
+            screen,
             &self.bloom_pipelines.downsample_threshold_pipeline,
         );
         run_screen_render_pass(
@@ -174,7 +138,7 @@ impl PostProcessingEffect for Bloom {
             encoder,
             self.bloom_textures.b2.bind_group(),
             self.bloom_textures.b4.view(),
-            screen_size,
+            screen,
             &self.bloom_pipelines.downsample_pipeline,
         );
         run_screen_render_pass(
@@ -182,7 +146,7 @@ impl PostProcessingEffect for Bloom {
             encoder,
             self.bloom_textures.b4.bind_group(),
             self.bloom_textures.b8.view(),
-            screen_size,
+            screen,
             &self.bloom_pipelines.downsample_pipeline,
         );
         run_screen_render_pass(
@@ -190,7 +154,7 @@ impl PostProcessingEffect for Bloom {
             encoder,
             self.bloom_textures.b8.bind_group(),
             self.bloom_textures.b16.view(),
-            screen_size,
+            screen,
             &self.bloom_pipelines.downsample_pipeline,
         );
 
@@ -199,7 +163,7 @@ impl PostProcessingEffect for Bloom {
             encoder,
             self.bloom_textures.b16.bind_group(),
             self.bloom_textures.b32.view(),
-            screen_size,
+            screen,
             &self.bloom_pipelines.downsample_pipeline,
         );
 
@@ -208,7 +172,7 @@ impl PostProcessingEffect for Bloom {
             encoder,
             self.bloom_textures.b32.bind_group(),
             self.bloom_textures.b64.view(),
-            screen_size,
+            screen,
             &self.bloom_pipelines.downsample_pipeline,
         );
 
@@ -217,7 +181,7 @@ impl PostProcessingEffect for Bloom {
             encoder,
             self.bloom_textures.b64.bind_group(),
             self.bloom_textures.b128.view(),
-            screen_size,
+            screen,
             &self.bloom_pipelines.downsample_pipeline,
         );
 
@@ -226,7 +190,7 @@ impl PostProcessingEffect for Bloom {
             encoder,
             self.bloom_textures.b128.bind_group(),
             self.bloom_textures.b256.view(),
-            screen_size,
+            screen,
             &self.bloom_pipelines.downsample_pipeline,
         );
 
@@ -235,7 +199,7 @@ impl PostProcessingEffect for Bloom {
             encoder,
             self.bloom_textures.b256.bind_group(),
             self.bloom_textures.b512.view(),
-            screen_size,
+            screen,
             &self.bloom_pipelines.downsample_pipeline,
         );
 
@@ -248,7 +212,7 @@ impl PostProcessingEffect for Bloom {
             encoder,
             self.bloom_textures.b512.bind_group(),
             self.bloom_textures.b256.view(),
-            screen_size,
+            screen,
             &self.bloom_pipelines.upsample_pipeline,
         );
 
@@ -257,7 +221,7 @@ impl PostProcessingEffect for Bloom {
             encoder,
             self.bloom_textures.b256.bind_group(),
             self.bloom_textures.b128.view(),
-            screen_size,
+            screen,
             &self.bloom_pipelines.upsample_pipeline,
         );
 
@@ -266,7 +230,7 @@ impl PostProcessingEffect for Bloom {
             encoder,
             self.bloom_textures.b128.bind_group(),
             self.bloom_textures.b64.view(),
-            screen_size,
+            screen,
             &self.bloom_pipelines.upsample_pipeline,
         );
 
@@ -275,7 +239,7 @@ impl PostProcessingEffect for Bloom {
             encoder,
             self.bloom_textures.b64.bind_group(),
             self.bloom_textures.b32.view(),
-            screen_size,
+            screen,
             &self.bloom_pipelines.upsample_pipeline,
         );
 
@@ -284,7 +248,7 @@ impl PostProcessingEffect for Bloom {
             encoder,
             self.bloom_textures.b32.bind_group(),
             self.bloom_textures.b16.view(),
-            screen_size,
+            screen,
             &self.bloom_pipelines.upsample_pipeline,
         );
 
@@ -293,7 +257,7 @@ impl PostProcessingEffect for Bloom {
             encoder,
             self.bloom_textures.b16.bind_group(),
             self.bloom_textures.b8.view(),
-            screen_size,
+            screen,
             &self.bloom_pipelines.upsample_pipeline,
         );
 
@@ -302,7 +266,7 @@ impl PostProcessingEffect for Bloom {
             encoder,
             self.bloom_textures.b8.bind_group(),
             self.bloom_textures.b4.view(),
-            screen_size,
+            screen,
             &self.bloom_pipelines.upsample_pipeline,
         );
 
@@ -311,7 +275,7 @@ impl PostProcessingEffect for Bloom {
             encoder,
             self.bloom_textures.b4.bind_group(),
             self.bloom_textures.b2.view(),
-            screen_size,
+            screen,
             &self.bloom_pipelines.upsample_pipeline,
         );
 
@@ -343,9 +307,25 @@ impl PostProcessingEffect for Bloom {
         });
         pass.set_pipeline(&self.bloom_pipelines.final_upsample_pipeline);
         pass.set_blend_constant(blend_factor);
-        pass.set_bind_group(0, screen_size.bind_group(), &[]);
+        pass.set_bind_group(0, screen.bind_group(), &[]);
         pass.set_bind_group(1, self.bloom_textures.b2.bind_group(), &[]);
         pass.draw(0..3, 0..1);
+    }
+}
+
+impl Bloom {
+    pub fn settings_mut(&mut self) -> &mut BloomSettings {
+        &mut self.settings
+    }
+}
+
+impl Resize for Bloom {
+    /// make sure this is called after graphics context is reconfigured (to match the ctx configs size)
+    fn resize(&mut self, resized: crate::Resized) {
+        // recreate the textures on the gpu with the appropriate sizes
+        let width = resized.new_size.width;
+        let height = resized.new_size.height;
+        self.bloom_textures = BloomTextures::create(&self.device, width, height);
     }
 }
 
@@ -360,15 +340,12 @@ impl BloomPipelines {
     pub fn new(
         shader_wgsl: &str,
         device: &wgpu::Device,
-        screen_size: &MainScreenSize,
         screen_vertex_shader: &ScreenVertexShader,
+        screen: &ScreenGR,
     ) -> Self {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[
-                screen_size.bind_group_layout(),
-                rgba_bind_group_layout(device),
-            ],
+            bind_group_layouts: &[screen.bind_group_layout(), rgba_bind_group_layout(device)],
             push_constant_ranges: &[],
         });
 

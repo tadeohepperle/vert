@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
-use crate::{utils::Timing, Dependencies};
+use crate::utils::Timing;
 use glam::DVec2;
-use wgpu::SurfaceTexture;
-use winit::dpi::PhysicalSize;
+use wgpu::{ShaderModuleDescriptor, SurfaceTexture};
+use winit::{dpi::PhysicalSize, window::Window};
 
-use crate::{modules::WinitMain, Handle, Module};
-
-use super::{input::ResizeEvent, Input, TokioRuntime};
+use super::Input;
+use crate::{Resize, Resized};
 
 #[derive(Debug)]
 pub struct GraphicsContext {
@@ -19,9 +18,6 @@ pub struct GraphicsContext {
     pub surface_format: wgpu::TextureFormat,
     pub surface_config: wgpu::SurfaceConfiguration,
     pub size: PhysicalSize<u32>,
-    /// todo! add scale_factor to resize event and make sure it is updated.
-    pub scale_factor: f64,
-    deps: Deps,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -40,40 +36,26 @@ impl Default for GraphicsContextConfig {
     }
 }
 
-#[derive(Debug, Dependencies)]
-pub struct Deps {
-    tokio: Handle<TokioRuntime>,
-    winit: Handle<WinitMain>,
-    input: Handle<Input>,
-}
-
-impl Module for GraphicsContext {
-    type Config = GraphicsContextConfig;
-
-    type Dependencies = Deps;
-
-    fn new(config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
-        let tokio = deps.tokio;
-        let graphics_context =
-            tokio.block_on(async move { initialize_graphics_context(deps, config).await })?;
-        Ok(graphics_context)
-    }
-
-    fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
-        let mut input = handle.deps.input;
-        input.register_resize_listener(handle, Self::resize, Timing::EARLY - 10);
-        Ok(())
-    }
-}
-
-impl GraphicsContext {
-    fn resize(&mut self, event: ResizeEvent) {
+impl Resize for GraphicsContext {
+    fn resize(&mut self, event: Resized) {
         println!("Graphics context resized: {event:?}");
         // todo!()
         self.surface_config.width = event.new_size.width;
         self.surface_config.height = event.new_size.height;
         self.size = event.new_size;
         self.surface.configure(&self.device, &self.surface_config);
+    }
+}
+
+impl GraphicsContext {
+    pub fn new(
+        config: GraphicsContextConfig,
+        rt: &tokio::runtime::Runtime,
+        window: &Window,
+    ) -> anyhow::Result<Self> {
+        let graphics_context =
+            rt.block_on(async move { initialize_graphics_context(config, window).await })?;
+        Ok(graphics_context)
     }
 
     pub fn size(&self) -> PhysicalSize<u32> {
@@ -85,10 +67,6 @@ impl GraphicsContext {
             x: self.size.width as f64,
             y: self.size.height as f64,
         }
-    }
-
-    pub fn scale_factor(&self) -> f64 {
-        self.scale_factor
     }
 
     pub const SURFACE_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8UnormSrgb;
@@ -110,16 +88,15 @@ impl GraphicsContext {
     }
 }
 
-async fn initialize_graphics_context(
-    deps: Deps,
+pub async fn initialize_graphics_context(
     config: GraphicsContextConfig,
+    window: &Window,
 ) -> anyhow::Result<GraphicsContext> {
-    let window = deps.winit.window();
-
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::all(),
         ..Default::default()
     });
+
     let surface = unsafe { instance.create_surface(&window) }.unwrap();
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
@@ -165,8 +142,6 @@ async fn initialize_graphics_context(
     };
     surface.configure(&device, &surface_config);
 
-    let scale_factor = window.scale_factor();
-
     let context = GraphicsContext {
         instance,
         adapter,
@@ -176,8 +151,6 @@ async fn initialize_graphics_context(
         surface_format,
         surface_config,
         size,
-        scale_factor,
-        deps,
     };
 
     Ok(context)

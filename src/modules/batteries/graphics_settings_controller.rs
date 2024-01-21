@@ -2,14 +2,12 @@ use std::f32::consts::PI;
 
 use crate::{
     elements::camera3d::{Projection, ProjectionKind},
-    modules::{DefaultDependencies, Schedule, ToneMappingSettings},
+    modules::DefaultModules,
     utils::Timing,
-    Handle, Module,
 };
 
 pub struct GraphicsSettingsController {
     camera_settings: CameraSettings,
-    deps: DefaultDependencies,
 }
 
 pub struct CameraSettings {
@@ -32,45 +30,30 @@ impl CameraSettings {
     }
 }
 
-impl Module for GraphicsSettingsController {
-    type Config = ();
-
-    type Dependencies = DefaultDependencies;
-
-    fn new(_config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
+impl GraphicsSettingsController {
+    fn new(deps: &mut DefaultModules) -> Self {
         let camera_settings = CameraSettings {
             is_ortho: false,
             ortho_y_height: 16.0,
             perspective_fovy_degrees: 50.0,
         };
 
-        camera_settings.apply(&mut deps.camera_3d.camera_mut().projection);
+        camera_settings.apply(&mut deps.camera.projection);
 
-        Ok(GraphicsSettingsController {
-            camera_settings,
-            deps,
-        })
+        GraphicsSettingsController { camera_settings }
     }
 
-    fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
-        let mut scheduler = handle.deps.scheduler;
-        scheduler.register(handle, Schedule::Update, Timing::DEFAULT, Self::update);
-        Ok(())
-    }
-}
-
-impl GraphicsSettingsController {
-    fn update(&mut self) {
-        let mut egui_context = self.deps.egui.context();
+    pub fn update(&mut self, deps: &mut DefaultModules) {
+        let mut egui_context = deps.egui.context();
         egui::Window::new("Graphics Settings").show(&mut egui_context, |ui| {
             // /////////////////////////////////////////////////////////////////////////////
             // Graphics Settings
             // /////////////////////////////////////////////////////////////////////////////
-            let bloom_settings = self.deps.bloom.settings_mut();
+            let bloom_settings = deps.bloom.settings_mut();
             ui.label(format!(
                 "{} fps / {:.3} ms",
-                self.deps.time.fps().round() as i32,
-                self.deps.time.delta().as_secs_f32() * 1000.0
+                deps.time.fps().round() as i32,
+                deps.time.delta().as_secs_f32() * 1000.0
             ));
             ui.label("Bloom");
             ui.add(egui::Checkbox::new(
@@ -84,14 +67,10 @@ impl GraphicsSettingsController {
                 ));
             }
 
-            let tone_mapping_settings = self.deps.tone_mapping.settings_mut();
+            let tone_mapping = deps.tone_mapping.enabled_mut();
             ui.label("Tonemapping");
-            ui.radio_value(
-                tone_mapping_settings,
-                ToneMappingSettings::Disabled,
-                "Disabled",
-            );
-            ui.radio_value(tone_mapping_settings, ToneMappingSettings::Aces, "Aces");
+            ui.radio_value(tone_mapping, false, "Disabled");
+            ui.radio_value(tone_mapping, true, "Aces");
             // /////////////////////////////////////////////////////////////////////////////
             // Camera Settings
             // /////////////////////////////////////////////////////////////////////////////
@@ -117,8 +96,7 @@ impl GraphicsSettingsController {
             };
 
             if slider.changed() || orthographic_radio.changed() || perspective_radio.changed() {
-                self.camera_settings
-                    .apply(&mut self.deps.camera_3d.camera_mut().projection);
+                self.camera_settings.apply(&mut deps.camera.projection);
             }
         });
     }

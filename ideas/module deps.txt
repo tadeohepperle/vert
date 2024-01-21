@@ -1,0 +1,49 @@
+What are all the modules that we have:
+
+Scheduler: no deps
+  probably not necessary to have
+
+Time
+  start of frame mut, then shared
+Input
+  start of frame mut, then shared
+
+WinitMain
+  global, shared
+TokioRuntime
+  global, shared
+GraphicsContext
+  global, shared
+Arenas
+  global no deps
+
+RenderGraph/Renderer
+  during frame mut: add render passes, etc.
+  end of frame mut: execute
+
+Egui
+  start of frame: execute start,
+
+MainScreenSize
+  deps:
+    input: Handle<Input>,   for resize
+    renderer: Handle<Renderer>,   for prepare
+    ctx: Handle<GraphicsContext>,    for creation 
+
+FontCache
+  rather local, prepare
+
+UiRenderer
+
+
+UiRectRenderer
+MainCamera3D
+WorldRectRenderer
+TextRenderer
+FlyCam
+AcesToneMapping
+Bloom
+Gizmos
+ColorMeshRenderer
+GraphicsSettingsController
+MyApp

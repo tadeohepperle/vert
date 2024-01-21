@@ -19,9 +19,9 @@ use crate::{
     elements::{BindableTexture, Color, Rect, Texture, Transform},
     modules::{
         arenas::{Key, OwnedKey},
-        Arenas, GraphicsContext, Prepare, Renderer,
+        Arenas, GraphicsContext,
     },
-    Dependencies, Handle, Module,
+    Prepare,
 };
 
 use super::{ui_rect::UiRect, UiRectRenderer, WorldRectRenderer};
@@ -31,13 +31,16 @@ use super::{ui_rect::UiRect, UiRectRenderer, WorldRectRenderer};
 // /////////////////////////////////////////////////////////////////////////////
 
 impl TextRenderer {
-    pub fn draw_ui_text(&mut self, text: DrawText) {
-        let layout_result = self
-            .rasterizer
-            .layout_and_rasterize_text(&text, &self.deps.arenas);
+    pub fn draw_ui_text(
+        &mut self,
+        text: DrawText,
+        arenas: &Arenas,
+        ui_rect_renderer: &mut UiRectRenderer,
+    ) {
+        let layout_result = self.rasterizer.layout_and_rasterize_text(&text, &arenas);
 
         for (pos, uv) in layout_result.glyph_pos_and_uv {
-            self.deps.ui_rects.draw_textured_rect(
+            ui_rect_renderer.draw_textured_rect(
                 UiRect {
                     pos,
                     uv,
@@ -49,10 +52,14 @@ impl TextRenderer {
         }
     }
 
-    pub fn draw_world_text(&mut self, text: DrawText, transform: Transform) {
-        let layout_result = self
-            .rasterizer
-            .layout_and_rasterize_text(&text, &self.deps.arenas);
+    pub fn draw_world_text(
+        &mut self,
+        text: DrawText,
+        transform: Transform,
+        arenas: &Arenas,
+        world_rect_renderer: &mut WorldRectRenderer,
+    ) {
+        let layout_result = self.rasterizer.layout_and_rasterize_text(&text, &arenas);
 
         // center the text for 3d rendering:
 
@@ -65,7 +72,7 @@ impl TextRenderer {
         };
 
         for (pos, uv) in layout_result.glyph_pos_and_uv {
-            self.deps.world_rects.draw_textured_rect(
+            world_rect_renderer.draw_textured_rect(
                 UiRect {
                     pos: center_to_layout(pos),
                     uv,
@@ -83,59 +90,31 @@ impl TextRenderer {
 // Module
 // /////////////////////////////////////////////////////////////////////////////
 
-#[derive(Debug, Dependencies)]
-pub struct Deps {
-    ui_rects: Handle<UiRectRenderer>,
-    world_rects: Handle<WorldRectRenderer>,
-    renderer: Handle<Renderer>,
-    ctx: Handle<GraphicsContext>,
-    arenas: Handle<Arenas>,
-}
-
 pub struct TextRenderer {
     /// A big texture containing all the glyphs that have been rasterized
     atlas_texture_key: OwnedKey<BindableTexture>,
     rasterizer: TextRasterizer,
-    deps: Deps,
 }
 
-impl Module for TextRenderer {
-    type Config = ();
-
-    type Dependencies = Deps;
-
-    fn new(_config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
+impl TextRenderer {
+    pub fn new(arenas: &mut Arenas, ctx: &GraphicsContext) -> Self {
         let image = RgbaImage::new(TEXT_ATLAS_SIZE, TEXT_ATLAS_SIZE);
-        let atlas_texture = Texture::from_image(&deps.ctx.device, &deps.ctx.queue, &image);
-        let atlas_texture = BindableTexture::new(&deps.ctx.device, atlas_texture);
-        let atlas_texture_key = deps.arenas.insert(atlas_texture);
+        let atlas_texture = Texture::from_image(&ctx.device, &ctx.queue, &image);
+        let atlas_texture = BindableTexture::new(&ctx.device, atlas_texture);
+        let atlas_texture_key = arenas.insert(atlas_texture);
 
-        let rasterizer = TextRasterizer::new(&deps.arenas);
+        let rasterizer = TextRasterizer::new(arenas);
 
-        Ok(TextRenderer {
+        TextRenderer {
             atlas_texture_key,
             rasterizer,
-            deps,
-        })
+        }
     }
 
-    fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
-        let mut renderer = handle.deps.renderer;
-        renderer.register_prepare(handle);
-        Ok(())
-    }
-}
-
-impl Prepare for TextRenderer {
-    fn prepare(
-        &mut self,
-        _device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        _encoder: &mut wgpu::CommandEncoder,
-    ) {
+    pub fn prepare(&mut self, queue: &wgpu::Queue, arenas: &Arenas) {
         // Update the atlas texture if new glyphs have been rasterized this frame:
         if !self.rasterizer.atlas_texture_writes.is_empty() {
-            let atlas_texture = &self.deps.arenas[&self.atlas_texture_key];
+            let atlas_texture = &arenas[&self.atlas_texture_key];
             let texture_writes = std::mem::take(&mut self.rasterizer.atlas_texture_writes);
             for glyph_key in texture_writes {
                 let glyph = self.rasterizer.glyphs.get(&glyph_key).unwrap();
@@ -239,7 +218,7 @@ pub struct Glyph {
     pub uv: Rect,
 }
 
-pub const DEFAULT_FONT: &[u8] = include_bytes!("../../../../assets/Oswald-Medium.ttf");
+pub const DEFAULT_FONT: &[u8] = include_bytes!("../../../assets/Oswald-Medium.ttf");
 pub const TEXT_ATLAS_SIZE: u32 = 2048;
 pub const TEXT_ATLAS_SIZE_F: f32 = TEXT_ATLAS_SIZE as f32;
 
@@ -253,15 +232,13 @@ struct TextRasterizer {
 }
 
 impl TextRasterizer {
-    fn new(arenas: &Handle<Arenas>) -> Self {
+    fn new(arenas: &mut Arenas) -> Self {
         let atlas_allocator = AtlasAllocator::new(etagere::size2(
             TEXT_ATLAS_SIZE as i32,
             TEXT_ATLAS_SIZE as i32,
         ));
         let font = Font::from_bytes(DEFAULT_FONT, fontdue::FontSettings::default())
             .expect("font should be valid");
-
-        let arenas = arenas.get_mut();
         let default_font_key = arenas.insert(font);
         TextRasterizer {
             atlas_allocator,
@@ -271,11 +248,7 @@ impl TextRasterizer {
         }
     }
 
-    fn layout_and_rasterize_text(
-        &mut self,
-        text: &DrawText,
-        arenas: &Handle<Arenas>,
-    ) -> LayoutTextResult {
+    fn layout_and_rasterize_text(&mut self, text: &DrawText, arenas: &Arenas) -> LayoutTextResult {
         // todo! this needs rework, once we support more than just one default font.
 
         let default_font = &arenas[&self.default_font_key];

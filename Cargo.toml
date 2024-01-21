@@ -8,7 +8,7 @@ readme = "README.md"
 license = "MIT"
 
 [dependencies]
-vert-macros = { path = "./macros", version = "0.1.1" }
+vert-macros = { version = "0.1.1", path = "./macros" }
 tokio = { version = "1.34.0", features = ["macros", "rt-multi-thread", "fs", "full"] }
 glam = { version = "0.24.2", features = ["bytemuck"] }
 wgpu = { version = "0.18.0", features = ["naga"] }

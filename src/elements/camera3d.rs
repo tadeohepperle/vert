@@ -1,14 +1,69 @@
 use glam::{vec2, vec3, Mat4, Vec2, Vec3};
+use wgpu::BindGroupLayout;
 
-use crate::elements::ToRaw;
+use crate::{elements::ToRaw, modules::GraphicsContext, Resize};
+
+use super::UniformBuffer;
+
+pub struct Camera3dGR {
+    uniform: UniformBuffer<Camera3dRaw>,
+    bind_group: wgpu::BindGroup,
+    bind_group_layout: wgpu::BindGroupLayout,
+}
+
+impl Camera3dGR {
+    pub fn new(ctx: &GraphicsContext, camera: &Camera3d) -> Camera3dGR {
+        let uniform = UniformBuffer::new(camera.to_raw(), &ctx.device);
+
+        let layout_descriptor = wgpu::BindGroupLayoutDescriptor {
+            label: Some("Camera BindGroupLayout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None, // ??? is this right?
+                },
+                count: None,
+            }],
+        };
+        let bind_group_layout = ctx.device.create_bind_group_layout(&layout_descriptor);
+        let bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Camera BindGroup"),
+            layout: &bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: uniform.buffer().as_entire_binding(),
+            }],
+        });
+
+        Camera3dGR {
+            uniform,
+            bind_group,
+            bind_group_layout,
+        }
+    }
+    pub fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {
+        &self.bind_group_layout
+    }
+
+    pub fn bind_group(&self) -> &wgpu::BindGroup {
+        &self.bind_group
+    }
+
+    pub fn prepare(&mut self, queue: &wgpu::Queue, camera: &Camera3d) {
+        self.uniform.update_and_prepare(camera.to_raw(), queue)
+    }
+}
 
 #[derive(Debug, Clone)]
-pub struct Camera3D {
+pub struct Camera3d {
     pub transform: Camera3DTransform,
     pub projection: Projection,
 }
 
-impl Camera3D {
+impl Camera3d {
     /// Default perspective camera
     pub fn new(width: u32, height: u32) -> Self {
         let transform = Camera3DTransform::new(vec3(-5.0, 1.0, 0.0), 0.0, 0.0);
@@ -40,6 +95,13 @@ impl Camera3D {
             origin: world_near_plane,
             direction,
         }
+    }
+}
+
+impl Resize for Camera3d {
+    fn resize(&mut self, resized: crate::Resized) {
+        self.projection
+            .resize(resized.new_size.width, resized.new_size.height);
     }
 }
 
@@ -183,24 +245,24 @@ impl Ray {
     }
 }
 
-impl ToRaw for Camera3D {
-    type Raw = Camera3DRaw;
+impl ToRaw for Camera3d {
+    type Raw = Camera3dRaw;
 
     fn to_raw(&self) -> Self::Raw {
-        Camera3DRaw::new(&self.transform, &self.projection)
+        Camera3dRaw::new(&self.transform, &self.projection)
     }
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Camera3DRaw {
+pub struct Camera3dRaw {
     view_position: [f32; 4],
     view_proj: [[f32; 4]; 4],
 }
 
-impl Camera3DRaw {
+impl Camera3dRaw {
     fn new(camera: &Camera3DTransform, projection: &Projection) -> Self {
-        let mut new = Camera3DRaw {
+        let mut new = Camera3dRaw {
             view_position: [0.0; 4],
             view_proj: Mat4::IDENTITY.to_cols_array_2d(),
         };

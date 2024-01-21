@@ -3,7 +3,6 @@ use std::vec;
 use log::warn;
 use wgpu::BufferUsages;
 
-
 use wgpu::Operations;
 use wgpu::RenderPassColorAttachment;
 
@@ -11,26 +10,18 @@ use wgpu::RenderPassDescriptor;
 use wgpu::ShaderModule;
 use wgpu::ShaderModuleDescriptor;
 
-use crate::modules::renderer::SdrSurfaceRenderer;
-use crate::Dependencies;
-
+use crate::elements::screen::ScreenGR;
 use crate::elements::texture::rgba_bind_group_layout;
 use crate::elements::BindableTexture;
 use crate::elements::GrowableBuffer;
-
-
 
 use crate::modules::ui::board::BoardPhase;
 use crate::modules::Arenas;
 use crate::modules::GraphicsContext;
 
-use crate::modules::MainScreenSize;
-use crate::modules::Prepare;
-use crate::modules::Renderer;
 use crate::utils::watcher::ShaderFileWatcher;
 use crate::utils::Timing;
-use crate::Handle;
-use crate::Module;
+use crate::Prepare;
 
 use super::batching::get_batches;
 use super::batching::BatchRegion;
@@ -52,42 +43,27 @@ pub struct UiRenderer {
     rect_buffer: GrowableBuffer<RectRaw>,
     textured_rect_buffer: GrowableBuffer<RectRawTextured>,
     glyph_buffer: GrowableBuffer<GlyphRaw>,
-    deps: Deps,
 }
 
-#[derive(Debug, Dependencies)]
-pub struct Deps {
-    renderer: Handle<Renderer>,
-    fonts: Handle<FontCache>,
-    arenas: Handle<Arenas>,
-    ctx: Handle<GraphicsContext>,
-    main_screen: Handle<MainScreenSize>,
-}
-
-impl Module for UiRenderer {
-    type Config = ();
-    type Dependencies = Deps;
-
-    fn new(_config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
-        let device = &deps.ctx.device;
+impl UiRenderer {
+    pub fn new(ctx: &GraphicsContext, screen: &ScreenGR) -> Self {
+        let device = &ctx.device;
         let rect_buffer = GrowableBuffer::new(device, 256, BufferUsages::VERTEX);
         let glyph_buffer = GrowableBuffer::new(device, 512, BufferUsages::VERTEX);
         let textured_rect_buffer = GrowableBuffer::new(device, 256, BufferUsages::VERTEX);
 
         let shader_watcher = None;
-        let shader_module = deps
-            .ctx
-            .device
-            .create_shader_module(ShaderModuleDescriptor {
-                label: Some("Ui Renderer Shaders"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("ui.wgsl").into()),
-            });
+        let shader_module = ctx.device.create_shader_module(ShaderModuleDescriptor {
+            label: Some("Ui Renderer Shaders"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("ui.wgsl").into()),
+        });
 
-        let glyph_pipeline = create_glyph_pipeline(&shader_module, &deps);
-        let rect_pipeline = create_rect_pipeline(&shader_module, &deps);
-        let textured_rect_pipeline = create_textured_rect_pipeline(&shader_module, &deps);
+        let glyph_pipeline = create_glyph_pipeline(&shader_module, &ctx.device, screen);
+        let rect_pipeline = create_rect_pipeline(&shader_module, &ctx.device, screen);
+        let textured_rect_pipeline =
+            create_textured_rect_pipeline(&shader_module, &ctx.device, screen);
 
-        Ok(UiRenderer {
+        UiRenderer {
             shader_watcher,
             glyph_pipeline,
             rect_pipeline,
@@ -97,19 +73,9 @@ impl Module for UiRenderer {
             rect_buffer,
             textured_rect_buffer,
             glyph_buffer,
-            deps,
-        })
+        }
     }
 
-    fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
-        let mut renderer = handle.deps.renderer;
-        renderer.register_prepare(handle);
-        renderer.register_surface_renderer(handle, Timing::DEFAULT);
-        Ok(())
-    }
-}
-
-impl UiRenderer {
     pub fn watch_shader_file(&mut self, path: &str) {
         self.shader_watcher = Some(ShaderFileWatcher::new(path));
     }
@@ -123,51 +89,14 @@ impl UiRenderer {
         self.collected_batches.combine(batches);
     }
 
-    // todo! draw board in 3d space
-}
-
-impl Prepare for UiRenderer {
-    fn prepare(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        _encoder: &mut wgpu::CommandEncoder,
+    fn render<'e>(
+        &'e self,
+        encoder: &'e mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        screen: &ScreenGR,
+        fonts: &FontCache,
+        arenas: &Arenas,
     ) {
-        // recreate the pipelines if watching some file:
-        if let Some(watcher) = &self.shader_watcher {
-            if let Some(new_wgsl) = watcher.check_for_changes() {
-                let shader_module =
-                    self.deps
-                        .ctx
-                        .device
-                        .create_shader_module(ShaderModuleDescriptor {
-                            label: Some("Ui Renderer Shaders"),
-                            source: wgpu::ShaderSource::Wgsl(new_wgsl.into()),
-                        });
-                self.glyph_pipeline = create_glyph_pipeline(&shader_module, &self.deps);
-                self.rect_pipeline = create_rect_pipeline(&shader_module, &self.deps);
-                self.textured_rect_pipeline =
-                    create_textured_rect_pipeline(&shader_module, &self.deps);
-            }
-        }
-
-        // update buffers:
-        self.rect_buffer
-            .prepare(&self.collected_batches.rects, device, queue);
-        self.textured_rect_buffer
-            .prepare(&self.collected_batches.textured_rects, device, queue);
-        self.glyph_buffer
-            .prepare(&self.collected_batches.glyphs, device, queue);
-        self.draw_batches.clear();
-        std::mem::swap(&mut self.draw_batches, &mut self.collected_batches.batches);
-        self.collected_batches.glyphs.clear();
-        self.collected_batches.rects.clear();
-        self.collected_batches.textured_rects.clear();
-    }
-}
-
-impl SdrSurfaceRenderer for UiRenderer {
-    fn render<'e>(&'e self, encoder: &'e mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
         let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("Ui Render Pass"),
             color_attachments: &[Some(RenderPassColorAttachment {
@@ -184,13 +113,13 @@ impl SdrSurfaceRenderer for UiRenderer {
         });
         assert!(self.collected_batches.is_empty()); // only information left should be in draw_batches.
                                                     // println!("render UiRenderer");
-        render_pass.set_bind_group(0, self.deps.main_screen.bind_group(), &[]);
+        render_pass.set_bind_group(0, screen.bind_group(), &[]);
 
         // 6 indices to draw two triangles
 
         const VERTEX_COUNT: u32 = 6;
-        let atlas_texture = self.deps.fonts.atlas_texture();
-        let textures = self.deps.arenas.arena::<BindableTexture>();
+        let atlas_texture = fonts.atlas_texture();
+        let textures = arenas.arena::<BindableTexture>();
         let atlas_texture = textures.get(atlas_texture).unwrap();
 
         for batch in self.draw_batches.iter() {
@@ -226,52 +155,92 @@ impl SdrSurfaceRenderer for UiRenderer {
             }
         }
     }
+
+    // pub fn watch_for_changes(&mut self, ctx: &GraphicsContext) {
+    //     // recreate the pipelines if watching some file:
+    //     if let Some(watcher) = &self.shader_watcher {
+    //         if let Some(new_wgsl) = watcher.check_for_changes() {
+    //             let shader_module = ctx.device.create_shader_module(ShaderModuleDescriptor {
+    //                 label: Some("Ui Renderer Shaders"),
+    //                 source: wgpu::ShaderSource::Wgsl(new_wgsl.into()),
+    //             });
+    //             self.glyph_pipeline = create_glyph_pipeline(&shader_module, &ctx.device);
+    //             self.rect_pipeline = create_rect_pipeline(&shader_module, &self.deps);
+    //             self.textured_rect_pipeline =
+    //                 create_textured_rect_pipeline(&shader_module, &self.deps);
+    //         }
+    //     }
+    // }
+
+    // todo! draw board in 3d space
+}
+
+impl Prepare for UiRenderer {
+    fn prepare(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        _encoder: &mut wgpu::CommandEncoder,
+    ) {
+        // update buffers:
+        self.rect_buffer
+            .prepare(&self.collected_batches.rects, device, queue);
+        self.textured_rect_buffer
+            .prepare(&self.collected_batches.textured_rects, device, queue);
+        self.glyph_buffer
+            .prepare(&self.collected_batches.glyphs, device, queue);
+        self.draw_batches.clear();
+        std::mem::swap(&mut self.draw_batches, &mut self.collected_batches.batches);
+        self.collected_batches.glyphs.clear();
+        self.collected_batches.rects.clear();
+        self.collected_batches.textured_rects.clear();
+    }
 }
 
 use crate::modules::VertexT;
 
-fn create_rect_pipeline(shader_module: &ShaderModule, deps: &Deps) -> wgpu::RenderPipeline {
-    let device = &deps.ctx.device;
+fn create_rect_pipeline(
+    shader_module: &ShaderModule,
+    device: &wgpu::Device,
+    screen: &ScreenGR,
+) -> wgpu::RenderPipeline {
     create_pipeline::<RectRaw>(
         shader_module,
         "rect_vs",
         "rect_fs",
         "Rect",
         device,
-        &[deps.main_screen.bind_group_layout()],
+        &[screen.bind_group_layout()],
     )
 }
 
 fn create_textured_rect_pipeline(
     shader_module: &ShaderModule,
-    deps: &Deps,
+    device: &wgpu::Device,
+    screen: &ScreenGR,
 ) -> wgpu::RenderPipeline {
-    let device = &deps.ctx.device;
     create_pipeline::<RectRawTextured>(
         shader_module,
         "textured_rect_vs",
         "textured_rect_fs",
         "Textured Rect",
         device,
-        &[
-            deps.main_screen.bind_group_layout(),
-            rgba_bind_group_layout(device),
-        ],
+        &[screen.bind_group_layout(), rgba_bind_group_layout(device)],
     )
 }
 
-fn create_glyph_pipeline(shader_module: &ShaderModule, deps: &Deps) -> wgpu::RenderPipeline {
-    let device = &deps.ctx.device;
+fn create_glyph_pipeline(
+    shader_module: &ShaderModule,
+    device: &wgpu::Device,
+    screen: &ScreenGR,
+) -> wgpu::RenderPipeline {
     create_pipeline::<GlyphRaw>(
         shader_module,
         "glyph_vs",
         "glyph_fs",
         "Glyph",
         device,
-        &[
-            deps.main_screen.bind_group_layout(),
-            rgba_bind_group_layout(device),
-        ],
+        &[screen.bind_group_layout(), rgba_bind_group_layout(device)],
     )
 }
 

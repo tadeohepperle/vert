@@ -1,12 +1,14 @@
+use std::time::Instant;
+
 use egui::{ClippedPrimitive, Context};
 
-use winit::event::WindowEvent;
+use winit::{event::WindowEvent, window::Window};
 
-use crate::{modules::Schedule, modules::WinitMain, utils::Timing, Dependencies, Handle, Module};
+use crate::{utils::Timing, Prepare, ReceiveWindowEvent};
 
 use self::platform::{Platform, PlatformDescriptor};
 
-use super::{renderer::SdrSurfaceRenderer, GraphicsContext, Prepare, Renderer, Scheduler, Time};
+use super::{GraphicsContext, Time};
 
 pub mod platform;
 
@@ -30,89 +32,42 @@ pub struct Egui {
     pub renderer: egui_wgpu::Renderer,
     paint_jobs: Vec<ClippedPrimitive>,
     textures_delta: egui::TexturesDelta,
-    deps: Deps,
-    // demo_windows: DemoWindows,
+    pub start_time: Instant,
 }
 
-#[derive(Debug, Dependencies)]
-pub struct Deps {
-    renderer: Handle<Renderer>,
-    ctx: Handle<GraphicsContext>,
-    winit: Handle<WinitMain>,
-    time: Handle<Time>,
-    scheduler: Handle<Scheduler>,
-}
-
-impl Module for Egui {
-    type Config = ();
-
-    type Dependencies = Deps;
-
-    fn new(_config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
+impl Egui {
+    pub fn new(ctx: &GraphicsContext, window: &Window) -> Self {
         // Important note: pixels_per_point is the inverse of the devices scale_factor.
 
         let platform = Platform::new(PlatformDescriptor {
-            physical_size: deps.ctx.size,
-            pixels_per_point: 1.0 / deps.ctx.scale_factor() as f32, // ??? is this updated properly?
+            physical_size: ctx.size,
+            pixels_per_point: 1.0 / window.scale_factor() as f32, // ??? is this updated properly?
             font_definitions: Default::default(),
             style: Default::default(),
         });
 
-        let renderer = egui_wgpu::Renderer::new(&deps.ctx.device, deps.ctx.surface_format, None, 1);
+        let renderer = egui_wgpu::Renderer::new(&ctx.device, ctx.surface_format, None, 1);
         // renderer.render(render_pass, paint_jobs, self.platform);
-        Ok(Egui {
+        Egui {
             platform,
             renderer,
             textures_delta: Default::default(),
             paint_jobs: Vec::new(),
-            deps,
+            start_time: Instant::now(),
             // demo_windows: DemoWindows::default(),
-        })
-    }
-
-    fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
-        let mut winit = handle.deps.winit;
-        winit.register_window_event_listener(handle, Self::receive_window_event);
-
-        let mut renderer = handle.deps.renderer;
-        renderer.register_prepare(handle);
-        renderer.register_surface_renderer(handle, Timing::LATE);
-
-        let mut scheduler = handle.deps.scheduler;
-        scheduler.register(handle, Schedule::Update, Timing::EARLY, Self::begin_frame);
-        Ok(())
-    }
-}
-
-impl Prepare for Egui {
-    fn prepare(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
-    ) {
-        let output = self.platform.end_frame();
-        self.paint_jobs.clear();
-        for id in self.textures_delta.free.drain(..) {
-            self.renderer.free_texture(&id)
         }
-        self.textures_delta = output.textures_delta;
-        for (id, image_delta) in self.textures_delta.set.iter() {
-            self.renderer
-                .update_texture(device, queue, *id, image_delta);
-        }
-
-        self.paint_jobs = self
-            .context()
-            .tessellate(output.shapes, output.pixels_per_point);
-
-        let screen_descriptor = self.platform.screen_descriptor();
-        self.renderer
-            .update_buffers(device, queue, encoder, &self.paint_jobs, &screen_descriptor);
     }
-}
 
-impl SdrSurfaceRenderer for Egui {
+    pub fn context(&self) -> egui::Context {
+        self.platform.context()
+    }
+
+    pub fn begin_frame(&mut self) {
+        let total_time = Instant::now() - self.start_time;
+        let total_elapsed_seconds = total_time.as_secs_f64();
+        self.platform.begin_frame(total_elapsed_seconds);
+    }
+
     fn render<'e>(&'e self, encoder: &'e mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
         let color_attachment = wgpu::RenderPassColorAttachment {
             view,
@@ -137,19 +92,38 @@ impl SdrSurfaceRenderer for Egui {
     }
 }
 
-impl Egui {
-    pub fn context(&self) -> Context {
-        self.platform.context()
-    }
+impl Prepare for Egui {
+    fn prepare(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+    ) {
+        let output = self.platform.end_frame();
+        self.paint_jobs.clear();
+        for id in self.textures_delta.free.drain(..) {
+            self.renderer.free_texture(&id)
+        }
+        self.textures_delta = output.textures_delta;
+        for (id, image_delta) in self.textures_delta.set.iter() {
+            self.renderer
+                .update_texture(device, queue, *id, image_delta);
+        }
 
-    pub fn receive_window_event(&mut self, event: &WindowEvent) {
+        self.paint_jobs = self
+            .platform
+            .context()
+            .tessellate(output.shapes, output.pixels_per_point);
+
+        let screen_descriptor = self.platform.screen_descriptor();
+        self.renderer
+            .update_buffers(device, queue, encoder, &self.paint_jobs, &screen_descriptor);
+    }
+}
+
+impl ReceiveWindowEvent for Egui {
+    fn receive_window_event(&mut self, event: &WindowEvent) {
         self.platform.handle_event(event);
-    }
-
-    pub fn begin_frame(&mut self) {
-        let total_elapsed_seconds = self.deps.time.total().as_secs_f64();
-        self.platform.begin_frame(total_elapsed_seconds);
-        // self.demo_windows.ui(&self.context()); // activate this to see the demo windows!
     }
 }
 

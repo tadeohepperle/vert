@@ -1,4 +1,4 @@
-use crate::{utils::ChillCell, Module};
+use crate::utils::ChillCell;
 use slotmap::SlotMap;
 use std::{
     any::TypeId,
@@ -14,15 +14,6 @@ pub struct Arenas {
     /// It would be better if could construct something at compile time.
     /// This is just an intermediate solution, to get something working.
     any: ChillCell<HashMap<TypeId, UntypedArena>>,
-}
-
-impl Module for Arenas {
-    type Config = ();
-    type Dependencies = ();
-
-    fn new(_config: Self::Config, _deps: Self::Dependencies) -> anyhow::Result<Self> {
-        Ok(Arenas::new())
-    }
 }
 
 impl Default for Arenas {

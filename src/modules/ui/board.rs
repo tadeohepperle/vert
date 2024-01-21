@@ -17,7 +17,7 @@ use std::{
 use crate::{
     elements::{rect::Aabb, BindableTexture, Color, Rect},
     ext::glam::Vec2,
-    modules::{arenas::Key, input::MouseButtonState, Input},
+    modules::{arenas::Key, input::MouseButtonState, Arenas, Input},
     utils::ChillCell,
 };
 use egui::Ui;
@@ -332,7 +332,7 @@ impl Board {
     }
 
     /// call to transition from  BoardPhase::AddDivs -> BoardPhase::LayoutDone
-    pub fn end_frame(&mut self, fonts: &mut FontCache) {
+    pub fn end_frame(&mut self, fonts: &mut FontCache, arenas: &Arenas) {
         assert_eq!(self.phase, BoardPhase::AddDivs);
         self.phase = BoardPhase::Rendering;
 
@@ -342,7 +342,7 @@ impl Board {
         self.last_frame += 1;
 
         // Perform Layout (set sizes and positions for all divs in the tree)
-        let mut layouter = Layouter::new(&self.divs, fonts);
+        let mut layouter = Layouter::new(&self.divs, fonts, arenas);
         layouter.perform_layout(&self.top_level_children, self.top_level_size);
     }
 }
@@ -439,11 +439,16 @@ pub struct Comm {
 struct Layouter<'a> {
     divs: &'a HashMap<Id, Div>,
     fonts: &'a mut FontCache,
+    arenas: &'a Arenas,
 }
 
 impl<'a> Layouter<'a> {
-    fn new(divs: &'a HashMap<Id, Div>, fonts: &'a mut FontCache) -> Self {
-        Self { divs, fonts }
+    fn new(divs: &'a HashMap<Id, Div>, fonts: &'a mut FontCache, arenas: &'a Arenas) -> Self {
+        Self {
+            divs,
+            fonts,
+            arenas,
+        }
     }
 
     /// determine the Rect of each div on this board.
@@ -659,6 +664,7 @@ impl<'a> Layouter<'a> {
             text_entry.text.size.into(),
             &layout_settings,
             text_entry.text.font,
+            &self.arenas,
         );
         // dbg!(&result);
         let text_size = result.total_rect.d_size();

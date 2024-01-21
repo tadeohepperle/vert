@@ -3,14 +3,19 @@
 #![feature(try_blocks)]
 #![feature(associated_type_defaults)]
 #![feature(entry_insert)]
+#![feature(try_trait_v2)]
 
 pub mod app;
+
+pub use app::{App, UpdateFlow, WinitConfig, WinitRunner};
+
 pub mod assets;
 pub mod elements;
+pub mod lifecycle;
 pub mod modules;
 pub mod utils;
 
-pub use app::{App, AppBuilder, Dependencies, Handle, MainModule, Module, Plugin};
+pub use lifecycle::{Prepare, ReceiveWindowEvent, Resize, Resized};
 
 pub mod ext {
     pub use anyhow;

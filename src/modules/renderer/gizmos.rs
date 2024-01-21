@@ -6,8 +6,7 @@ use wgpu::PrimitiveState;
 use wgpu::ShaderModuleDescriptor;
 use wgpu::VertexState;
 
-use crate::Dependencies;
-
+use crate::elements::camera3d::Camera3dGR;
 use crate::elements::Color;
 use crate::elements::GrowableBuffer;
 use crate::modules::renderer::Attribute;
@@ -16,14 +15,9 @@ use crate::modules::renderer::DEPTH_FORMAT;
 use crate::modules::renderer::HDR_COLOR_FORMAT;
 use crate::modules::renderer::MSAA_SAMPLE_COUNT;
 use crate::modules::GraphicsContext;
-use crate::modules::MainCamera3D;
-use crate::modules::Prepare;
-use crate::modules::Renderer;
-use crate::utils::Timing;
-use crate::Handle;
-use crate::Module;
 
-use super::MainPassRenderer;
+use crate::utils::Timing;
+use crate::Prepare;
 
 // /////////////////////////////////////////////////////////////////////////////
 // Interface
@@ -113,44 +107,35 @@ impl Gizmos {
 // Module
 // /////////////////////////////////////////////////////////////////////////////
 
-#[derive(Debug, Dependencies)]
-pub struct Deps {
-    renderer: Handle<Renderer>,
-    ctx: Handle<GraphicsContext>,
-    main_cam: Handle<MainCamera3D>,
-}
-
 pub struct Gizmos {
     /// immediate vertices, written to vertex_buffer every frame.
     vertex_queue: Vec<Vertex>,
     pipeline: wgpu::RenderPipeline,
     vertex_buffer: GrowableBuffer<Vertex>,
-    deps: Deps,
 }
-impl Module for Gizmos {
-    type Config = ();
-
-    type Dependencies = Deps;
-
-    fn new(_config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
-        let vertex_buffer = GrowableBuffer::new(&deps.ctx.device, 256, BufferUsages::VERTEX);
-        let pipeline = create_pipeline(&deps.ctx.device, &deps.main_cam);
-
-        let gizmos = Gizmos {
+impl Gizmos {
+    pub fn new(ctx: &GraphicsContext, camera: &Camera3dGR) -> Self {
+        let vertex_buffer = GrowableBuffer::new(&ctx.device, 256, BufferUsages::VERTEX);
+        let pipeline = create_pipeline(&ctx.device, camera);
+        Gizmos {
             pipeline,
             vertex_queue: vec![],
             vertex_buffer,
-            deps,
-        };
-
-        Ok(gizmos)
+        }
     }
 
-    fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
-        let mut renderer = handle.deps.renderer;
-        renderer.register_prepare(handle);
-        renderer.register_main_pass_renderer(handle, Timing::LATE);
-        Ok(())
+    pub fn render<'encoder>(
+        &'encoder self,
+        render_pass: &mut wgpu::RenderPass<'encoder>,
+        camera: &'encoder Camera3dGR,
+    ) {
+        if self.vertex_buffer.len() == 0 {
+            return;
+        }
+        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_bind_group(0, camera.bind_group(), &[]);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.buffer().slice(..));
+        render_pass.draw(0..self.vertex_buffer.len() as u32, 0..1);
     }
 }
 
@@ -164,18 +149,6 @@ impl Prepare for Gizmos {
         self.vertex_buffer
             .prepare(&self.vertex_queue, device, queue);
         self.vertex_queue.clear();
-    }
-}
-
-impl MainPassRenderer for Gizmos {
-    fn render<'encoder>(&'encoder self, render_pass: &mut wgpu::RenderPass<'encoder>) {
-        if self.vertex_buffer.len() == 0 {
-            return;
-        }
-        render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, self.deps.main_cam.bind_group(), &[]);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.buffer().slice(..));
-        render_pass.draw(0..self.vertex_buffer.len() as u32, 0..1);
     }
 }
 
@@ -197,7 +170,7 @@ impl VertexT for Vertex {
     ];
 }
 
-fn create_pipeline(device: &wgpu::Device, main_cam: &MainCamera3D) -> wgpu::RenderPipeline {
+fn create_pipeline(device: &wgpu::Device, camera: &Camera3dGR) -> wgpu::RenderPipeline {
     let label = "Gizmos";
 
     let shader = device.create_shader_module(ShaderModuleDescriptor {
@@ -210,7 +183,7 @@ fn create_pipeline(device: &wgpu::Device, main_cam: &MainCamera3D) -> wgpu::Rend
 
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some(&format!("{label} PipelineLayout")),
-        bind_group_layouts: &[main_cam.bind_group_layout()],
+        bind_group_layouts: &[camera.bind_group_layout()],
         push_constant_ranges: &[],
     });
 

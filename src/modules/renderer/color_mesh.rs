@@ -5,17 +5,16 @@ use wgpu::{
 
 use crate::{
     elements::{
-        Color, GrowableBuffer, ImmediateMeshQueue, ImmediateMeshRanges, Transform, TransformRaw,
+        camera3d::Camera3dGR, Color, GrowableBuffer, ImmediateMeshQueue, ImmediateMeshRanges,
+        Transform, TransformRaw,
     },
     modules::{
         renderer::{Attribute, VertexT, DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT},
-        GraphicsContext, MainCamera3D, Prepare, Renderer,
+        GraphicsContext,
     },
     utils::Timing,
-    Dependencies, Handle, Module,
+    Prepare,
 };
-
-use super::MainPassRenderer;
 
 // /////////////////////////////////////////////////////////////////////////////
 // Interface
@@ -72,13 +71,6 @@ impl ColorMeshRenderer {
 // Module
 // /////////////////////////////////////////////////////////////////////////////
 
-#[derive(Debug, Dependencies)]
-pub struct Deps {
-    renderer: Handle<Renderer>,
-    ctx: Handle<GraphicsContext>,
-    cam: Handle<MainCamera3D>,
-}
-
 #[derive(Debug)]
 pub struct ColorMeshRenderer {
     pipeline: wgpu::RenderPipeline,
@@ -86,51 +78,36 @@ pub struct ColorMeshRenderer {
     color_mesh_queue: ImmediateMeshQueue<Vertex, Transform>,
     /// information about index ranges
     render_data: RenderData,
-    deps: Deps,
 }
 
-/// buffers for immediate geometry
-#[derive(Debug)]
-struct RenderData {
-    mesh_ranges: Vec<ImmediateMeshRanges>,
-    vertex_buffer: GrowableBuffer<Vertex>,
-    index_buffer: GrowableBuffer<u32>,
-    instance_buffer: GrowableBuffer<TransformRaw>,
-}
+impl ColorMeshRenderer {
+    pub fn new(ctx: &GraphicsContext, camera: &Camera3dGR) -> Self {
+        let device = &ctx.device;
+        let pipeline = create_render_pipeline(&ctx.device, include_str!("color_mesh.wgsl"), camera);
 
-impl RenderData {
-    fn new(device: &wgpu::Device) -> Self {
-        Self {
-            mesh_ranges: vec![],
-            vertex_buffer: GrowableBuffer::new(device, 512, BufferUsages::VERTEX),
-            index_buffer: GrowableBuffer::new(device, 512, BufferUsages::INDEX),
-            instance_buffer: GrowableBuffer::new(device, 512, BufferUsages::VERTEX),
-        }
-    }
-}
-
-impl Module for ColorMeshRenderer {
-    type Config = ();
-
-    type Dependencies = Deps;
-
-    fn new(_config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
-        let device = &deps.ctx.device;
-        let pipeline = create_render_pipeline(device, include_str!("color_mesh.wgsl"), &deps.cam);
-
-        Ok(ColorMeshRenderer {
+        ColorMeshRenderer {
             pipeline,
             color_mesh_queue: ImmediateMeshQueue::default(),
-            render_data: RenderData::new(device),
-            deps,
-        })
+            render_data: RenderData::new(&ctx.device),
+        }
     }
 
-    fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
-        let mut renderer = handle.deps.renderer;
-        renderer.register_prepare(handle);
-        renderer.register_main_pass_renderer(handle, Timing::LATE);
-        Ok(())
+    pub fn render<'encoder>(
+        &'encoder self,
+        render_pass: &mut wgpu::RenderPass<'encoder>,
+        camera: &'encoder Camera3dGR,
+    ) {
+        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_bind_group(0, camera.bind_group(), &[]);
+        render_pass.set_vertex_buffer(0, self.render_data.vertex_buffer.buffer().slice(..));
+        render_pass.set_index_buffer(
+            self.render_data.index_buffer.buffer().slice(..),
+            wgpu::IndexFormat::Uint32,
+        );
+        render_pass.set_vertex_buffer(1, self.render_data.instance_buffer.buffer().slice(..));
+        for mesh in self.render_data.mesh_ranges.iter() {
+            render_pass.draw_indexed(mesh.index_range.clone(), 0, mesh.instance_range.clone())
+        }
     }
 }
 
@@ -155,25 +132,29 @@ impl Prepare for ColorMeshRenderer {
     }
 }
 
-impl MainPassRenderer for ColorMeshRenderer {
-    fn render<'encoder>(&'encoder self, render_pass: &mut wgpu::RenderPass<'encoder>) {
-        render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, self.deps.cam.bind_group(), &[]);
-        render_pass.set_vertex_buffer(0, self.render_data.vertex_buffer.buffer().slice(..));
-        render_pass.set_index_buffer(
-            self.render_data.index_buffer.buffer().slice(..),
-            wgpu::IndexFormat::Uint32,
-        );
-        render_pass.set_vertex_buffer(1, self.render_data.instance_buffer.buffer().slice(..));
-        for mesh in self.render_data.mesh_ranges.iter() {
-            render_pass.draw_indexed(mesh.index_range.clone(), 0, mesh.instance_range.clone())
-        }
-    }
-}
-
 // /////////////////////////////////////////////////////////////////////////////
 // Render Pipeline
 // /////////////////////////////////////////////////////////////////////////////
+
+/// buffers for immediate geometry
+#[derive(Debug)]
+struct RenderData {
+    mesh_ranges: Vec<ImmediateMeshRanges>,
+    vertex_buffer: GrowableBuffer<Vertex>,
+    index_buffer: GrowableBuffer<u32>,
+    instance_buffer: GrowableBuffer<TransformRaw>,
+}
+
+impl RenderData {
+    fn new(device: &wgpu::Device) -> Self {
+        Self {
+            mesh_ranges: vec![],
+            vertex_buffer: GrowableBuffer::new(device, 512, BufferUsages::VERTEX),
+            index_buffer: GrowableBuffer::new(device, 512, BufferUsages::INDEX),
+            instance_buffer: GrowableBuffer::new(device, 512, BufferUsages::VERTEX),
+        }
+    }
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -192,7 +173,7 @@ impl VertexT for Vertex {
 fn create_render_pipeline(
     device: &wgpu::Device,
     wgsl: &str,
-    cam: &MainCamera3D,
+    camera: &Camera3dGR,
 ) -> wgpu::RenderPipeline {
     let label = "ColorMeshRenderer";
     let shader_module = device.create_shader_module(ShaderModuleDescriptor {
@@ -209,7 +190,7 @@ fn create_render_pipeline(
 
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some(&format!("{label} PipelineLayout")),
-        bind_group_layouts: &[cam.bind_group_layout()],
+        bind_group_layouts: &[&camera.bind_group_layout()],
         push_constant_ranges: &[],
     });
 

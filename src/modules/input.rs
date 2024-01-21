@@ -8,26 +8,15 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
 };
 
-use crate::{
-    app::FunctionHandle,
-    modules::WinitMain,
-    utils::{Timing, TimingQueue},
-    Dependencies, Handle, Module,
-};
+use crate::utils::{Timing, TimingQueue};
 
-use super::{Schedule, Scheduler};
-
-#[derive(Debug, Dependencies)]
-pub struct InputDependencies {
-    winit_main: Handle<WinitMain>,
-    scheduler: Handle<Scheduler>,
-}
+use crate::{ReceiveWindowEvent, Resized};
 
 #[derive(Debug)]
 pub struct Input {
     keys: KeyState,
     mouse_buttons: MouseButtonState,
-    resized: Option<PhysicalSize<u32>>,
+    resized: Option<Resized>,
     close_requested: bool,
     cursor_just_moved: bool,
     cursor_just_entered: bool,
@@ -35,65 +24,15 @@ pub struct Input {
     cursor_pos: Vec2,
     cursor_delta: Vec2,
     scroll: Option<f32>,
-    deps: InputDependencies,
-    resize_event_listerners: TimingQueue<FunctionHandle<ResizeEvent>>,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct ResizeEvent {
-    pub new_size: PhysicalSize<u32>,
-}
-
-impl Module for Input {
-    type Config = ();
-    type Dependencies = InputDependencies;
-
-    fn new(_config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
-        Ok(Input {
-            keys: Default::default(),
-            mouse_buttons: Default::default(),
-            resized: Default::default(),
-            close_requested: Default::default(),
-            cursor_just_moved: Default::default(),
-            cursor_just_entered: Default::default(),
-            cursor_just_left: Default::default(),
-            cursor_pos: Default::default(),
-            cursor_delta: Default::default(),
-            scroll: Default::default(),
-            deps,
-            resize_event_listerners: TimingQueue::new(),
-        })
-    }
-
-    fn intialize(mut handle: Handle<Self>) -> anyhow::Result<()> {
-        let cloned_handle = handle;
-        handle
-            .deps
-            .winit_main
-            .register_window_event_listener(cloned_handle, Self::receive_window_event);
-
-        handle.deps.scheduler.register(
-            cloned_handle,
-            Schedule::Update,
-            Timing::EARLY,
-            Self::start_of_frame,
-        );
-
-        handle.deps.scheduler.register(
-            cloned_handle,
-            Schedule::Update,
-            Timing::VERY_LATE,
-            Self::end_of_frame,
-        );
-        Ok(())
-    }
-}
-
-impl Input {
-    fn receive_window_event(&mut self, window_event: &WindowEvent) {
-        match window_event {
+impl ReceiveWindowEvent for Input {
+    fn receive_window_event(&mut self, event: &WindowEvent) {
+        match event {
             WindowEvent::Resized(new_size) => {
-                self.resized = Some(*new_size);
+                self.resized = Some(Resized {
+                    new_size: *new_size,
+                });
             }
             WindowEvent::CloseRequested => {
                 self.close_requested = true;
@@ -207,22 +146,25 @@ impl Input {
             } => {}
         }
     }
+}
 
-    fn start_of_frame(&mut self) {
-        // notify resize event listeners at the start of the frame.
-        if let Some(new_size) = self.resized {
-            let event = ResizeEvent { new_size };
-            for listener in self.resize_event_listerners.iter() {
-                listener.call(event);
-            }
+impl Input {
+    pub fn new() -> Self {
+        Input {
+            keys: Default::default(),
+            mouse_buttons: Default::default(),
+            resized: Default::default(),
+            close_requested: Default::default(),
+            cursor_just_moved: Default::default(),
+            cursor_just_entered: Default::default(),
+            cursor_just_left: Default::default(),
+            cursor_pos: Default::default(),
+            cursor_delta: Default::default(),
+            scroll: Default::default(),
         }
     }
 
-    fn end_of_frame(&mut self) {
-        if self.close_requested {
-            self.deps.scheduler.request_exit("Close Button Pressed");
-        }
-
+    pub fn end_frame(&mut self) {
         self.keys.clear_at_end_of_frame();
         self.mouse_buttons.clear_at_end_of_frame();
         self.resized = None;
@@ -322,7 +264,7 @@ impl Input {
         self.cursor_delta
     }
 
-    pub fn resized(&self) -> Option<PhysicalSize<u32>> {
+    pub fn resized(&self) -> Option<Resized> {
         self.resized
     }
 
@@ -336,16 +278,6 @@ impl Input {
 
     pub fn scroll(&self) -> Option<f32> {
         self.scroll
-    }
-
-    pub fn register_resize_listener<M: Module>(
-        &mut self,
-        handle: Handle<M>,
-        func: fn(&mut M, new_size: ResizeEvent),
-        timing: Timing,
-    ) {
-        self.resize_event_listerners
-            .insert(FunctionHandle::new(handle, func), timing);
     }
 }
 

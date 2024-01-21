@@ -2,10 +2,64 @@ use super::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT};
 use crate::{
     elements::{
         texture::{rgba_bind_group_layout, rgba_bind_group_layout_msaa4},
-        BindableTexture, Texture,
+        BindableTexture, Color, Texture,
     },
     modules::GraphicsContext,
 };
+
+pub struct ScreenTextures {
+    pub depth_texture: DepthTexture,
+    pub hdr_msaa_texture: HdrTexture,
+    pub hdr_resolve_target: HdrTexture,
+    pub screen_vertex_shader: ScreenVertexShader,
+}
+
+impl ScreenTextures {
+    pub fn new(ctx: &GraphicsContext) -> Self {
+        let depth_texture = DepthTexture::create(&ctx);
+        let hdr_msaa_texture = HdrTexture::create_screen_sized(&ctx, 4);
+        let hdr_resolve_target = HdrTexture::create_screen_sized(&ctx, 1);
+        let screen_vertex_shader = ScreenVertexShader::new(&ctx.device);
+
+        Self {
+            depth_texture,
+            hdr_msaa_texture,
+            hdr_resolve_target,
+            screen_vertex_shader,
+        }
+    }
+
+    pub fn new_hdr_target_render_pass<'e>(
+        &'e self,
+        encoder: &'e mut wgpu::CommandEncoder,
+        color: Color,
+    ) -> wgpu::RenderPass<'e> {
+        let color_attachment = wgpu::RenderPassColorAttachment {
+            view: self.hdr_msaa_texture.view(),
+            resolve_target: Some(self.hdr_resolve_target.view()),
+            ops: wgpu::Operations {
+                load: wgpu::LoadOp::Clear(color.into()),
+                store: wgpu::StoreOp::Store,
+            },
+        };
+        let main_render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Hdr Renderpass"),
+            color_attachments: &[Some(color_attachment)],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: self.depth_texture.view(),
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            occlusion_query_set: None,
+            timestamp_writes: None,
+        });
+        main_render_pass
+    }
+}
+
 use log::warn;
 use rand::{thread_rng, Rng};
 pub struct DepthTexture(Texture);
@@ -178,6 +232,28 @@ impl HdrTexture {
                 bind_group,
             },
             _unused_sample_count: sample_count,
+        }
+    }
+}
+
+/// Shader for a single triangle that covers the entire screen.
+#[derive(Debug)]
+pub struct ScreenVertexShader(wgpu::ShaderModule);
+
+impl ScreenVertexShader {
+    pub fn new(device: &wgpu::Device) -> Self {
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Screen Vertex Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("screen.vert.wgsl").into()),
+        });
+        ScreenVertexShader(module)
+    }
+
+    pub fn vertex_state(&self) -> wgpu::VertexState<'_> {
+        wgpu::VertexState {
+            module: &self.0,
+            entry_point: "vs_main",
+            buffers: &[],
         }
     }
 }

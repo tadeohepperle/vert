@@ -11,37 +11,33 @@ pub trait ToRaw {
 
 pub trait BufferT {}
 
-pub struct UniformBuffer<U: ToRaw> {
+pub struct UniformBuffer<U: Copy + bytemuck::Pod + bytemuck::Zeroable + PartialEq> {
     pub value: U,
-    raw: U::Raw,
     buffer: wgpu::Buffer,
     pub name: Option<Cow<'static, str>>,
 }
 
-impl<U: ToRaw> UniformBuffer<U> {
+impl<U: Copy + bytemuck::Pod + bytemuck::Zeroable + PartialEq> UniformBuffer<U> {
     pub fn buffer(&self) -> &wgpu::Buffer {
         &self.buffer
     }
 
-    pub fn update_raw_and_buffer(&mut self, queue: &wgpu::Queue) {
-        let raw = self.value.to_raw();
-        if self.raw != raw {
-            self.raw = raw;
-            queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.raw]));
+    pub fn update_and_prepare(&mut self, value: U, queue: &wgpu::Queue) {
+        if value != self.value {
+            self.value = value;
+            queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.value]));
         }
     }
 
     pub fn new(value: U, device: &wgpu::Device) -> Self {
-        let raw = value.to_raw();
         let usage = wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST;
         let buffer = device.create_buffer_init(&BufferInitDescriptor {
-            contents: bytemuck::cast_slice(&[raw]),
+            contents: bytemuck::cast_slice(&[value]),
             usage,
             label: None,
         });
         UniformBuffer {
             value,
-            raw,
             buffer,
             name: None,
         }
@@ -168,6 +164,7 @@ pub struct GrowableBuffer<T: bytemuck::Pod + bytemuck::Zeroable> {
     buffer_len: usize,
     buffer_cap: usize,
     buffer: wgpu::Buffer,
+    usage: wgpu::BufferUsages,
     phantom: PhantomData<T>,
 }
 
@@ -183,6 +180,7 @@ impl<T: bytemuck::Pod + bytemuck::Zeroable> GrowableBuffer<T> {
             buffer_len: data.len(),
             buffer_cap: data.len(),
             buffer,
+            usage,
             phantom: PhantomData,
         }
     }
@@ -200,6 +198,7 @@ impl<T: bytemuck::Pod + bytemuck::Zeroable> GrowableBuffer<T> {
             buffer_len: 0,
             buffer_cap: min_cap,
             buffer,
+            usage,
             phantom: PhantomData,
         }
     }

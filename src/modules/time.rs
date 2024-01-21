@@ -5,10 +5,6 @@ use std::{
 
 use smallvec::{smallvec, SmallVec};
 
-use crate::{utils::Timing, Handle, Module};
-
-use super::{Schedule, Scheduler};
-
 const CACHED_DELTA_TIMES_COUNT: usize = 20;
 
 #[derive(Debug)]
@@ -20,41 +16,6 @@ pub struct Time {
     start_time: Instant,
     delta_times: VecDeque<Duration>,
     stats: TimeStats,
-    scheduler: Handle<Scheduler>,
-}
-
-impl Module for Time {
-    type Config = ();
-    type Dependencies = Handle<Scheduler>;
-
-    fn new(_config: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
-        let mut delta_times = VecDeque::new();
-        delta_times.push_back(Duration::from_millis(10));
-        Ok(Time {
-            start_time: Instant::now(),
-            total_time: Duration::ZERO,
-            frame_count: 0,
-            last_frame: Instant::now() - Duration::from_millis(10),
-            delta_time: Duration::from_millis(10),
-            delta_times,
-            stats: TimeStats::default(),
-            scheduler: deps,
-        })
-    }
-
-    fn intialize(mut self_handle: crate::Handle<Self>) -> anyhow::Result<()> {
-        self_handle.start_time = Instant::now();
-        self_handle.last_frame = Instant::now();
-        let scheduler = self_handle.scheduler.get_mut();
-        scheduler.register(
-            self_handle,
-            Schedule::Update,
-            Timing::VERY_EARLY - 10,
-            Self::update,
-        );
-
-        Ok(())
-    }
 }
 
 #[derive(Debug, Default)]
@@ -72,6 +33,35 @@ pub struct Stats {
 }
 
 impl Time {
+    pub fn new() -> Self {
+        let mut delta_times = VecDeque::new();
+        delta_times.push_back(Duration::from_millis(10));
+        Time {
+            start_time: Instant::now(),
+            total_time: Duration::ZERO,
+            frame_count: 0,
+            last_frame: Instant::now() - Duration::from_millis(10),
+            delta_time: Duration::from_millis(10),
+            delta_times,
+            stats: TimeStats::default(),
+        }
+    }
+
+    pub fn update(&mut self) {
+        self.total_time = Instant::now() - self.start_time;
+        let this_frame = Instant::now();
+        if self.delta_times.len() >= CACHED_DELTA_TIMES_COUNT {
+            self.delta_times.pop_back();
+        }
+        self.delta_time = this_frame.duration_since(self.last_frame);
+        self.delta_times.push_front(self.delta_time);
+        self.last_frame = this_frame;
+        self.frame_count += 1;
+        self.stats.recalculate(&self.delta_times);
+    }
+}
+
+impl Time {
     pub fn fps(&self) -> f64 {
         self.stats.fps.avg
     }
@@ -86,19 +76,6 @@ impl Time {
 
     pub fn frame_count(&self) -> usize {
         self.frame_count
-    }
-
-    pub fn update(&mut self) {
-        self.total_time = Instant::now() - self.start_time;
-        let this_frame = Instant::now();
-        if self.delta_times.len() >= CACHED_DELTA_TIMES_COUNT {
-            self.delta_times.pop_back();
-        }
-        self.delta_time = this_frame.duration_since(self.last_frame);
-        self.delta_times.push_front(self.delta_time);
-        self.last_frame = this_frame;
-        self.frame_count += 1;
-        self.stats.recalculate(&self.delta_times);
     }
 
     pub fn egui_time_stats(&mut self, mut egui_ctx: egui::Context) {

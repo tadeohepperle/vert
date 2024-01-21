@@ -12,26 +12,17 @@ use crate::{
     elements::{rect::Aabb, BindableTexture, Rect, Texture},
     modules::{
         arenas::{Key, OwnedKey},
-        Arenas, GraphicsContext, Prepare, Renderer,
+        Arenas, GraphicsContext,
     },
-    Dependencies, Handle, Module,
 };
 
 // const PREALLOCATED_CHARACTERS: &str =
 //     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890,./\\?<>{}[]!@#$%^&*()_-=+|~` \n\tÄäÖöÜüß";
 
-#[derive(Debug, Dependencies)]
-pub struct Deps {
-    ctx: Handle<GraphicsContext>,
-    renderer: Handle<Renderer>,
-    arenas: Handle<Arenas>,
-}
-
 const ATLAS_SIZE: u32 = 4096;
 
 /// Todo! Currently no glyph cleanup, which is quite bad. Glyph cleanup can be pretty hard though.
 pub struct FontCache {
-    deps: Deps,
     atlas_texture: OwnedKey<BindableTexture>,
     atlas_allocator: AtlasAllocator,
     default_font: OwnedKey<Font>,
@@ -39,58 +30,13 @@ pub struct FontCache {
     texture_writes: Vec<GlyphKey>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct GlyphKey {
-    font: Key<fontdue::Font>,
-    font_size: FontSize,
-    char: char,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct FontSize(pub u32);
-
-impl From<f32> for FontSize {
-    fn from(value: f32) -> Self {
-        if value < 0.0 {
-            panic!("Cannot create Fontsize from negative number")
-        }
-        Self(value as u32)
-    }
-}
-
-impl From<u32> for FontSize {
-    fn from(value: u32) -> Self {
-        Self(value)
-    }
-}
-
-impl From<FontSize> for f32 {
-    fn from(value: FontSize) -> Self {
-        value.0 as f32
-    }
-}
-
-struct Glyph {
-    /// currently not used, but could be used to deallocate the glyph from the shelf atlas.
-    _alloc_id: AllocId,
-    metrics: fontdue::Metrics,
-    bitmap: Vec<u8>,
-    /// minx and miny in px in the atlas texture.
-    offset_in_atlas: IVec2,
-    /// UV coordinates in the text atlas texture (always in range 0.0 to 1.0)
-    atlas_uv: Aabb,
-}
-
-impl Module for FontCache {
-    type Config = ();
-    type Dependencies = Deps;
-
-    fn new(_config: Self::Config, mut deps: Self::Dependencies) -> anyhow::Result<Self> {
+impl FontCache {
+    pub fn new(arenas: &mut Arenas, ctx: &GraphicsContext) -> Self {
         const DEFAULT_FONT_BYTES: &[u8] = include_bytes!("../../../assets/Oswald-Medium.ttf");
         let default_font = fontdue::Font::from_bytes(DEFAULT_FONT_BYTES, Default::default())
             .expect("could not load default font");
 
-        let default_font = deps.arenas.insert(default_font);
+        let default_font = arenas.insert(default_font);
 
         let atlas_width: u32 = ATLAS_SIZE;
         let atlas_height: u32 = ATLAS_SIZE;
@@ -98,36 +44,21 @@ impl Module for FontCache {
             AtlasAllocator::new(etagere::size2(atlas_width as i32, atlas_height as i32));
 
         let image = RgbaImage::new(atlas_width, atlas_height);
-        let atlas_texture = Texture::from_image(&deps.ctx.device, &deps.ctx.queue, &image);
-        let atlas_texture = BindableTexture::new(&deps.ctx.device, atlas_texture);
-        let atlas_texture = deps.arenas.insert(atlas_texture);
+        let atlas_texture = Texture::from_image(&ctx.device, &ctx.queue, &image);
+        let atlas_texture = BindableTexture::new(&ctx.device, atlas_texture);
+        let atlas_texture = arenas.insert(atlas_texture);
 
-        Ok(FontCache {
-            deps,
+        FontCache {
             default_font,
             atlas_texture,
             atlas_allocator,
             glyphs: HashMap::new(),
             texture_writes: vec![],
-        })
+        }
     }
 
-    fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
-        let mut renderer = handle.deps.renderer;
-        renderer.register_prepare(handle);
-
-        Ok(())
-    }
-}
-
-impl Prepare for FontCache {
-    fn prepare(
-        &mut self,
-        _device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        _encoder: &mut wgpu::CommandEncoder,
-    ) {
-        let atlas_texture = &self.deps.arenas[&self.atlas_texture];
+    pub fn prepare(&mut self, queue: &wgpu::Queue, arenas: &Arenas) {
+        let atlas_texture = &arenas[&self.atlas_texture];
         for key in self.texture_writes.iter() {
             let glyph = self.glyphs.get(key).unwrap();
             let glyph_image = glyph_to_rgba_image(glyph);
@@ -140,9 +71,7 @@ impl Prepare for FontCache {
         }
         self.texture_writes.clear();
     }
-}
 
-impl FontCache {
     pub fn default_font(&self) -> Key<Font> {
         self.default_font.key()
     }
@@ -156,12 +85,12 @@ impl FontCache {
     // }
 
     /// Returns non if there is no glyph that can be assigned to the char (e.g. for space)
-    fn get_glyph_atlas_uv_or_rasterize(&mut self, key: GlyphKey) -> Option<Aabb> {
+    fn get_glyph_atlas_uv_or_rasterize(&mut self, key: GlyphKey, arenas: &Arenas) -> Option<Aabb> {
         if let Some(glyph) = self.glyphs.get_mut(&key) {
             return Some(glyph.atlas_uv);
         }
 
-        let font = &self.deps.arenas[key.font];
+        let font = &arenas[key.font];
         let (metrics, bitmap) = font.rasterize(key.char, key.font_size.into());
         debug_assert_eq!(bitmap.len(), metrics.width * metrics.height);
 
@@ -211,10 +140,11 @@ impl FontCache {
         layout_font_size: f32,
         layout_settings: &LayoutSettings,
         font: Option<Key<Font>>,
+        arenas: &Arenas,
     ) -> TextLayoutResult {
         // Note: (layout_settings.x, layout_settings.y) is the top left corner where the text starts.
         let font = font.unwrap_or_else(|| self.default_font.key());
-        let font_obj = &self.deps.arenas[font];
+        let font_obj = &arenas[font];
 
         let mut layout: Layout<()> = Layout::new(CoordinateSystem::PositiveYDown);
         layout.reset(layout_settings);
@@ -239,7 +169,7 @@ impl FontCache {
                 font_size,
                 char: glyph_pos.parent,
             };
-            let Some(glyph_uv) = self.get_glyph_atlas_uv_or_rasterize(key) else {
+            let Some(glyph_uv) = self.get_glyph_atlas_uv_or_rasterize(key, arenas) else {
                 // empty character, or unknown character, just skip// todo!(warn user if non empty cahr skipped)
                 continue;
             };
@@ -266,6 +196,48 @@ impl FontCache {
             ),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct GlyphKey {
+    font: Key<fontdue::Font>,
+    font_size: FontSize,
+    char: char,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct FontSize(pub u32);
+
+impl From<f32> for FontSize {
+    fn from(value: f32) -> Self {
+        if value < 0.0 {
+            panic!("Cannot create Fontsize from negative number")
+        }
+        Self(value as u32)
+    }
+}
+
+impl From<u32> for FontSize {
+    fn from(value: u32) -> Self {
+        Self(value)
+    }
+}
+
+impl From<FontSize> for f32 {
+    fn from(value: FontSize) -> Self {
+        value.0 as f32
+    }
+}
+
+struct Glyph {
+    /// currently not used, but could be used to deallocate the glyph from the shelf atlas.
+    _alloc_id: AllocId,
+    metrics: fontdue::Metrics,
+    bitmap: Vec<u8>,
+    /// minx and miny in px in the atlas texture.
+    offset_in_atlas: IVec2,
+    /// UV coordinates in the text atlas texture (always in range 0.0 to 1.0)
+    atlas_uv: Aabb,
 }
 
 #[derive(Debug)]

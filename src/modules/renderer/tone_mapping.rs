@@ -2,71 +2,35 @@ use wgpu::{PushConstantRange, ShaderStages};
 
 use crate::{
     elements::texture::rgba_bind_group_layout,
-    modules::{renderer::SURFACE_COLOR_FORMAT, GraphicsContext, Renderer},
-    Dependencies, Handle, Module,
+    modules::{renderer::SURFACE_COLOR_FORMAT, GraphicsContext},
 };
 
-use super::{PostProcessingEffect, ScreenVertexShader};
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ToneMappingSettings {
-    Disabled,
-    Aces,
-}
-
-impl ToneMappingSettings {
-    fn to_push_const(&self) -> u32 {
-        match self {
-            ToneMappingSettings::Disabled => 0,
-            ToneMappingSettings::Aces => 1,
-        }
-    }
-}
+use super::ScreenVertexShader;
 
 pub struct AcesToneMapping {
+    enabled: bool,
     pipeline: wgpu::RenderPipeline,
-    settings: ToneMappingSettings,
-    deps: Deps,
-}
-
-#[derive(Debug, Dependencies)]
-pub struct Deps {
-    renderer: Handle<Renderer>,
-    ctx: Handle<GraphicsContext>,
-}
-impl Module for AcesToneMapping {
-    type Config = ToneMappingSettings;
-    type Dependencies = Deps;
-
-    fn new(settings: Self::Config, deps: Self::Dependencies) -> anyhow::Result<Self> {
-        let pipeline = create_pipeline(
-            include_str!("tonemapping.wgsl"),
-            &deps.ctx.device,
-            &deps.renderer.screen_vertex_shader,
-        );
-
-        Ok(Self {
-            pipeline,
-            settings,
-            deps,
-        })
-    }
-
-    fn intialize(handle: Handle<Self>) -> anyhow::Result<()> {
-        let mut renderer = handle.deps.renderer;
-        renderer.register_tonemapping_effect(handle);
-        Ok(())
-    }
 }
 
 impl AcesToneMapping {
-    pub fn settings_mut(&mut self) -> &mut ToneMappingSettings {
-        &mut self.settings
+    pub fn new(ctx: &GraphicsContext, screen_vertex_shader: &ScreenVertexShader) -> Self {
+        let pipeline = create_pipeline(
+            include_str!("tonemapping.wgsl"),
+            &ctx.device,
+            &screen_vertex_shader,
+        );
+        Self {
+            enabled: true,
+            pipeline,
+        }
     }
-}
 
-impl PostProcessingEffect for AcesToneMapping {
-    fn apply<'e>(
+    pub fn enabled_mut(&mut self) -> &mut bool {
+        &mut self.enabled
+    }
+
+    /// Note: input texture should be hdr, output sdr
+    pub fn apply<'e>(
         &'e mut self,
         encoder: &'e mut wgpu::CommandEncoder,
         input_texture: &wgpu::BindGroup,
@@ -88,13 +52,6 @@ impl PostProcessingEffect for AcesToneMapping {
         });
 
         tone_mapping_pass.set_pipeline(&self.pipeline);
-        let tone_map = self.settings.to_push_const();
-        tone_mapping_pass.set_push_constants(
-            ShaderStages::FRAGMENT,
-            0,
-            bytemuck::cast_slice(&[tone_map]),
-        );
-
         tone_mapping_pass.set_bind_group(0, input_texture, &[]);
         tone_mapping_pass.draw(0..3, 0..1);
     }
