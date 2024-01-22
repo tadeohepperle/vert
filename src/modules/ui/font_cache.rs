@@ -9,12 +9,14 @@ use image::RgbaImage;
 use std::collections::HashMap;
 
 use crate::{
-    elements::{rect::Aabb, BindableTexture, Rect, Texture},
+    elements::{rect::Aabb, BindableTexture, Color, Rect, Texture},
     modules::{
         arenas::{Key, OwnedKey},
         Arenas, GraphicsContext,
     },
 };
+
+use super::board::TextSection;
 
 // const PREALLOCATED_CHARACTERS: &str =
 //     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890,./\\?<>{}[]!@#$%^&*()_-=+|~` \n\tÄäÖöÜüß";
@@ -135,9 +137,7 @@ impl FontCache {
     /// if layout_font_size_px is None, the size at which the font was rasterized font is used for layout
     pub fn perform_text_layout(
         &mut self,
-        text: &str,
-        font_size: FontSize,
-        layout_font_size: f32,
+        texts: &[TextSection], // this is a bit leaky because it should be an iterator over strings instead, but should be fine for now.
         layout_settings: &LayoutSettings,
         font: Option<Key<Font>>,
         arenas: &Arenas,
@@ -146,30 +146,47 @@ impl FontCache {
         let font = font.unwrap_or_else(|| self.default_font.key());
         let font_obj = &arenas[font];
 
-        let mut layout: Layout<()> = Layout::new(CoordinateSystem::PositiveYDown);
+        #[derive(Clone, Copy)]
+        struct UserData {
+            font_size: FontSize,
+            color: Color,
+        }
+
+        let mut layout: Layout<UserData> = Layout::new(CoordinateSystem::PositiveYDown);
         layout.reset(layout_settings);
         // this performs the layout:
-        layout.append(
-            &[font_obj],
-            &TextStyle {
-                text,
-                px: layout_font_size,
-                font_index: 0,
-                user_data: (),
-            },
-        );
 
-        let mut glyph_pos_and_atlas_uv: Vec<(Aabb, Aabb)> = vec![];
+        for t in texts.iter() {
+            let user_data = UserData {
+                color: t.color,
+                font_size: t.size,
+            };
+            layout.append(
+                &[font_obj],
+                &TextStyle {
+                    text: &t.string,
+                    px: t.size.0 as f32,
+                    font_index: 0,
+                    user_data,
+                },
+            );
+        }
+
+        let mut layouted_glyphs: Vec<LayoutedGlyph> = vec![];
         let mut max_x: f32 = layout_settings.x; // top left corner
         let mut max_y: f32 = layout_settings.y; // top left corner
 
         for glyph_pos in layout.glyphs() {
+            let font_size = glyph_pos.user_data.font_size;
+            let color = glyph_pos.user_data.color;
+
             let key = GlyphKey {
                 font,
                 font_size,
                 char: glyph_pos.parent,
             };
-            let Some(glyph_uv) = self.get_glyph_atlas_uv_or_rasterize(key, arenas) else {
+
+            let Some(uv) = self.get_glyph_atlas_uv_or_rasterize(key, arenas) else {
                 // empty character, or unknown character, just skip// todo!(warn user if non empty cahr skipped)
                 continue;
             };
@@ -177,17 +194,18 @@ impl FontCache {
             max_x = max_x.max(glyph_pos.x + glyph_pos.width as f32);
             max_y = max_y.max(glyph_pos.y + glyph_pos.height as f32);
 
-            let pos = Aabb::new(
+            let bounds = Aabb::new(
                 glyph_pos.x,
                 glyph_pos.y,
                 glyph_pos.x + glyph_pos.width as f32,
                 glyph_pos.y + glyph_pos.height as f32,
             );
-            glyph_pos_and_atlas_uv.push((pos, glyph_uv));
+
+            layouted_glyphs.push(LayoutedGlyph { bounds, uv, color });
         }
 
         TextLayoutResult {
-            glyph_pos_and_atlas_uv,
+            layouted_glyphs,
             total_rect: Rect::new(
                 layout_settings.x,
                 layout_settings.y,
@@ -240,11 +258,18 @@ struct Glyph {
     atlas_uv: Aabb,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct LayoutedGlyph {
+    pub bounds: Aabb,
+    pub uv: Aabb,
+    pub color: Color,
+}
+
 #[derive(Debug)]
 pub struct TextLayoutResult {
     /// glyph position and their uv position in the texture atlas
     /// Todo! make pos a rect instead, because it is easier to add to it.
-    pub glyph_pos_and_atlas_uv: Vec<(Aabb, Aabb)>,
+    pub layouted_glyphs: Vec<LayoutedGlyph>,
     // total bounding rect of the text. Can be used e.g. for centering all of the glyphs by shifting them by half the size or so.
     pub total_rect: Rect,
 }

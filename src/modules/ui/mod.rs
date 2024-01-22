@@ -3,7 +3,7 @@ mod batching;
 mod board;
 pub use board::{
     Align, Axis, Board, BoardInput, BoardPhase, BorderRadius, ContainerId, Div, DivStyle,
-    DivTexture, HotActive, Id, Len, MainAlign, Padding, Text,
+    DivTexture, HotActive, Id, Len, MainAlign, Padding, Text, TextSection,
 };
 
 mod font_cache;

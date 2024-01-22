@@ -1,6 +1,7 @@
 //! Run `RUST_LOG=INFO cargo run --example vert --release` to run this example.
 
 use glam::dvec2;
+use smallvec::smallvec;
 use vert::{
     batteries::{FlyCam, GraphicsSettingsController},
     elements::{Color, Rect, Transform},
@@ -8,6 +9,7 @@ use vert::{
         renderer::ui_rect::UiRect,
         ui::{
             Align, Axis, Board, BoardInput, BorderRadius, Button, FontSize, Len, MainAlign, Text,
+            TextSection,
         },
         DefaultModules,
     },
@@ -152,9 +154,11 @@ impl MyApp {
 
         let mut text_div = self.ui.add_text_div(
             Text {
-                color: Color::new(6.0, 2.0, 2.0),
-                string: "Hover me please, I will show you something!".into(),
-                size: FontSize(48),
+                sections: smallvec![TextSection {
+                    color: Color::new(6.0, 2.0, 2.0),
+                    string: "Hover me please, I will show you something!".into(),
+                    size: FontSize(48),
+                }],
                 offset_x: Len::px(30.0),
                 offset_y: Len::px(30.0),
                 ..Default::default()
@@ -178,7 +182,7 @@ impl MyApp {
             style.border_color = Color::GREEN;
             style.border_thickness = 6.0;
             // style.border_radius = BorderRadius::new(40.0, 40.0, 40.0, 40.0);
-            text_div.text().color = Color::BLACK;
+            text_div.text().sections[0].color = Color::BLACK;
         }
 
         let total_time = self.mods.time.total().as_secs_f64() * 4.0;

@@ -5,6 +5,7 @@ use crate::{
             Align, Axis, Board, BorderRadius, ContainerId, HotActive, Id, Len, MainAlign, Text,
         },
         widgets::next_hot_active,
+        FontSize,
     },
 };
 
@@ -109,13 +110,9 @@ impl<'v> Widget for Slider<'v> {
         board.set_hot_active(knob_id, knob_next_hot_active);
 
         let mut text_div = board.add_text_div(
-            Text {
-                color: Color::DARKGREY,
-                string: format!("{:.2}", self.value).into(),
-                font: None,
-                size: 20.into(),
-                ..Default::default()
-            },
+            Text::new(format!("{:.2}", self.value))
+                .size(FontSize(20))
+                .color(Color::DARKGREY),
             id + 4,
             parent,
         );

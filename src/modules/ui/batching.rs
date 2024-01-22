@@ -12,6 +12,7 @@ use crate::{
 use super::board::{Board, BorderRadius, Div, DivContent, DivTexture, TextEntry};
 
 /// Warning: call only after layout has been performed on the billboard (for all rects and the text in them)
+/// Todo! introduce aabb overlap violation based batching, for even less batches, like Nical wrote about in his Web-Render Blogpost.
 pub fn get_batches(board: &Board) -> BatchingResult {
     // fill a vec of sort primitives
     // todo! reuse allocated vec next frame!
@@ -99,20 +100,12 @@ pub fn get_batches(board: &Board) -> BatchingResult {
             SortPrimitive::Text { div: _, text } => {
                 // todo! add text pos to glyphs
                 let text_pos = text.c_pos.get();
-                for (pos, uv) in text
-                    .c_text_layout
-                    .get()
-                    .result
-                    .glyph_pos_and_atlas_uv
-                    .iter()
-                    .copied()
-                {
-                    // dbg!(pos);
-                    // dbg!(div_pos);
+                let layouted_glyphs = &text.c_text_layout.get().result.layouted_glyphs;
+                for glyph in layouted_glyphs.iter() {
                     glyphs.push(GlyphRaw {
-                        pos: pos + text_pos.as_vec2(),
-                        color: text.text.color,
-                        uv,
+                        pos: glyph.bounds + text_pos.as_vec2(),
+                        color: glyph.color,
+                        uv: glyph.uv,
                     });
                 }
             }

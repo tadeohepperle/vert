@@ -58,12 +58,12 @@ impl Widget for Button {
         let hot_active = board.hot_active(id);
         let left_button = board.input().mouse_buttons.left();
         let mut btn = board.add_text_div(
-            Text {
-                color: self.text_color,
-                string: self.text,
-                font: self.font,
-                size: FontSize(24),
-                ..Default::default()
+            {
+                let mut text = Text::default();
+                text.font = self.font;
+                text.sections[0].color = self.text_color;
+                text.sections[0].size = FontSize(24);
+                text
             },
             id,
             parent,

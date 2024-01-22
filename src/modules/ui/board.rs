@@ -28,6 +28,7 @@ use fontdue::{
 };
 use glam::{dvec2, DVec2, IVec2};
 use rand::Rng;
+use smallvec::{smallvec, SmallVec};
 
 use super::{
     font_cache::{FontCache, FontSize, TextLayoutResult},
@@ -659,9 +660,7 @@ impl<'a> Layouter<'a> {
             wrap_hard_breaks: true, // todo!() needle expose these functions
         };
         let result = self.fonts.perform_text_layout(
-            &text_entry.text.string,
-            text_entry.text.size,
-            text_entry.text.size.into(),
+            &text_entry.text.sections,
             &layout_settings,
             text_entry.text.font,
             self.arenas,
@@ -1026,12 +1025,13 @@ impl Padding {
         self
     }
 
-    pub fn all(mut self, len: Len) -> Self {
-        self.left = len;
-        self.right = len;
-        self.top = len;
-        self.bottom = len;
-        self
+    pub fn all(len: Len) -> Self {
+        Self {
+            left: len,
+            right: len,
+            top: len,
+            bottom: len,
+        }
     }
 
     /// how big is the padding in total (left + right) and (top + bottom)
@@ -1218,30 +1218,80 @@ impl TextEntry {
 
 #[derive(Debug)]
 pub struct Text {
-    pub color: Color,
-    pub string: Cow<'static, str>,
+    pub sections: smallvec::SmallVec<[TextSection; 1]>,
     /// None means the default font will be used insteads
     pub font: Option<Key<Font>>,
-    pub size: FontSize,
     // is this here maybe in the wrong place for offset? Maybe an extra div for this stuff would be better than putting it in the text itself!
     // on the other hand it is very useful to adjust the font baseline in a quick and dirty way.
     pub offset_x: Len,
     pub offset_y: Len,
 }
 
+#[derive(Debug)]
+pub struct TextSection {
+    pub color: Color,
+    pub string: Cow<'static, str>,
+    pub size: FontSize,
+}
+
 impl Text {
+    pub fn new(string: impl Into<Cow<'static, str>>) -> Self {
+        Self {
+            sections: smallvec![TextSection {
+                color: Color::BLACK,
+                string: string.into(),
+                size: FontSize(24)
+            }],
+            ..Default::default()
+        }
+    }
+
+    pub fn font(mut self, font: Key<Font>) -> Self {
+        self.font = Some(font);
+        self
+    }
+
+    pub fn color(mut self, color: Color) -> Self {
+        for s in self.sections.iter_mut() {
+            s.color = color;
+        }
+        self
+    }
+
+    pub fn size(mut self, size: FontSize) -> Self {
+        for s in self.sections.iter_mut() {
+            s.size = size;
+        }
+        self
+    }
+
     fn same_glyphs(&self, other: &Self) -> bool {
-        self.size == other.size && self.font == other.font && self.string == other.string
+        let same = self.font == other.font && self.sections.len() == other.sections.len();
+        if !same {
+            return false;
+        }
+
+        for i in 0..self.sections.len() {
+            let a = &self.sections[i];
+            let b = &other.sections[i];
+            if a.size != b.size || a.string != b.string {
+                return false;
+            }
+        }
+
+        true
     }
 }
 
 impl Default for Text {
     fn default() -> Self {
         Self {
-            color: Color::BLACK,
-            string: "Placeholder".into(),
+            sections: smallvec![TextSection {
+                color: Color::RED,
+                string: "Hello".into(),
+                size: FontSize(24),
+            }],
             font: None,
-            size: FontSize(24),
             offset_x: Len::ZERO,
             offset_y: Len::ZERO,
         }
@@ -1260,7 +1310,7 @@ impl CachedTextLayout {
         CachedTextLayout {
             max_size: IVec2::ZERO,
             result: TextLayoutResult {
-                glyph_pos_and_atlas_uv: vec![],
+                layouted_glyphs: vec![],
                 total_rect: Rect::ZERO,
             },
         }
@@ -1328,14 +1378,14 @@ impl Len {
         parent_fraction: 1.0,
     };
 
-    pub fn px(px: f64) -> Self {
+    pub const fn px(px: f64) -> Self {
         Len {
             px,
             parent_fraction: 0.0,
         }
     }
 
-    pub fn parent(parent_fraction: f64) -> Self {
+    pub const fn parent(parent_fraction: f64) -> Self {
         Len {
             px: 0.0,
             parent_fraction,
