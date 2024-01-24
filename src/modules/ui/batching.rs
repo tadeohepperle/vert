@@ -6,7 +6,8 @@ use wgpu::VertexFormat;
 
 use crate::{
     elements::{rect::Aabb, BindableTexture, Color},
-    modules::{arenas::Key, Attribute, VertexT},
+    modules::{Attribute, VertexT},
+    Ref,
 };
 
 use super::board::{Board, BorderRadius, Div, DivContent, DivTexture, TextEntry};
@@ -166,9 +167,9 @@ impl<'a> SortPrimitive<'a> {
             SortPrimitive::TexturedRect {
                 div: _,
                 div_texture,
-            } => div_texture.texture.as_u64_xor_type(),
+            } => div_texture.texture.as_u64_hash(),
             SortPrimitive::Text { text, .. } => {
-                text.text.font.map(|e| e.as_u64_xor_type()).unwrap_or(0)
+                text.text.font.map(|e| e.as_u64_hash()).unwrap_or(0)
             }
         }
     }
@@ -177,8 +178,8 @@ impl<'a> SortPrimitive<'a> {
 #[derive(Debug)]
 pub enum BatchRegion {
     Rect(Range<usize>),
-    TexturedRect(Range<usize>, Key<BindableTexture>),
-    Text(Range<usize>, Option<Key<Font>>),
+    TexturedRect(Range<usize>, Ref<BindableTexture>),
+    Text(Range<usize>, Option<Ref<Font>>),
 }
 
 impl BatchRegion {
@@ -186,8 +187,8 @@ impl BatchRegion {
     fn batch_key(&self) -> u64 {
         match self {
             BatchRegion::Rect(_) => u64::MAX,
-            BatchRegion::TexturedRect(_, texture) => texture.as_u64_xor_type(),
-            BatchRegion::Text(_, font) => font.map(|e| e.as_u64_xor_type()).unwrap_or(0),
+            BatchRegion::TexturedRect(_, texture) => texture.as_u64_hash(),
+            BatchRegion::Text(_, font) => font.map(|e| e.as_u64_hash()).unwrap_or(0),
         }
     }
 }

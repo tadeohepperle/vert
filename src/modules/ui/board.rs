@@ -17,8 +17,9 @@ use std::{
 use crate::{
     elements::{rect::Aabb, BindableTexture, Color, Rect},
     ext::glam::Vec2,
-    modules::{arenas::Key, input::MouseButtonState, Arenas, Input},
+    modules::{input::MouseButtonState, Input},
     utils::ChillCell,
+    Ref,
 };
 use egui::Ui;
 
@@ -333,7 +334,7 @@ impl Board {
     }
 
     /// call to transition from  BoardPhase::AddDivs -> BoardPhase::LayoutDone
-    pub fn end_frame(&mut self, fonts: &mut FontCache, arenas: &Arenas) {
+    pub fn end_frame(&mut self, fonts: &mut FontCache) {
         assert_eq!(self.phase, BoardPhase::AddDivs);
         self.phase = BoardPhase::Rendering;
 
@@ -343,7 +344,7 @@ impl Board {
         self.last_frame += 1;
 
         // Perform Layout (set sizes and positions for all divs in the tree)
-        let mut layouter = Layouter::new(&self.divs, fonts, arenas);
+        let mut layouter = Layouter::new(&self.divs, fonts);
         layouter.perform_layout(&self.top_level_children, self.top_level_size);
     }
 }
@@ -440,16 +441,11 @@ pub struct Comm {
 struct Layouter<'a> {
     divs: &'a HashMap<Id, Div>,
     fonts: &'a mut FontCache,
-    arenas: &'a Arenas,
 }
 
 impl<'a> Layouter<'a> {
-    fn new(divs: &'a HashMap<Id, Div>, fonts: &'a mut FontCache, arenas: &'a Arenas) -> Self {
-        Self {
-            divs,
-            fonts,
-            arenas,
-        }
+    fn new(divs: &'a HashMap<Id, Div>, fonts: &'a mut FontCache) -> Self {
+        Self { divs, fonts }
     }
 
     /// determine the Rect of each div on this board.
@@ -663,7 +659,6 @@ impl<'a> Layouter<'a> {
             &text_entry.text.sections,
             &layout_settings,
             text_entry.text.font,
-            self.arenas,
         );
         // dbg!(&result);
         let text_size = result.total_rect.d_size();
@@ -1157,9 +1152,9 @@ impl ComputedPadding {
     };
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct DivTexture {
-    pub texture: Key<BindableTexture>,
+    pub texture: Ref<BindableTexture>,
     pub uv: Aabb,
 }
 
@@ -1220,7 +1215,7 @@ impl TextEntry {
 pub struct Text {
     pub sections: smallvec::SmallVec<[TextSection; 1]>,
     /// None means the default font will be used insteads
-    pub font: Option<Key<Font>>,
+    pub font: Option<Ref<Font>>,
     // is this here maybe in the wrong place for offset? Maybe an extra div for this stuff would be better than putting it in the text itself!
     // on the other hand it is very useful to adjust the font baseline in a quick and dirty way.
     pub offset_x: Len,
@@ -1246,7 +1241,7 @@ impl Text {
         }
     }
 
-    pub fn font(mut self, font: Key<Font>) -> Self {
+    pub fn font(mut self, font: Ref<Font>) -> Self {
         self.font = Some(font);
         self
     }

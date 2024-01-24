@@ -16,7 +16,6 @@ use crate::elements::BindableTexture;
 use crate::elements::GrowableBuffer;
 
 use crate::modules::ui::board::BoardPhase;
-use crate::modules::Arenas;
 use crate::modules::GraphicsContext;
 
 use crate::utils::watcher::ShaderFileWatcher;
@@ -95,7 +94,6 @@ impl UiRenderer {
         view: &wgpu::TextureView,
         screen: &ScreenGR,
         fonts: &FontCache,
-        arenas: &Arenas,
     ) {
         let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("Ui Render Pass"),
@@ -119,9 +117,6 @@ impl UiRenderer {
 
         const VERTEX_COUNT: u32 = 6;
         let atlas_texture = fonts.atlas_texture();
-        let textures = arenas.arena::<BindableTexture>();
-        let atlas_texture = textures.get(atlas_texture).unwrap();
-
         for batch in self.draw_batches.iter() {
             match batch {
                 BatchRegion::Rect(r) => {
@@ -140,17 +135,12 @@ impl UiRenderer {
                     render_pass.draw(0..VERTEX_COUNT, r.start as u32..r.end as u32);
                 }
                 BatchRegion::TexturedRect(r, texture) => {
-                    if let Some(texture) = textures.get(*texture) {
-                        render_pass.set_bind_group(1, &texture.bind_group, &[]);
-                        render_pass.set_pipeline(&self.textured_rect_pipeline);
-                        // set the instance buffer (no vertex buffer used, vertex positions computed from instances)
-                        render_pass
-                            .set_vertex_buffer(0, self.textured_rect_buffer.buffer().slice(..));
-                        // todo!() maybe not set entire buffer and then adjust the instance indexes that are drawn???
-                        render_pass.draw(0..VERTEX_COUNT, r.start as u32..r.end as u32);
-                    } else {
-                        warn!("Texture not found for key {texture} in a ui rendering batch (textured rect)")
-                    }
+                    render_pass.set_bind_group(1, &texture.bind_group, &[]);
+                    render_pass.set_pipeline(&self.textured_rect_pipeline);
+                    // set the instance buffer (no vertex buffer used, vertex positions computed from instances)
+                    render_pass.set_vertex_buffer(0, self.textured_rect_buffer.buffer().slice(..));
+                    // todo!() maybe not set entire buffer and then adjust the instance indexes that are drawn???
+                    render_pass.draw(0..VERTEX_COUNT, r.start as u32..r.end as u32);
                 }
             }
         }

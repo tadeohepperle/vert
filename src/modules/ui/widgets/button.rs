@@ -4,18 +4,16 @@ use fontdue::Font;
 
 use crate::{
     elements::Color,
-    modules::{
-        arenas::Key,
-        ui::{
-            board::{
-                Align, Board, BorderRadius, ContainerId,
-                HotActive::{self, *},
-                Id, Len, MainAlign, Text,
-            },
-            font_cache::FontSize,
-            Padding,
+    modules::ui::{
+        board::{
+            Align, Board, BorderRadius, ContainerId,
+            HotActive::{self, *},
+            Id, Len, MainAlign, Text,
         },
+        font_cache::FontSize,
+        Padding,
     },
+    Ref,
 };
 
 use super::{next_hot_active, Widget};
@@ -26,7 +24,7 @@ pub struct Button {
     pub color: Color,
     pub hover_color: Color,
     pub click_color: Color,
-    pub font: Option<Key<Font>>,
+    pub font: Option<Ref<Font>>,
 }
 
 impl Default for Button {

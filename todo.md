@@ -11,3 +11,10 @@
 - the user should have the choice between using modules (static handles + automatic initialization)
 - or if they rather want to own a struct e.g. a graphicscontext.
 - then they need to take care of the initialization and lifetime of it themselves.
+
+
+| -       | clonable | always has value |
+| ------- | -------- | ---------------- |
+| Own     | no       | yes              |
+| Ref     | yes      | no               |
+| Eternal | yes      | yes              |

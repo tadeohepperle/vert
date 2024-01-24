@@ -10,10 +10,8 @@ use std::collections::HashMap;
 
 use crate::{
     elements::{rect::Aabb, BindableTexture, Color, Rect, Texture},
-    modules::{
-        arenas::{Key, OwnedKey},
-        Arenas, GraphicsContext,
-    },
+    modules::GraphicsContext,
+    Own, Ref,
 };
 
 use super::board::TextSection;
@@ -25,20 +23,19 @@ const ATLAS_SIZE: u32 = 4096;
 
 /// Todo! Currently no glyph cleanup, which is quite bad. Glyph cleanup can be pretty hard though.
 pub struct FontCache {
-    atlas_texture: OwnedKey<BindableTexture>,
+    atlas_texture: Own<BindableTexture>,
     atlas_allocator: AtlasAllocator,
-    default_font: OwnedKey<Font>,
+    default_font: Own<Font>,
     glyphs: HashMap<GlyphKey, Glyph>,
     texture_writes: Vec<GlyphKey>,
 }
 
 impl FontCache {
-    pub fn new(arenas: &mut Arenas, ctx: &GraphicsContext) -> Self {
+    pub fn new(ctx: &GraphicsContext) -> Self {
         const DEFAULT_FONT_BYTES: &[u8] = include_bytes!("../../../assets/Oswald-Medium.ttf");
         let default_font = fontdue::Font::from_bytes(DEFAULT_FONT_BYTES, Default::default())
             .expect("could not load default font");
-
-        let default_font = arenas.insert(default_font);
+        let default_font = Own::new(default_font);
 
         let atlas_width: u32 = ATLAS_SIZE;
         let atlas_height: u32 = ATLAS_SIZE;
@@ -48,7 +45,7 @@ impl FontCache {
         let image = RgbaImage::new(atlas_width, atlas_height);
         let atlas_texture = Texture::from_image(&ctx.device, &ctx.queue, &image);
         let atlas_texture = BindableTexture::new(&ctx.device, atlas_texture);
-        let atlas_texture = arenas.insert(atlas_texture);
+        let atlas_texture = Own::new(atlas_texture);
 
         FontCache {
             default_font,
@@ -59,13 +56,12 @@ impl FontCache {
         }
     }
 
-    pub fn prepare(&mut self, queue: &wgpu::Queue, arenas: &Arenas) {
-        let atlas_texture = &arenas[&self.atlas_texture];
+    pub fn prepare(&mut self, queue: &wgpu::Queue) {
         for key in self.texture_writes.iter() {
             let glyph = self.glyphs.get(key).unwrap();
             let glyph_image = glyph_to_rgba_image(glyph);
             update_texture_region(
-                &atlas_texture.texture,
+                &self.atlas_texture.texture,
                 &glyph_image,
                 glyph.offset_in_atlas,
                 queue,
@@ -74,12 +70,12 @@ impl FontCache {
         self.texture_writes.clear();
     }
 
-    pub fn default_font(&self) -> Key<Font> {
-        self.default_font.key()
+    pub fn default_font(&self) -> &Own<Font> {
+        &self.default_font
     }
 
-    pub fn atlas_texture(&self) -> Key<BindableTexture> {
-        self.atlas_texture.key()
+    pub fn atlas_texture(&self) -> &Own<BindableTexture> {
+        &self.atlas_texture
     }
 
     // pub fn atlas_texture_obj(&self) -> &BindableTexture {
@@ -87,12 +83,13 @@ impl FontCache {
     // }
 
     /// Returns non if there is no glyph that can be assigned to the char (e.g. for space)
-    fn get_glyph_atlas_uv_or_rasterize(&mut self, key: GlyphKey, arenas: &Arenas) -> Option<Aabb> {
+    fn get_glyph_atlas_uv_or_rasterize(&mut self, key: GlyphKey) -> Option<Aabb> {
         if let Some(glyph) = self.glyphs.get_mut(&key) {
             return Some(glyph.atlas_uv);
         }
 
-        let font = &arenas[key.font];
+        let font = key.font;
+
         let (metrics, bitmap) = font.rasterize(key.char, key.font_size.into());
         debug_assert_eq!(bitmap.len(), metrics.width * metrics.height);
 
@@ -121,7 +118,7 @@ impl FontCache {
             (offset_in_atlas.y + metrics.height as i32) as f32 / ATLAS_SIZE as f32,
         );
 
-        self.texture_writes.push(key);
+        self.texture_writes.push(key.clone());
         // store glyph:
         let glyph = Glyph {
             metrics,
@@ -139,12 +136,10 @@ impl FontCache {
         &mut self,
         texts: &[TextSection], // this is a bit leaky because it should be an iterator over strings instead, but should be fine for now.
         layout_settings: &LayoutSettings,
-        font: Option<Key<Font>>,
-        arenas: &Arenas,
+        font: Option<Ref<Font>>,
     ) -> TextLayoutResult {
         // Note: (layout_settings.x, layout_settings.y) is the top left corner where the text starts.
-        let font = font.unwrap_or_else(|| self.default_font.key());
-        let font_obj = &arenas[font];
+        let font = font.unwrap_or_else(|| self.default_font.share());
 
         #[derive(Clone, Copy)]
         struct UserData {
@@ -162,7 +157,7 @@ impl FontCache {
                 font_size: t.size,
             };
             layout.append(
-                &[font_obj],
+                &[font],
                 &TextStyle {
                     text: &t.string,
                     px: t.size.0 as f32,
@@ -186,7 +181,7 @@ impl FontCache {
                 char: glyph_pos.parent,
             };
 
-            let Some(uv) = self.get_glyph_atlas_uv_or_rasterize(key, arenas) else {
+            let Some(uv) = self.get_glyph_atlas_uv_or_rasterize(key) else {
                 // empty character, or unknown character, just skip// todo!(warn user if non empty cahr skipped)
                 continue;
             };
@@ -216,9 +211,9 @@ impl FontCache {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GlyphKey {
-    font: Key<fontdue::Font>,
+    font: Ref<fontdue::Font>,
     font_size: FontSize,
     char: char,
 }

@@ -15,7 +15,6 @@ pub mod time;
 pub use time::Time;
 
 pub mod arenas;
-pub use arenas::Arenas;
 
 pub mod egui;
 pub use egui::Egui;
@@ -35,7 +34,6 @@ use self::{
 };
 
 pub struct DefaultModules {
-    pub arenas: Arenas,
     pub tokio: tokio::runtime::Runtime,
     pub ctx: GraphicsContext,
     pub window: Arc<Window>,
@@ -69,7 +67,6 @@ pub struct DefaultModules {
 
 impl DefaultModules {
     pub fn new(window: Arc<Window>) -> anyhow::Result<Self> {
-        let mut arenas = Arenas::new();
         let tokio = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()?;
@@ -87,16 +84,15 @@ impl DefaultModules {
         let screen_textures = ScreenTextures::new(&ctx);
         let color_mesh = ColorMeshRenderer::new(&ctx, &camera_gr);
         let gizmos = Gizmos::new(&ctx, &camera_gr);
-        let ui_rect = UiRectRenderer::new(&mut arenas, &ctx, &screen_gr);
-        let world_rect = WorldRectRenderer::new(&mut arenas, &ctx, &camera_gr);
-        let text = TextRenderer::new(&mut arenas, &ctx);
-        let fonts = FontCache::new(&mut arenas, &ctx);
+        let ui_rect = UiRectRenderer::new(&ctx, &screen_gr);
+        let world_rect = WorldRectRenderer::new(&ctx, &camera_gr);
+        let text = TextRenderer::new(&ctx);
+        let fonts = FontCache::new(&ctx);
         let ui = UiRenderer::new(&ctx, &screen_gr);
         let bloom = Bloom::new(&ctx, &screen_textures.screen_vertex_shader, &screen_gr);
         let tone_mapping = AcesToneMapping::new(&ctx, &screen_textures.screen_vertex_shader);
 
         Ok(DefaultModules {
-            arenas,
             tokio,
             ctx,
             window,
@@ -149,10 +145,8 @@ impl DefaultModules {
             .screen_textures
             .new_hdr_target_render_pass(&mut encoder, clear_color);
         self.color_mesh.render(&mut render_pass, &self.camera_gr);
-        self.world_rect
-            .render(&mut render_pass, &self.camera_gr, &self.arenas);
-        self.ui_rect
-            .render(&mut render_pass, &self.screen_gr, &self.arenas);
+        self.world_rect.render(&mut render_pass, &self.camera_gr);
+        self.ui_rect.render(&mut render_pass, &self.screen_gr);
         self.gizmos.render(&mut render_pass, &self.camera_gr);
 
         drop(render_pass);
@@ -170,13 +164,8 @@ impl DefaultModules {
             self.screen_textures.hdr_resolve_target.bind_group(),
             &surface_view,
         );
-        self.ui.render(
-            &mut encoder,
-            &surface_view,
-            &self.screen_gr,
-            &self.fonts,
-            &self.arenas,
-        );
+        self.ui
+            .render(&mut encoder, &surface_view, &self.screen_gr, &self.fonts);
         self.egui.render(&mut encoder, &surface_view);
 
         self.ctx.queue.submit(std::iter::once(encoder.finish()));
@@ -186,7 +175,6 @@ impl DefaultModules {
     pub fn prepare(&mut self, encoder: &mut wgpu::CommandEncoder) {
         let device = &self.ctx.device;
         let queue = &self.ctx.queue;
-        let arenas = &self.arenas;
 
         self.egui.prepare(device, queue, encoder);
 
@@ -195,11 +183,11 @@ impl DefaultModules {
 
         self.color_mesh.prepare(device, queue, encoder);
         self.gizmos.prepare(device, queue, encoder);
-        self.text.prepare(queue, arenas);
+        self.text.prepare(queue);
         self.ui_rect.prepare(device, queue, encoder);
         self.world_rect.prepare(device, queue, encoder);
         self.ui.prepare(device, queue, encoder);
-        self.fonts.prepare(queue, arenas);
+        self.fonts.prepare(queue);
     }
 
     pub fn end_frame(&mut self) {

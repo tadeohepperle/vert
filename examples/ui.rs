@@ -77,7 +77,7 @@ impl MyApp {
                 border_radius: Default::default(),
             },
             Transform::default(),
-            self.mods.fonts.atlas_texture(),
+            self.mods.fonts.atlas_texture().share(),
         );
 
         let mut parent = self.ui.add_div("Parent", None);
@@ -256,7 +256,7 @@ impl MyApp {
         // let mut ctx = self.deps.egui.context();
         // egui_inspect_board(&mut ctx, &mut self.ui);
 
-        self.ui.end_frame(&mut self.mods.fonts, &self.mods.arenas);
+        self.ui.end_frame(&mut self.mods.fonts);
         self.mods.ui.draw_ui_board(&self.ui);
         // std::thread::sleep(Duration::from_millis(150));
     }

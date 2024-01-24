@@ -4,12 +4,14 @@
 #![feature(associated_type_defaults)]
 #![feature(entry_insert)]
 #![feature(try_trait_v2)]
+#![feature(sync_unsafe_cell)]
 
 pub mod app;
-
 pub use app::{App, UpdateFlow, WinitConfig, WinitRunner};
 
 pub mod assets;
+pub use assets::{Own, Ref};
+
 pub mod batteries;
 pub mod elements;
 pub mod lifecycle;

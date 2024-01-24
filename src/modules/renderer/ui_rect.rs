@@ -13,11 +13,10 @@ use crate::{
         BindableTexture, Color, GrowableBuffer, Rect, ScreenGR,
     },
     modules::{
-        arenas::{Key, OwnedKey},
         renderer::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT},
-        Arenas, Attribute, GraphicsContext, VertexT,
+        Attribute, GraphicsContext, VertexT,
     },
-    Prepare,
+    Own, Prepare, Ref,
 };
 
 // /////////////////////////////////////////////////////////////////////////////
@@ -25,12 +24,12 @@ use crate::{
 // /////////////////////////////////////////////////////////////////////////////
 
 impl UiRectRenderer {
-    pub fn draw_textured_rect(&mut self, rect: UiRect, texture: Key<BindableTexture>) {
+    pub fn draw_textured_rect(&mut self, rect: UiRect, texture: Ref<BindableTexture>) {
         self.queue.add(rect, texture);
     }
 
     pub fn draw_rect(&mut self, rect: UiRect) {
-        self.queue.add(rect, self.white_px_texture_key.key());
+        self.queue.add(rect, self.white_texture.share());
     }
 }
 
@@ -40,16 +39,15 @@ impl UiRectRenderer {
 
 pub struct UiRectRenderer {
     pipeline: wgpu::RenderPipeline,
-    white_px_texture_key: OwnedKey<BindableTexture>,
+    white_texture: Own<BindableTexture>,
     queue: TexturedInstancesQueue<UiRect>,
-    instance_ranges: Vec<(Range<u32>, Key<BindableTexture>)>,
+    instance_ranges: Vec<(Range<u32>, Ref<BindableTexture>)>,
     instance_buffer: GrowableBuffer<UiRect>,
 }
 
 impl UiRectRenderer {
-    pub fn new(arenas: &mut Arenas, ctx: &GraphicsContext, screen: &ScreenGR) -> Self {
-        let white_texture = create_white_px_texture(&ctx.device, &ctx.queue);
-        let white_px_texture_key = arenas.insert(white_texture);
+    pub fn new(ctx: &GraphicsContext, screen: &ScreenGR) -> Self {
+        let white_texture = Own::new(create_white_px_texture(&ctx.device, &ctx.queue));
 
         let pipeline = create_render_pipeline(&ctx.device, include_str!("ui_rect.wgsl"), screen);
 
@@ -57,7 +55,7 @@ impl UiRectRenderer {
             pipeline,
             instance_ranges: vec![],
             instance_buffer: GrowableBuffer::new(&ctx.device, 512, BufferUsages::VERTEX),
-            white_px_texture_key,
+            white_texture,
             queue: TexturedInstancesQueue::new(),
         }
     }
@@ -66,7 +64,6 @@ impl UiRectRenderer {
         &'encoder self,
         render_pass: &mut wgpu::RenderPass<'encoder>,
         screen: &'encoder ScreenGR,
-        arenas: &'encoder Arenas,
     ) {
         if self.instance_ranges.is_empty() {
             return;
@@ -79,12 +76,7 @@ impl UiRectRenderer {
 
         // 6 indices to draw two triangles
         const VERTEX_COUNT: u32 = 6;
-        let textures = arenas.arena::<BindableTexture>();
         for (range, texture) in self.instance_ranges.iter() {
-            let Some(texture) = textures.get(*texture) else {
-                warn!("Texture with key {texture:?} does not exist and cannot be rendered for a UI Rect");
-                continue;
-            };
             render_pass.set_bind_group(1, &texture.bind_group, &[]);
             render_pass.draw(0..VERTEX_COUNT, range.start..range.end);
         }

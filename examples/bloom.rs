@@ -92,7 +92,6 @@ impl MyState {
                 ..Default::default()
             },
             text_rotation,
-            &self.mods.arenas,
             &mut self.mods.world_rect,
         );
 
@@ -106,7 +105,6 @@ impl MyState {
                 color: Color::new(10.0, 1.0, 1.0),
             },
             text_rotation,
-            &self.mods.arenas,
             &mut self.mods.world_rect,
         );
 

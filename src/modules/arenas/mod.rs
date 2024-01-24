@@ -7,9 +7,9 @@ use std::{
 };
 
 mod key;
-pub use key::{Key, OwnedKey};
+use key::{Key, OwnedKey};
 
-pub struct Arenas {
+struct Arenas {
     /// Todo! doing ChillCell + HashMap lookup is absolutely disgusting.
     /// It would be better if could construct something at compile time.
     /// This is just an intermediate solution, to get something working.

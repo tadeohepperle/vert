@@ -17,10 +17,8 @@ use image::RgbaImage;
 
 use crate::{
     elements::{BindableTexture, Color, Rect, Texture, Transform},
-    modules::{
-        arenas::{Key, OwnedKey},
-        Arenas, GraphicsContext,
-    },
+    modules::GraphicsContext,
+    Own, Ref,
 };
 
 use super::{ui_rect::UiRect, UiRectRenderer, WorldRectRenderer};
@@ -30,13 +28,8 @@ use super::{ui_rect::UiRect, UiRectRenderer, WorldRectRenderer};
 // /////////////////////////////////////////////////////////////////////////////
 
 impl TextRenderer {
-    pub fn draw_ui_text(
-        &mut self,
-        text: DrawText,
-        arenas: &Arenas,
-        ui_rect_renderer: &mut UiRectRenderer,
-    ) {
-        let layout_result = self.rasterizer.layout_and_rasterize_text(&text, arenas);
+    pub fn draw_ui_text(&mut self, text: DrawText, ui_rect_renderer: &mut UiRectRenderer) {
+        let layout_result = self.rasterizer.layout_and_rasterize_text(&text);
 
         for (pos, uv) in layout_result.glyph_pos_and_uv {
             ui_rect_renderer.draw_textured_rect(
@@ -46,7 +39,7 @@ impl TextRenderer {
                     color: text.color,
                     border_radius: [0.0, 0.0, 0.0, 0.0], // todo!() dedicated text renderer without border radius and with sdf?
                 },
-                self.atlas_texture_key.key(),
+                self.atlas_texture.share(),
             );
         }
     }
@@ -55,10 +48,9 @@ impl TextRenderer {
         &mut self,
         text: DrawText,
         transform: Transform,
-        arenas: &Arenas,
         world_rect_renderer: &mut WorldRectRenderer,
     ) {
-        let layout_result = self.rasterizer.layout_and_rasterize_text(&text, arenas);
+        let layout_result = self.rasterizer.layout_and_rasterize_text(&text);
 
         // center the text for 3d rendering:
 
@@ -79,7 +71,7 @@ impl TextRenderer {
                     border_radius: [0.0, 0.0, 0.0, 0.0], // todo!() dedicated text renderer without border radius and with sdf font support?
                 },
                 transform,
-                self.atlas_texture_key.key(),
+                self.atlas_texture.share(),
             );
         }
     }
@@ -91,29 +83,27 @@ impl TextRenderer {
 
 pub struct TextRenderer {
     /// A big texture containing all the glyphs that have been rasterized
-    atlas_texture_key: OwnedKey<BindableTexture>,
+    atlas_texture: Own<BindableTexture>,
     rasterizer: TextRasterizer,
 }
 
 impl TextRenderer {
-    pub fn new(arenas: &mut Arenas, ctx: &GraphicsContext) -> Self {
+    pub fn new(ctx: &GraphicsContext) -> Self {
         let image = RgbaImage::new(TEXT_ATLAS_SIZE, TEXT_ATLAS_SIZE);
         let atlas_texture = Texture::from_image(&ctx.device, &ctx.queue, &image);
-        let atlas_texture = BindableTexture::new(&ctx.device, atlas_texture);
-        let atlas_texture_key = arenas.insert(atlas_texture);
+        let atlas_texture = Own::new(BindableTexture::new(&ctx.device, atlas_texture));
 
-        let rasterizer = TextRasterizer::new(arenas);
+        let rasterizer = TextRasterizer::new();
 
         TextRenderer {
-            atlas_texture_key,
+            atlas_texture,
             rasterizer,
         }
     }
 
-    pub fn prepare(&mut self, queue: &wgpu::Queue, arenas: &Arenas) {
+    pub fn prepare(&mut self, queue: &wgpu::Queue) {
         // Update the atlas texture if new glyphs have been rasterized this frame:
         if !self.rasterizer.atlas_texture_writes.is_empty() {
-            let atlas_texture = &arenas[&self.atlas_texture_key];
             let texture_writes = std::mem::take(&mut self.rasterizer.atlas_texture_writes);
             for glyph_key in texture_writes {
                 let glyph = self.rasterizer.glyphs.get(&glyph_key).unwrap();
@@ -121,7 +111,7 @@ impl TextRenderer {
                 // Note: todo!() this is a bit of a waste to have a 4 channel image with 4x duplicated grey scale values.
                 // But this way it works with the general rect render pipeline for now (comfy engine does this too). Should be split up in the future.
                 update_texture_region(
-                    &atlas_texture.texture,
+                    &self.atlas_texture.texture,
                     &rgba_image,
                     glyph.offset_in_atlas,
                     queue,
@@ -204,7 +194,7 @@ impl std::hash::Hash for Fontsize {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct GlyphKey {
-    font: Key<fontdue::Font>,
+    font: Ref<fontdue::Font>,
     size: Fontsize,
     char: char,
 }
@@ -227,32 +217,32 @@ struct TextRasterizer {
     /// Should happen in Prepare stage. They have already been properly allocated in the atlas allocator.
     atlas_texture_writes: Vec<GlyphKey>,
     glyphs: HashMap<GlyphKey, Glyph>,
-    default_font_key: OwnedKey<Font>,
+    default_font: Own<Font>,
 }
 
 impl TextRasterizer {
-    fn new(arenas: &mut Arenas) -> Self {
+    fn new() -> Self {
         let atlas_allocator = AtlasAllocator::new(etagere::size2(
             TEXT_ATLAS_SIZE as i32,
             TEXT_ATLAS_SIZE as i32,
         ));
         let font = Font::from_bytes(DEFAULT_FONT, fontdue::FontSettings::default())
             .expect("font should be valid");
-        let default_font_key = arenas.insert(font);
+        let default_font = Own::new(font);
         TextRasterizer {
             atlas_allocator,
             atlas_texture_writes: vec![],
             glyphs: HashMap::new(),
-            default_font_key,
+            default_font,
         }
     }
 
-    fn layout_and_rasterize_text(&mut self, text: &DrawText, arenas: &Arenas) -> LayoutTextResult {
+    fn layout_and_rasterize_text(&mut self, text: &DrawText) -> LayoutTextResult {
         // todo! this needs rework, once we support more than just one default font.
 
-        let default_font = &arenas[&self.default_font_key];
         // calculate a layout for each glyph in the text:
         let mut layout: Layout<()> = Layout::new(CoordinateSystem::PositiveYDown);
+        let default_font = self.default_font.share();
         layout.reset(&LayoutSettings {
             x: text.pos.x,
             y: text.pos.y,
@@ -281,14 +271,11 @@ impl TextRasterizer {
 
         for glyph_pos in layout.glyphs() {
             let char = glyph_pos.parent;
-            let atlas_uv = self.get_or_rasterize_char(
-                default_font,
-                &GlyphKey {
-                    font: self.default_font_key.key(),
-                    size: Fontsize(text.font_texture_size),
-                    char,
-                },
-            );
+            let atlas_uv = self.get_or_rasterize_char(&GlyphKey {
+                font: self.default_font.share(),
+                size: Fontsize(text.font_texture_size),
+                char,
+            });
 
             max_x = max_x.max(glyph_pos.x + glyph_pos.width as f32);
             max_y = max_y.max(glyph_pos.y + glyph_pos.height as f32);
@@ -315,11 +302,11 @@ impl TextRasterizer {
         }
     }
 
-    fn get_or_rasterize_char(&mut self, font: &Font, glyph_key: &GlyphKey) -> Option<Rect> {
+    fn get_or_rasterize_char(&mut self, glyph_key: &GlyphKey) -> Option<Rect> {
         if let Some(glyph) = self.glyphs.get(glyph_key) {
             Some(glyph.uv)
         } else {
-            let glyph = rasterize(glyph_key, font, &mut self.atlas_allocator)?;
+            let glyph = rasterize(glyph_key, &glyph_key.font, &mut self.atlas_allocator)?;
             self.atlas_texture_writes.push(*glyph_key);
             let uv = glyph.uv;
             self.glyphs.insert(*glyph_key, glyph);
