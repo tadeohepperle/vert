@@ -3,8 +3,9 @@ use fontdue::{
     layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle},
     Font,
 };
-use glam::{ivec2, IVec2};
+use glam::{ivec2, vec2, IVec2, Vec2};
 use image::RgbaImage;
+use smallvec::{smallvec, SmallVec};
 
 use std::collections::HashMap;
 
@@ -14,7 +15,7 @@ use crate::{
     OwnedPtr, Ptr,
 };
 
-use super::board::TextSection;
+use super::board::{Span, TextSection};
 
 // const PREALLOCATED_CHARACTERS: &str =
 //     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890,./\\?<>{}[]!@#$%^&*()_-=+|~` \n\tÄäÖöÜüß";
@@ -132,39 +133,64 @@ impl FontCache {
     }
 
     /// if layout_font_size_px is None, the size at which the font was rasterized font is used for layout
-    pub fn perform_text_layout(
-        &mut self,
-        texts: &[TextSection], // this is a bit leaky because it should be an iterator over strings instead, but should be fine for now.
+    pub fn perform_text_layout<'a>(
+        &'a mut self,
+        texts: impl Iterator<Item = TextLayoutItem<'a>>, // this is a bit leaky because it should be an iterator over strings instead, but should be fine for now.
         layout_settings: &LayoutSettings,
         font: Option<Ptr<Font>>,
     ) -> TextLayoutResult {
         // Note: (layout_settings.x, layout_settings.y) is the top left corner where the text starts.
         let font = font.unwrap_or_else(|| self.default_font.ptr());
 
+        font.metrics(' ', 10.0);
+
         #[derive(Clone, Copy)]
-        struct UserData {
-            font_size: FontSize,
-            color: Color,
+        enum UserData {
+            Text { font_size: FontSize, color: Color },
+            Space { i: usize },
         }
 
         let mut layout: Layout<UserData> = Layout::new(CoordinateSystem::PositiveYDown);
         layout.reset(layout_settings);
-        // this performs the layout:
 
-        for t in texts.iter() {
-            let user_data = UserData {
-                color: t.color,
-                font_size: t.size,
-            };
-            layout.append(
-                &[font],
-                &TextStyle {
-                    text: &t.string,
-                    px: t.size.0 as f32,
-                    font_index: 0,
-                    user_data,
-                },
-            );
+        let mut space_sections: SmallVec<[Vec2; 2]> = smallvec![];
+        let mut i: usize = 0;
+        // this performs the layout:
+        for t in texts {
+            let text_style: TextStyle<UserData>;
+            match t {
+                TextLayoutItem::Text(t) => {
+                    text_style = TextStyle {
+                        text: &t.string,
+                        px: t.size.0 as f32,
+                        font_index: 0,
+                        user_data: UserData::Text {
+                            color: t.color,
+                            font_size: t.size,
+                        },
+                    };
+                }
+                TextLayoutItem::Space {
+                    width,
+                    font_size: fontsize,
+                } => {
+                    // warning: this is hacky as fuck, the only reason we do this is to support holes in the text.
+                    let default_char = font.metrics('A', fontsize.0 as f32);
+                    let number_of_default_characters =
+                        (width / default_char.advance_width).ceil() as usize;
+                    let string = &"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                        [..number_of_default_characters];
+                    text_style = TextStyle {
+                        text: &string,
+                        px: fontsize.0 as f32,
+                        font_index: 0,
+                        user_data: UserData::Space { i },
+                    };
+                    i += 1;
+                }
+            }
+
+            layout.append(&[font], &text_style);
         }
 
         let mut layouted_glyphs: Vec<LayoutedGlyph> = vec![];
@@ -172,8 +198,16 @@ impl FontCache {
         let mut max_y: f32 = layout_settings.y; // top left corner
 
         for glyph_pos in layout.glyphs() {
-            let font_size = glyph_pos.user_data.font_size;
-            let color = glyph_pos.user_data.color;
+            let (font_size, color) = match glyph_pos.user_data {
+                UserData::Text { font_size, color } => (font_size, color),
+                UserData::Space { i } => {
+                    // push the x,y coords of the first fake char in this space section.
+                    if space_sections.len() == i {
+                        space_sections.push(vec2(glyph_pos.x, glyph_pos.y))
+                    }
+                    continue;
+                }
+            };
 
             let key = GlyphKey {
                 font,
@@ -201,6 +235,7 @@ impl FontCache {
 
         TextLayoutResult {
             layouted_glyphs,
+            space_sections,
             total_rect: Rect::new(
                 layout_settings.x,
                 layout_settings.y,
@@ -209,6 +244,12 @@ impl FontCache {
             ),
         }
     }
+}
+
+pub enum TextLayoutItem<'a> {
+    Text(&'a TextSection),
+    // whole point of this is that we want to embed non-text divs, e.g. small images into the flow of the text.
+    Space { width: f32, font_size: FontSize },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -267,6 +308,8 @@ pub struct TextLayoutResult {
     pub layouted_glyphs: Vec<LayoutedGlyph>,
     // total bounding rect of the text. Can be used e.g. for centering all of the glyphs by shifting them by half the size or so.
     pub total_rect: Rect,
+    /// sections of explicitly inserted space inside of the text. This is for spans that are part of the text, so to say, even though they might contain e.g. Icons.
+    pub space_sections: SmallVec<[Vec2; 2]>,
 }
 
 fn update_texture_region(texture: &Texture, image: &RgbaImage, offset: IVec2, queue: &wgpu::Queue) {

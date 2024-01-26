@@ -8,15 +8,16 @@ use crate::{
         board::{
             Align, Board, BorderRadius, ContainerId,
             HotActive::{self, *},
-            Id, Len, MainAlign, Text,
+            Id, Len, MainAlign, Span, Text,
         },
         font_cache::FontSize,
-        Padding,
+        Padding, TextSection,
     },
     Ptr,
 };
 
 use super::{next_hot_active, Widget};
+use smallvec::smallvec;
 
 pub struct Button {
     pub text: Cow<'static, str>,
@@ -56,12 +57,14 @@ impl Widget for Button {
         let hot_active = board.hot_active(id);
         let left_button = board.input().mouse_buttons.left();
         let mut btn = board.add_text_div(
-            {
-                let mut text = Text::default();
-                text.font = self.font;
-                text.sections[0].color = self.text_color;
-                text.sections[0].size = FontSize(24);
-                text
+            Text {
+                spans: smallvec![Span::Text(TextSection {
+                    color: self.text_color,
+                    string: self.text,
+                    size: FontSize(24)
+                })],
+                font: self.font,
+                ..Default::default()
             },
             id,
             parent,

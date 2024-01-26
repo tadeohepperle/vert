@@ -32,7 +32,7 @@ use rand::Rng;
 use smallvec::{smallvec, SmallVec};
 
 use super::{
-    font_cache::{FontCache, FontSize, TextLayoutResult},
+    font_cache::{FontCache, FontSize, TextLayoutItem, TextLayoutResult},
     widgets::Widget,
 };
 
@@ -40,6 +40,16 @@ use super::{
 /// (text divs cannot have children).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ContainerId {
+    /// you cannot set this manually, to ensure only DivIds that belong to a Div with DivContent::Children.
+    _priv: Id,
+}
+
+/// A wrapper around a div that has been inserted into the tree with no parent, but is not a top level div.
+/// It can be set as the child of another div later. A bit hacky.
+///
+/// The UnboundId can also not be cloned, such that the div cannot be set as the child of multiple divs.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UnboundId {
     /// you cannot set this manually, to ensure only DivIds that belong to a Div with DivContent::Children.
     _priv: Id,
 }
@@ -221,11 +231,30 @@ impl Board {
         widget.add_to_board(self, id.into(), parent)
     }
 
-    pub fn add_div(&mut self, id: impl Into<Id>, parent: Option<ContainerId>) -> DivResponse<'_> {
+    pub fn add_div(
+        &mut self,
+        id: impl Into<Id>,
+        parent: Option<ContainerId>,
+    ) -> Response<'_, ContainerId> {
         let id: Id = id.into();
+        let parent = match parent {
+            Some(p) => DivParent::Parent(p._priv),
+            None => DivParent::TopLevel,
+        };
         let (comm, entry) = self._add_div(id, None, parent);
         let div_id = ContainerId { _priv: id };
-        DivResponse {
+        Response {
+            id: div_id,
+            comm,
+            entry,
+        }
+    }
+
+    pub fn add_unbound_div(&mut self, id: impl Into<Id>) -> Response<'_, UnboundId> {
+        let id: Id = id.into();
+        let (comm, entry) = self._add_div(id, None, DivParent::Unbound);
+        let div_id = UnboundId { _priv: id };
+        Response {
             id: div_id,
             comm,
             entry,
@@ -237,31 +266,46 @@ impl Board {
         text: Text,
         id: impl Into<Id>,
         parent: Option<ContainerId>,
-    ) -> TextDivResponse<'_> {
+    ) -> Response<'_, TextMarker> {
         let id: Id = id.into();
+        let parent = match parent {
+            Some(p) => DivParent::Parent(p._priv),
+            None => DivParent::TopLevel,
+        };
         let (comm, entry): (Comm, OccupiedEntry<'_, Id, Div>) =
             self._add_div(id, Some(text), parent);
-        TextDivResponse { comm, entry }
+        Response {
+            comm,
+            entry,
+            id: TextMarker,
+        }
     }
 
     fn _add_div<'a>(
         &'a mut self,
         id: Id,
         text: Option<Text>,
-        parent: Option<ContainerId>,
+        parent: DivParent,
     ) -> (Comm, OccupiedEntry<'a, Id, Div>) {
         //Node: opt!() currently we need to do two hash table resolves, which (might be??) the bulk of the work? Not sure, probably totally Fine.
         self.divs_added_this_frame += 1;
         // go into the parent and register the child:
-        if let Some(parent) = parent {
-            let parent = self.divs.get_mut(&parent._priv).expect("Invalid Parent...");
-            match &mut parent.content {
-                DivContent::Text { .. } => panic!("Invalid Parent... Text Div cannnot be parent"),
-                DivContent::Children(children) => children.push(id),
-            };
-        } else {
-            self.top_level_children.push(id);
-        };
+
+        match parent {
+            DivParent::Unbound => {}
+            DivParent::TopLevel => {
+                self.top_level_children.push(id);
+            }
+            DivParent::Parent(parent) => {
+                let parent = self.divs.get_mut(&parent).expect("Invalid Parent...");
+                match &mut parent.content {
+                    DivContent::Text { .. } => {
+                        panic!("Invalid Parent... Text Div cannnot be parent")
+                    }
+                    DivContent::Children(children) => children.push(id),
+                };
+            }
+        }
 
         // Note: This is super naive and should be changed in the future.
         let z_index = self.divs_added_this_frame as i32;
@@ -349,14 +393,20 @@ impl Board {
     }
 }
 
-pub struct DivResponse<'a> {
+enum DivParent {
+    Unbound,
+    TopLevel,
+    Parent(Id),
+}
+
+pub struct Response<'a, ID> {
     /// to be used as a parent for another div
-    pub id: ContainerId,
+    pub id: ID,
     comm: Comm,
     pub entry: OccupiedEntry<'a, Id, Div>,
 }
 
-impl<'a> Deref for DivResponse<'a> {
+impl<'a, ID> Deref for Response<'a, ID> {
     type Target = DivStyle;
 
     fn deref(&self) -> &Self::Target {
@@ -364,51 +414,36 @@ impl<'a> Deref for DivResponse<'a> {
     }
 }
 
-impl<'a> DerefMut for DivResponse<'a> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.entry.get_mut().style
-    }
-}
-
-impl<'a> DivResponse<'a> {
-    pub fn mouse_in_rect(&self) -> bool {
-        self.comm.mouse_in_rect
-    }
-}
-
-pub struct TextDivResponse<'a> {
-    comm: Comm,
-    pub entry: OccupiedEntry<'a, Id, Div>,
-}
-
-impl<'a> TextDivResponse<'a> {
-    pub fn mouse_in_rect(&self) -> bool {
-        self.comm.mouse_in_rect
-    }
-
-    pub fn style(&mut self) -> &mut DivStyle {
-        &mut self.entry.get_mut().style
-    }
-
-    pub fn text(&mut self) -> &mut Text {
-        match &mut self.entry.get_mut().content {
-            DivContent::Text(text_e) => &mut text_e.text,
-            DivContent::Children(_) => panic!("This should always be text on a text div"),
+impl<'a> Response<'a, ContainerId> {
+    /// Warning: This is not well tested yet.
+    pub fn add_child(&mut self, id: UnboundId) {
+        let div = self.entry.get_mut();
+        match &mut div.content {
+            DivContent::Text(t) => unreachable!("The should never be a text in a parent div"),
+            DivContent::Children(children) => children.push(id._priv),
         }
     }
 }
 
-impl<'a> Deref for TextDivResponse<'a> {
-    type Target = DivStyle;
-
-    fn deref(&self) -> &Self::Target {
-        &self.entry.get().style
+impl<'a, ID> DerefMut for Response<'a, ID> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.entry.get_mut().style
     }
 }
 
-impl<'a> DerefMut for TextDivResponse<'a> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.entry.get_mut().style
+impl<'a, ID> Response<'a, ID> {
+    pub fn mouse_in_rect(&self) -> bool {
+        self.comm.mouse_in_rect
+    }
+}
+
+pub struct TextMarker;
+impl<'a> Response<'a, TextMarker> {
+    pub fn text(&mut self) -> &mut Text {
+        match &mut self.entry.get_mut().content {
+            DivContent::Text(text_e) => &mut text_e.text,
+            DivContent::Children(_) => unreachable!("This should always be text on a text div"),
+        }
     }
 }
 
@@ -631,6 +666,20 @@ impl<'a> Layouter<'a> {
         text_entry: &TextEntry,
         max_size: DVec2,
     ) -> DVec2 {
+        // iterate over all the divs inside of the text spans (hopefully strictly sized, and size them)
+        for span in text_entry.text.spans.iter() {
+            let Span::FixedSizeDiv {
+                id,
+                width,
+                font_size,
+            } = span
+            else {
+                continue;
+            };
+            let div = self.divs.get(&id._priv).expect("Div was inserted");
+            self.get_and_set_size(div, dvec2(*width as f64, font_size.0 as f64));
+        }
+
         let i_max_size = max_size.as_ivec2();
         // look for cached value and return it:
         let cached = text_entry.c_text_layout.get_mut();
@@ -655,11 +704,22 @@ impl<'a> Layouter<'a> {
             wrap_style: fontdue::layout::WrapStyle::Word,
             wrap_hard_breaks: true, // todo!() needle expose these functions
         };
-        let result = self.fonts.perform_text_layout(
-            &text_entry.text.sections,
-            &layout_settings,
-            text_entry.text.font,
-        );
+
+        let spans = text_entry.text.spans.iter().map(|e| match e {
+            Span::Text(t) => TextLayoutItem::Text(t),
+            Span::FixedSizeDiv {
+                id,
+                width,
+                font_size,
+            } => TextLayoutItem::Space {
+                width: *width,
+                font_size: *font_size,
+            },
+        });
+
+        let result = self
+            .fonts
+            .perform_text_layout(spans, &layout_settings, text_entry.text.font);
         // dbg!(&result);
         let text_size = result.total_rect.d_size();
         *cached = CachedTextLayout {
@@ -1213,13 +1273,32 @@ impl TextEntry {
 
 #[derive(Debug)]
 pub struct Text {
-    pub sections: smallvec::SmallVec<[TextSection; 1]>,
+    pub spans: smallvec::SmallVec<[Span; 1]>,
     /// None means the default font will be used insteads
     pub font: Option<Ptr<Font>>,
     // is this here maybe in the wrong place for offset? Maybe an extra div for this stuff would be better than putting it in the text itself!
     // on the other hand it is very useful to adjust the font baseline in a quick and dirty way.
     pub offset_x: Len,
     pub offset_y: Len,
+}
+
+#[derive(Debug)]
+pub enum Span {
+    Text(TextSection),
+    FixedSizeDiv {
+        id: UnboundId,
+        width: f32,
+        font_size: FontSize,
+    },
+}
+
+impl Span {
+    pub fn text_mut(&mut self) -> &mut TextSection {
+        match self {
+            Span::Text(t) => t,
+            Span::FixedSizeDiv { .. } => panic!("cannot get text if it is a fixed size div!"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -1232,11 +1311,11 @@ pub struct TextSection {
 impl Text {
     pub fn new(string: impl Into<Cow<'static, str>>) -> Self {
         Self {
-            sections: smallvec![TextSection {
+            spans: smallvec![Span::Text(TextSection {
                 color: Color::BLACK,
                 string: string.into(),
                 size: FontSize(24)
-            }],
+            })],
             ..Default::default()
         }
     }
@@ -1246,30 +1325,33 @@ impl Text {
         self
     }
 
-    pub fn color(mut self, color: Color) -> Self {
-        for s in self.sections.iter_mut() {
-            s.color = color;
-        }
-        self
-    }
-
-    pub fn size(mut self, size: FontSize) -> Self {
-        for s in self.sections.iter_mut() {
-            s.size = size;
-        }
-        self
-    }
-
     fn same_glyphs(&self, other: &Self) -> bool {
-        let same = self.font == other.font && self.sections.len() == other.sections.len();
+        let same = self.font == other.font && self.spans.len() == other.spans.len();
         if !same {
             return false;
         }
 
-        for i in 0..self.sections.len() {
-            let a = &self.sections[i];
-            let b = &other.sections[i];
-            if a.size != b.size || a.string != b.string {
+        for i in 0..self.spans.len() {
+            let a = &self.spans[i];
+            let b = &other.spans[i];
+
+            let same = match (a, b) {
+                (Span::Text(a), Span::Text(b)) => a.size == b.size && a.string == b.string,
+                (
+                    Span::FixedSizeDiv {
+                        id,
+                        width,
+                        font_size,
+                    },
+                    Span::FixedSizeDiv {
+                        id: id2,
+                        width: width2,
+                        font_size: font_size2,
+                    },
+                ) => id == id && width == width && font_size == font_size,
+                _ => false,
+            };
+            if !same {
                 return false;
             }
         }
@@ -1281,11 +1363,11 @@ impl Text {
 impl Default for Text {
     fn default() -> Self {
         Self {
-            sections: smallvec![TextSection {
+            spans: smallvec![Span::Text(TextSection {
                 color: Color::RED,
                 string: "Hello".into(),
                 size: FontSize(24),
-            }],
+            })],
             font: None,
             offset_x: Len::ZERO,
             offset_y: Len::ZERO,
@@ -1307,6 +1389,7 @@ impl CachedTextLayout {
             result: TextLayoutResult {
                 layouted_glyphs: vec![],
                 total_rect: Rect::ZERO,
+                space_sections: smallvec![],
             },
         }
     }

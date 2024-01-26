@@ -109,13 +109,8 @@ impl<'v> Widget for Slider<'v> {
         knob.offset_x = Len::px(fraction * PX_TOTAL_RANGE);
         board.set_hot_active(knob_id, knob_next_hot_active);
 
-        let mut text_div = board.add_text_div(
-            Text::new(format!("{:.2}", self.value))
-                .size(FontSize(20))
-                .color(Color::DARKGREY),
-            id + 4,
-            parent,
-        );
+        let mut text_div =
+            board.add_text_div(Text::new(format!("{:.2}", self.value)), id + 4, parent);
         text_div.width(Len::PARENT);
         text_div.main_align = MainAlign::Center;
     }

@@ -1,19 +1,22 @@
 //! Run `RUST_LOG=INFO cargo run --example vert --release` to run this example.
 
+use std::borrow::Cow;
+
+use fontdue::{Font, FontSettings};
 use glam::dvec2;
-use smallvec::smallvec;
+use smallvec::{smallvec, SmallVec};
 use vert::{
     batteries::{FlyCam, GraphicsSettingsController},
     elements::{Color, Rect, Transform},
     modules::{
         renderer::ui_rect::UiRect,
         ui::{
-            Align, Axis, Board, BoardInput, BorderRadius, Button, FontSize, Len, MainAlign, Text,
-            TextSection,
+            Align, Axis, Board, BoardInput, BorderRadius, Button, FontSize, Len, MainAlign, Span,
+            Text, TextSection,
         },
         DefaultModules,
     },
-    App, WinitConfig, WinitRunner,
+    App, OwnedPtr, WinitConfig, WinitRunner,
 };
 
 fn main() {
@@ -27,6 +30,7 @@ struct MyApp {
     mods: DefaultModules,
     ui: Board,
     graphics_settings: GraphicsSettingsController,
+    font: OwnedPtr<Font>,
 }
 
 impl App for MyApp {
@@ -48,10 +52,17 @@ impl MyApp {
         mods.bloom.settings_mut().activated = false;
         mods.ui.watch_shader_file("./src/modules/ui/ui.wgsl");
         let graphics_settings = GraphicsSettingsController::new(&mut mods);
+
+        let font_bytes = include_bytes!("../assets/Lora.ttf");
+        let font = fontdue::Font::from_bytes(&font_bytes[..], FontSettings::default()).unwrap();
+
+        dbg!(&font);
+        let font = OwnedPtr::new(font);
         MyApp {
             ui: Board::new(dvec2(800.0, 800.0)),
             mods,
             graphics_settings,
+            font,
         }
     }
     fn update(&mut self) {
@@ -154,11 +165,11 @@ impl MyApp {
 
         let mut text_div = self.ui.add_text_div(
             Text {
-                sections: smallvec![TextSection {
+                spans: smallvec![Span::Text(TextSection {
                     color: Color::new(6.0, 2.0, 2.0),
                     string: "Hover me please, I will show you something!".into(),
                     size: FontSize(48),
-                }],
+                })],
                 offset_x: Len::px(30.0),
                 offset_y: Len::px(30.0),
                 ..Default::default()
@@ -177,12 +188,11 @@ impl MyApp {
         // can immediately edit the style and text without a 1-frame lag:
         // 1 frame lag only applies to the layout rect (DivProps) itself.
         if text_div.mouse_in_rect() {
-            let style = text_div.style();
-            style.color = Color::BLUE;
-            style.border_color = Color::GREEN;
-            style.border_thickness = 6.0;
+            text_div.color = Color::BLUE;
+            text_div.border_color = Color::GREEN;
+            text_div.border_thickness = 6.0;
             // style.border_radius = BorderRadius::new(40.0, 40.0, 40.0, 40.0);
-            text_div.text().sections[0].color = Color::BLACK;
+            text_div.text().spans[0].text_mut().color = Color::BLACK;
         }
 
         let total_time = self.mods.time.total().as_secs_f64() * 4.0;
@@ -252,6 +262,20 @@ impl MyApp {
                 println!("Hello 3");
             }
         }
+
+        let mut cover1 = self.ui.add_div("Parent1", None);
+        cover1.width(Len::PARENT);
+        cover1.height(Len::PARENT);
+        cover1.cross_align = Align::Center;
+
+        let cover1 = Some(cover1.id);
+
+        let mut container = self.ui.add_div("container1", cover1);
+        container.axis = Axis::X;
+        container.width(Len::px(200.0));
+        container.height(Len::px(200.0));
+        container.color = Color::WHITE;
+        let container = Some(container.id);
 
         // let mut ctx = self.deps.egui.context();
         // egui_inspect_board(&mut ctx, &mut self.ui);

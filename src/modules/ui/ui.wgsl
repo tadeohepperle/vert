@@ -144,8 +144,11 @@ fn textured_rect_fs(in: TexturedRectVertexOutput) -> @location(0) vec4<f32> {
     let sdf = rounded_box_sdf(in.offset, in.size, in.border_radius);
     let image_color: vec4<f32> = textureSample(t_diffuse, s_diffuse, in.uv);
     let image_color_tinted: vec3<f32> = mix(image_color.rgb, image_color.rgb * in.color.rgb, in.color.a);
+    let image_color_final = vec4(image_color_tinted, image_color.a);
+
+    let color: vec4<f32> = mix(image_color_final, in.border_color, smoothstep(0.0, 1.0, ((sdf + in.others[0]) / in.others[1]) ));
     // todo! add borders and other fancy stuff from above in rect_fs
-    return vec4(image_color_tinted, image_color.a);
+    return color;
 }
 
 @vertex
