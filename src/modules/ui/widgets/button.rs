@@ -13,7 +13,7 @@ use crate::{
         font_cache::FontSize,
         Padding,
     },
-    Ref,
+    Ptr,
 };
 
 use super::{next_hot_active, Widget};
@@ -24,7 +24,7 @@ pub struct Button {
     pub color: Color,
     pub hover_color: Color,
     pub click_color: Color,
-    pub font: Option<Ref<Font>>,
+    pub font: Option<Ptr<Font>>,
 }
 
 impl Default for Button {

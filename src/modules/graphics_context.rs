@@ -21,6 +21,7 @@ pub struct GraphicsContext {
 #[derive(Debug, Clone, PartialEq)]
 pub struct GraphicsContextConfig {
     pub features: wgpu::Features,
+    pub present_mode: wgpu::PresentMode,
 }
 
 impl Default for GraphicsContextConfig {
@@ -30,6 +31,7 @@ impl Default for GraphicsContextConfig {
                 | wgpu::Features::PUSH_CONSTANTS
                 | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
                 | wgpu::Features::TEXTURE_BINDING_ARRAY,
+            present_mode: wgpu::PresentMode::AutoNoVsync,
         }
     }
 }
@@ -134,7 +136,7 @@ pub async fn initialize_graphics_context(
         format: surface_format,
         width: size.width,
         height: size.height,
-        present_mode: wgpu::PresentMode::AutoNoVsync,
+        present_mode: config.present_mode,
         alpha_mode: surface_caps.alpha_modes[0],
         view_formats: vec![wgpu::TextureFormat::Bgra8UnormSrgb],
     };

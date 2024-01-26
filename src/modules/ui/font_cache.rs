@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use crate::{
     elements::{rect::Aabb, BindableTexture, Color, Rect, Texture},
     modules::GraphicsContext,
-    Own, Ref,
+    OwnedPtr, Ptr,
 };
 
 use super::board::TextSection;
@@ -23,9 +23,9 @@ const ATLAS_SIZE: u32 = 4096;
 
 /// Todo! Currently no glyph cleanup, which is quite bad. Glyph cleanup can be pretty hard though.
 pub struct FontCache {
-    atlas_texture: Own<BindableTexture>,
+    atlas_texture: OwnedPtr<BindableTexture>,
     atlas_allocator: AtlasAllocator,
-    default_font: Own<Font>,
+    default_font: OwnedPtr<Font>,
     glyphs: HashMap<GlyphKey, Glyph>,
     texture_writes: Vec<GlyphKey>,
 }
@@ -35,7 +35,7 @@ impl FontCache {
         const DEFAULT_FONT_BYTES: &[u8] = include_bytes!("../../../assets/Oswald-Medium.ttf");
         let default_font = fontdue::Font::from_bytes(DEFAULT_FONT_BYTES, Default::default())
             .expect("could not load default font");
-        let default_font = Own::new(default_font);
+        let default_font = OwnedPtr::new(default_font);
 
         let atlas_width: u32 = ATLAS_SIZE;
         let atlas_height: u32 = ATLAS_SIZE;
@@ -45,7 +45,7 @@ impl FontCache {
         let image = RgbaImage::new(atlas_width, atlas_height);
         let atlas_texture = Texture::from_image(&ctx.device, &ctx.queue, &image);
         let atlas_texture = BindableTexture::new(&ctx.device, atlas_texture);
-        let atlas_texture = Own::new(atlas_texture);
+        let atlas_texture = OwnedPtr::new(atlas_texture);
 
         FontCache {
             default_font,
@@ -70,11 +70,11 @@ impl FontCache {
         self.texture_writes.clear();
     }
 
-    pub fn default_font(&self) -> &Own<Font> {
+    pub fn default_font(&self) -> &OwnedPtr<Font> {
         &self.default_font
     }
 
-    pub fn atlas_texture(&self) -> &Own<BindableTexture> {
+    pub fn atlas_texture(&self) -> &OwnedPtr<BindableTexture> {
         &self.atlas_texture
     }
 
@@ -136,10 +136,10 @@ impl FontCache {
         &mut self,
         texts: &[TextSection], // this is a bit leaky because it should be an iterator over strings instead, but should be fine for now.
         layout_settings: &LayoutSettings,
-        font: Option<Ref<Font>>,
+        font: Option<Ptr<Font>>,
     ) -> TextLayoutResult {
         // Note: (layout_settings.x, layout_settings.y) is the top left corner where the text starts.
-        let font = font.unwrap_or_else(|| self.default_font.share());
+        let font = font.unwrap_or_else(|| self.default_font.ptr());
 
         #[derive(Clone, Copy)]
         struct UserData {
@@ -213,7 +213,7 @@ impl FontCache {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GlyphKey {
-    font: Ref<fontdue::Font>,
+    font: Ptr<fontdue::Font>,
     font_size: FontSize,
     char: char,
 }

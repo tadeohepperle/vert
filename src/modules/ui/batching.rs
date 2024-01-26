@@ -7,7 +7,7 @@ use wgpu::VertexFormat;
 use crate::{
     elements::{rect::Aabb, BindableTexture, Color},
     modules::{Attribute, VertexT},
-    Ref,
+    Ptr,
 };
 
 use super::board::{Board, BorderRadius, Div, DivContent, DivTexture, TextEntry};
@@ -178,8 +178,8 @@ impl<'a> SortPrimitive<'a> {
 #[derive(Debug)]
 pub enum BatchRegion {
     Rect(Range<usize>),
-    TexturedRect(Range<usize>, Ref<BindableTexture>),
-    Text(Range<usize>, Option<Ref<Font>>),
+    TexturedRect(Range<usize>, Ptr<BindableTexture>),
+    Text(Range<usize>, Option<Ptr<Font>>),
 }
 
 impl BatchRegion {

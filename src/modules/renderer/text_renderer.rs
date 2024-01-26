@@ -18,7 +18,7 @@ use image::RgbaImage;
 use crate::{
     elements::{BindableTexture, Color, Rect, Texture, Transform},
     modules::GraphicsContext,
-    Own, Ref,
+    OwnedPtr, Ptr,
 };
 
 use super::{ui_rect::UiRect, UiRectRenderer, WorldRectRenderer};
@@ -39,7 +39,7 @@ impl TextRenderer {
                     color: text.color,
                     border_radius: [0.0, 0.0, 0.0, 0.0], // todo!() dedicated text renderer without border radius and with sdf?
                 },
-                self.atlas_texture.share(),
+                self.atlas_texture.ptr(),
             );
         }
     }
@@ -71,7 +71,7 @@ impl TextRenderer {
                     border_radius: [0.0, 0.0, 0.0, 0.0], // todo!() dedicated text renderer without border radius and with sdf font support?
                 },
                 transform,
-                self.atlas_texture.share(),
+                self.atlas_texture.ptr(),
             );
         }
     }
@@ -83,7 +83,7 @@ impl TextRenderer {
 
 pub struct TextRenderer {
     /// A big texture containing all the glyphs that have been rasterized
-    atlas_texture: Own<BindableTexture>,
+    atlas_texture: OwnedPtr<BindableTexture>,
     rasterizer: TextRasterizer,
 }
 
@@ -91,7 +91,7 @@ impl TextRenderer {
     pub fn new(ctx: &GraphicsContext) -> Self {
         let image = RgbaImage::new(TEXT_ATLAS_SIZE, TEXT_ATLAS_SIZE);
         let atlas_texture = Texture::from_image(&ctx.device, &ctx.queue, &image);
-        let atlas_texture = Own::new(BindableTexture::new(&ctx.device, atlas_texture));
+        let atlas_texture = OwnedPtr::new(BindableTexture::new(&ctx.device, atlas_texture));
 
         let rasterizer = TextRasterizer::new();
 
@@ -194,7 +194,7 @@ impl std::hash::Hash for Fontsize {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct GlyphKey {
-    font: Ref<fontdue::Font>,
+    font: Ptr<fontdue::Font>,
     size: Fontsize,
     char: char,
 }
@@ -217,7 +217,7 @@ struct TextRasterizer {
     /// Should happen in Prepare stage. They have already been properly allocated in the atlas allocator.
     atlas_texture_writes: Vec<GlyphKey>,
     glyphs: HashMap<GlyphKey, Glyph>,
-    default_font: Own<Font>,
+    default_font: OwnedPtr<Font>,
 }
 
 impl TextRasterizer {
@@ -228,7 +228,7 @@ impl TextRasterizer {
         ));
         let font = Font::from_bytes(DEFAULT_FONT, fontdue::FontSettings::default())
             .expect("font should be valid");
-        let default_font = Own::new(font);
+        let default_font = OwnedPtr::new(font);
         TextRasterizer {
             atlas_allocator,
             atlas_texture_writes: vec![],
@@ -242,7 +242,7 @@ impl TextRasterizer {
 
         // calculate a layout for each glyph in the text:
         let mut layout: Layout<()> = Layout::new(CoordinateSystem::PositiveYDown);
-        let default_font = self.default_font.share();
+        let default_font = self.default_font.ptr();
         layout.reset(&LayoutSettings {
             x: text.pos.x,
             y: text.pos.y,
@@ -272,7 +272,7 @@ impl TextRasterizer {
         for glyph_pos in layout.glyphs() {
             let char = glyph_pos.parent;
             let atlas_uv = self.get_or_rasterize_char(&GlyphKey {
-                font: self.default_font.share(),
+                font: self.default_font.ptr(),
                 size: Fontsize(text.font_texture_size),
                 char,
             });

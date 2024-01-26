@@ -17,7 +17,7 @@ use crate::{
         renderer::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT},
         Attribute, GraphicsContext, VertexT,
     },
-    Own, Prepare, Ref,
+    OwnedPtr, Prepare, Ptr,
 };
 
 use super::ui_rect::UiRect;
@@ -31,7 +31,7 @@ impl WorldRectRenderer {
         &mut self,
         rect: UiRect,
         transform: Transform,
-        texture: Ref<BindableTexture>,
+        texture: Ptr<BindableTexture>,
     ) {
         self.queue.add(
             WorldRect {
@@ -48,7 +48,7 @@ impl WorldRectRenderer {
                 ui_rect: rect,
                 transform: transform.to_raw(),
             },
-            self.white_texture.share(),
+            self.white_texture.ptr(),
         );
     }
 }
@@ -57,15 +57,15 @@ impl WorldRectRenderer {
 /// Let's not abstract too early.
 pub struct WorldRectRenderer {
     pipeline: wgpu::RenderPipeline,
-    white_texture: Own<BindableTexture>,
+    white_texture: OwnedPtr<BindableTexture>,
     queue: TexturedInstancesQueue<WorldRect>,
-    instance_ranges: Vec<(Range<u32>, Ref<BindableTexture>)>,
+    instance_ranges: Vec<(Range<u32>, Ptr<BindableTexture>)>,
     instance_buffer: GrowableBuffer<WorldRect>,
 }
 
 impl WorldRectRenderer {
     pub fn new(ctx: &GraphicsContext, camera: &Camera3dGR) -> Self {
-        let white_texture = Own::new(create_white_px_texture(&ctx.device, &ctx.queue));
+        let white_texture = OwnedPtr::new(create_white_px_texture(&ctx.device, &ctx.queue));
         let pipeline = create_render_pipeline(&ctx.device, include_str!("world_rect.wgsl"), camera);
 
         WorldRectRenderer {

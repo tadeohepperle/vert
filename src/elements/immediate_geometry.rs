@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::Ref;
+use crate::Ptr;
 
 use super::{buffer::ToRaw, BindableTexture};
 
@@ -78,7 +78,7 @@ impl<V: Copy, I: ToRaw> ImmediateMeshQueue<V, I> {
 
 #[derive(Debug)]
 pub struct TexturedInstancesQueue<T: bytemuck::Pod> {
-    pub instances: Vec<(T, Ref<BindableTexture>)>,
+    pub instances: Vec<(T, Ptr<BindableTexture>)>,
 }
 
 impl<T: bytemuck::Pod> Default for TexturedInstancesQueue<T> {
@@ -89,7 +89,7 @@ impl<T: bytemuck::Pod> Default for TexturedInstancesQueue<T> {
 
 impl<T: bytemuck::Pod> TexturedInstancesQueue<T> {
     #[inline(always)]
-    pub fn add(&mut self, instance: T, texture: Ref<BindableTexture>) {
+    pub fn add(&mut self, instance: T, texture: Ptr<BindableTexture>) {
         self.instances.push((instance, texture));
     }
 
@@ -97,7 +97,7 @@ impl<T: bytemuck::Pod> TexturedInstancesQueue<T> {
         TexturedInstancesQueue { instances: vec![] }
     }
 
-    pub(crate) fn clear(&mut self) -> (Vec<T>, Vec<(Range<u32>, Ref<BindableTexture>)>) {
+    pub(crate) fn clear(&mut self) -> (Vec<T>, Vec<(Range<u32>, Ptr<BindableTexture>)>) {
         let mut textured_instances = std::mem::take(&mut self.instances);
 
         if textured_instances.is_empty() {
@@ -107,10 +107,10 @@ impl<T: bytemuck::Pod> TexturedInstancesQueue<T> {
         textured_instances.sort_by(|(_, tex1), (_, tex2)| tex1.cmp(tex2));
 
         let mut instances: Vec<T> = vec![];
-        let mut texture_groups: Vec<(Range<u32>, Ref<BindableTexture>)> = vec![];
+        let mut texture_groups: Vec<(Range<u32>, Ptr<BindableTexture>)> = vec![];
 
         let mut last_start_idx: usize = 0;
-        let mut last_texture: Ref<BindableTexture> = textured_instances.first().unwrap().1;
+        let mut last_texture: Ptr<BindableTexture> = textured_instances.first().unwrap().1;
 
         for (i, (instance, texture)) in textured_instances.into_iter().enumerate() {
             instances.push(instance);

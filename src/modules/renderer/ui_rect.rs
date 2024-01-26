@@ -16,7 +16,7 @@ use crate::{
         renderer::{DEPTH_FORMAT, HDR_COLOR_FORMAT, MSAA_SAMPLE_COUNT},
         Attribute, GraphicsContext, VertexT,
     },
-    Own, Prepare, Ref,
+    OwnedPtr, Prepare, Ptr,
 };
 
 // /////////////////////////////////////////////////////////////////////////////
@@ -24,12 +24,12 @@ use crate::{
 // /////////////////////////////////////////////////////////////////////////////
 
 impl UiRectRenderer {
-    pub fn draw_textured_rect(&mut self, rect: UiRect, texture: Ref<BindableTexture>) {
+    pub fn draw_textured_rect(&mut self, rect: UiRect, texture: Ptr<BindableTexture>) {
         self.queue.add(rect, texture);
     }
 
     pub fn draw_rect(&mut self, rect: UiRect) {
-        self.queue.add(rect, self.white_texture.share());
+        self.queue.add(rect, self.white_texture.ptr());
     }
 }
 
@@ -39,15 +39,15 @@ impl UiRectRenderer {
 
 pub struct UiRectRenderer {
     pipeline: wgpu::RenderPipeline,
-    white_texture: Own<BindableTexture>,
+    white_texture: OwnedPtr<BindableTexture>,
     queue: TexturedInstancesQueue<UiRect>,
-    instance_ranges: Vec<(Range<u32>, Ref<BindableTexture>)>,
+    instance_ranges: Vec<(Range<u32>, Ptr<BindableTexture>)>,
     instance_buffer: GrowableBuffer<UiRect>,
 }
 
 impl UiRectRenderer {
     pub fn new(ctx: &GraphicsContext, screen: &ScreenGR) -> Self {
-        let white_texture = Own::new(create_white_px_texture(&ctx.device, &ctx.queue));
+        let white_texture = OwnedPtr::new(create_white_px_texture(&ctx.device, &ctx.queue));
 
         let pipeline = create_render_pipeline(&ctx.device, include_str!("ui_rect.wgsl"), screen);
 

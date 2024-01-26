@@ -77,7 +77,7 @@ impl MyApp {
                 border_radius: Default::default(),
             },
             Transform::default(),
-            self.mods.fonts.atlas_texture().share(),
+            self.mods.fonts.atlas_texture().ptr(),
         );
 
         let mut parent = self.ui.add_div("Parent", None);

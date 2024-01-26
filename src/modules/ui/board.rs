@@ -19,7 +19,7 @@ use crate::{
     ext::glam::Vec2,
     modules::{input::MouseButtonState, Input},
     utils::ChillCell,
-    Ref,
+    Ptr,
 };
 use egui::Ui;
 
@@ -1152,9 +1152,9 @@ impl ComputedPadding {
     };
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct DivTexture {
-    pub texture: Ref<BindableTexture>,
+    pub texture: Ptr<BindableTexture>,
     pub uv: Aabb,
 }
 
@@ -1215,7 +1215,7 @@ impl TextEntry {
 pub struct Text {
     pub sections: smallvec::SmallVec<[TextSection; 1]>,
     /// None means the default font will be used insteads
-    pub font: Option<Ref<Font>>,
+    pub font: Option<Ptr<Font>>,
     // is this here maybe in the wrong place for offset? Maybe an extra div for this stuff would be better than putting it in the text itself!
     // on the other hand it is very useful to adjust the font baseline in a quick and dirty way.
     pub offset_x: Len,
@@ -1241,7 +1241,7 @@ impl Text {
         }
     }
 
-    pub fn font(mut self, font: Ref<Font>) -> Self {
+    pub fn font(mut self, font: Ptr<Font>) -> Self {
         self.font = Some(font);
         self
     }

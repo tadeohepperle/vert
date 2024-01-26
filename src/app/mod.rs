@@ -79,7 +79,7 @@ impl WinitRunner {
         //     .clone()
         //     .map_or(PhysicalSize::new(800, 600), |vm| vm.size());
 
-        let size = PhysicalSize::new(1200, 700);
+        let size = PhysicalSize::new(config.width, config.height);
 
         let window = WindowBuilder::new()
             .with_visible(true)

@@ -10,7 +10,7 @@ pub mod app;
 pub use app::{App, UpdateFlow, WinitConfig, WinitRunner};
 
 pub mod assets;
-pub use assets::{Own, Ref};
+pub use assets::{OwnedPtr, Ptr};
 
 pub mod batteries;
 pub mod elements;
