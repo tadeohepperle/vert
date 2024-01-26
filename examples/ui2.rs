@@ -105,6 +105,11 @@ impl MyApp {
         little_box.height(Len::px(40.0));
         little_box.color = Color::BLUE;
         little_box.add_z_bias(5);
+
+        if little_box.mouse_in_rect() {
+            little_box.color = Color::RED;
+        }
+
         let little_box = little_box.id;
 
         let mut quad = self.ui.add_text_div(
@@ -122,7 +127,7 @@ impl MyApp {
                     },
                     Span::Text(TextSection {
                         color: Color::BLACK,
-                        string: Cow::Borrowed("hello"),
+                        string: Cow::Borrowed("hello I want to eat a cheeseburger"),
                         size: FontSize(40)
                     })
                 ],
@@ -133,8 +138,8 @@ impl MyApp {
             219912,
             parent,
         );
-
-        // quad.padding = Padding::all(Len::px(24.0));
+        quad.width(Len::parent(0.3));
+        quad.padding = Padding::all(Len::px(24.0));
         quad.color = Color::WHITE.alpha(0.2);
 
         let mut quad2 = self.ui.add(Button::default(), "wuad2", parent);
