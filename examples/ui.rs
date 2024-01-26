@@ -274,7 +274,7 @@ impl MyApp {
         container.axis = Axis::X;
         container.width(Len::px(200.0));
         container.height(Len::px(200.0));
-        container.color = Color::WHITE;
+        container.color = Color::WHITE.alpha(0.1);
         let container = Some(container.id);
 
         // let mut ctx = self.deps.egui.context();

@@ -147,7 +147,7 @@ impl FontCache {
         #[derive(Clone, Copy)]
         enum UserData {
             Text { font_size: FontSize, color: Color },
-            Space { i: usize },
+            Space { i: usize, minus_y: f32 },
         }
 
         let mut layout: Layout<UserData> = Layout::new(CoordinateSystem::PositiveYDown);
@@ -170,21 +170,22 @@ impl FontCache {
                         },
                     };
                 }
-                TextLayoutItem::Space {
-                    width,
-                    font_size: fontsize,
-                } => {
+                TextLayoutItem::Space { width, fontsize } => {
                     // warning: this is hacky as fuck, the only reason we do this is to support holes in the text.
-                    let default_char = font.metrics('A', fontsize.0 as f32);
+                    let default_char = font.metrics('O', fontsize.0 as f32);
+
                     let number_of_default_characters =
                         (width / default_char.advance_width).ceil() as usize;
-                    let string = &"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                        [..number_of_default_characters];
+                    let string =
+                        &"OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO"[..number_of_default_characters];
                     text_style = TextStyle {
                         text: &string,
                         px: fontsize.0 as f32,
                         font_index: 0,
-                        user_data: UserData::Space { i },
+                        user_data: UserData::Space {
+                            i,
+                            minus_y: -(fontsize.0 as f32) + default_char.bounds.height,
+                        },
                     };
                     i += 1;
                 }
@@ -200,10 +201,10 @@ impl FontCache {
         for glyph_pos in layout.glyphs() {
             let (font_size, color) = match glyph_pos.user_data {
                 UserData::Text { font_size, color } => (font_size, color),
-                UserData::Space { i } => {
+                UserData::Space { i, minus_y } => {
                     // push the x,y coords of the first fake char in this space section.
                     if space_sections.len() == i {
-                        space_sections.push(vec2(glyph_pos.x, glyph_pos.y))
+                        space_sections.push(vec2(glyph_pos.x, glyph_pos.y + minus_y))
                     }
                     continue;
                 }
@@ -249,7 +250,7 @@ impl FontCache {
 pub enum TextLayoutItem<'a> {
     Text(&'a TextSection),
     // whole point of this is that we want to embed non-text divs, e.g. small images into the flow of the text.
-    Space { width: f32, font_size: FontSize },
+    Space { width: f32, fontsize: FontSize },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

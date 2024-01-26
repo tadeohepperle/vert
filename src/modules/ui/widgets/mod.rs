@@ -1,6 +1,9 @@
-use crate::modules::input::PressState;
+use crate::{modules::input::PressState, Ptr};
 
-use super::board::{Board, ContainerId, HotActive, Id};
+use super::{
+    board::{Board, ContainerId, HotActive, Id, Response, TextMarker},
+    Len, Span, Text, TextSection,
+};
 
 mod button;
 pub use button::Button;
@@ -9,7 +12,9 @@ mod fill;
 pub use fill::{h_fill, v_fill};
 
 mod slider;
+use fontdue::Font;
 pub use slider::Slider;
+use smallvec::smallvec;
 
 pub trait Widget {
     /// lifetime to allow mutable entries inserted into the hashmap be returned.
@@ -63,5 +68,27 @@ pub fn next_hot_active(
                 Active
             }
         }
+    }
+}
+
+impl Widget for (TextSection, Ptr<Font>) {
+    type Response<'a> = Response<'a, TextMarker>;
+
+    fn add_to_board(
+        self,
+        board: &mut Board,
+        id: Id,
+        parent: Option<ContainerId>,
+    ) -> Self::Response<'_> {
+        board.add_text_div(
+            Text {
+                spans: smallvec![Span::Text(self.0)],
+                font: Some(self.1),
+                offset_x: Len::ZERO,
+                offset_y: Len::ZERO,
+            },
+            id,
+            parent,
+        )
     }
 }

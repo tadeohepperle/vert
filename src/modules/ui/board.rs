@@ -29,7 +29,7 @@ use fontdue::{
 };
 use glam::{dvec2, DVec2, IVec2};
 use rand::Rng;
-use smallvec::{smallvec, SmallVec};
+use smallvec::smallvec;
 
 use super::{
     font_cache::{FontCache, FontSize, TextLayoutItem, TextLayoutResult},
@@ -435,6 +435,11 @@ impl<'a, ID> Response<'a, ID> {
     pub fn mouse_in_rect(&self) -> bool {
         self.comm.mouse_in_rect
     }
+
+    pub fn add_z_bias(&mut self, z_bias: i32) {
+        let entry = self.entry.get_mut();
+        entry.z_index.set(entry.z_index.get() + z_bias);
+    }
 }
 
 pub struct TextMarker;
@@ -713,7 +718,7 @@ impl<'a> Layouter<'a> {
                 font_size,
             } => TextLayoutItem::Space {
                 width: *width,
-                font_size: *font_size,
+                fontsize: *font_size,
             },
         });
 
@@ -824,7 +829,22 @@ impl<'a> Layouter<'a> {
                     let cross = calc_cross_offset(cross_size, cross_content_size);
                     let text_pos = A::assemble(main_offset, cross);
                     let text_offset = offset_dvec2(t.text.offset_x, t.text.offset_y, div_size);
-                    t.c_pos.set(text_pos + text_offset + div_pos);
+                    let absolute_text_pos = text_pos + text_offset + div_pos;
+                    t.c_pos.set(absolute_text_pos);
+
+                    // set the positions of the unbound divs saved in the spans:
+                    let mut i: usize = 0;
+                    for span in t.text.spans.iter() {
+                        let Span::FixedSizeDiv { id, .. } = span else {
+                            continue;
+                        };
+                        let div = sel.divs.get(&id._priv).unwrap();
+                        let div_pos_relative_in_text =
+                            t.c_text_layout.get().result.space_sections[i].as_dvec2();
+                        div.c_pos.set(absolute_text_pos + div_pos_relative_in_text);
+                        sel.set_child_positions(div);
+                        i += 1;
+                    }
                 }
                 DivContent::Children(children) => {
                     let children = children.iter().map(|e| sel.divs.get(e).unwrap());
