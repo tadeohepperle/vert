@@ -39,35 +39,30 @@ use super::{
 /// A wrapper around a non-text div that can be used as a parent key when inserting a child div.
 /// (text divs cannot have children).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ContainerId {
+pub struct DivId {
     /// you cannot set this manually, to ensure only DivIds that belong to a Div with DivContent::Children.
     _priv: Id,
+    can_be_parent: bool,
 }
 
-/// A wrapper around a div that has been inserted into the tree with no parent, but is not a top level div.
-/// It can be set as the child of another div later. A bit hacky.
-///
-/// The UnboundId can also not be cloned, such that the div cannot be set as the child of multiple divs.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct UnboundId {
-    /// you cannot set this manually, to ensure only DivIds that belong to a Div with DivContent::Children.
-    _priv: Id,
+pub struct UnboundDivId {
+    _div_id: DivId,
 }
 
-impl From<()> for ContainerId {
-    fn from(_value: ()) -> Self {
-        ContainerId::NONE
+trait AsDivId {
+    fn div_id(&self) -> DivId;
+}
+
+impl AsDivId for DivId {
+    fn div_id(&self) -> DivId {
+        *self
     }
 }
 
-impl ContainerId {
-    ///  Warning: this is an illegal value!
-    const NONE: ContainerId = ContainerId {
-        _priv: Id(u64::MAX),
-    };
-
-    pub fn id(&self) -> Id {
-        self._priv
+impl AsDivId for UnboundDivId {
+    fn div_id(&self) -> DivId {
+        self._div_id
     }
 }
 
@@ -226,23 +221,22 @@ impl Board {
         &mut self,
         widget: W,
         id: impl Into<Id>,
-        parent: Option<ContainerId>,
+        parent: Option<DivId>,
     ) -> W::Response<'_> {
         widget.add_to_board(self, id.into(), parent)
     }
 
-    pub fn add_div(
-        &mut self,
-        id: impl Into<Id>,
-        parent: Option<ContainerId>,
-    ) -> Response<'_, ContainerId> {
+    pub fn add_div(&mut self, id: impl Into<Id>, parent: Option<DivId>) -> Response<'_, DivId> {
         let id: Id = id.into();
         let parent = match parent {
             Some(p) => DivParent::Parent(p._priv),
             None => DivParent::TopLevel,
         };
         let (comm, entry) = self._add_div(id, None, parent);
-        let div_id = ContainerId { _priv: id };
+        let div_id = DivId {
+            _priv: id,
+            can_be_parent: true,
+        };
         Response {
             id: div_id,
             comm,
@@ -250,10 +244,15 @@ impl Board {
         }
     }
 
-    pub fn add_unbound_div(&mut self, id: impl Into<Id>) -> Response<'_, UnboundId> {
+    pub fn add_unbound_div(&mut self, id: impl Into<Id>) -> Response<'_, UnboundDivId> {
         let id: Id = id.into();
         let (comm, entry) = self._add_div(id, None, DivParent::Unbound);
-        let div_id = UnboundId { _priv: id };
+        let div_id = UnboundDivId {
+            _div_id: DivId {
+                _priv: id,
+                can_be_parent: true,
+            },
+        };
         Response {
             id: div_id,
             comm,
@@ -265,8 +264,8 @@ impl Board {
         &mut self,
         text: Text,
         id: impl Into<Id>,
-        parent: Option<ContainerId>,
-    ) -> Response<'_, TextMarker> {
+        parent: Option<DivId>,
+    ) -> Response<'_, DivId> {
         let id: Id = id.into();
         let parent = match parent {
             Some(p) => DivParent::Parent(p._priv),
@@ -277,7 +276,10 @@ impl Board {
         Response {
             comm,
             entry,
-            id: TextMarker,
+            id: DivId {
+                _priv: id,
+                can_be_parent: false,
+            },
         }
     }
 
@@ -399,14 +401,14 @@ enum DivParent {
     Parent(Id),
 }
 
-pub struct Response<'a, ID> {
+pub struct Response<'a, I: AsDivId> {
     /// to be used as a parent for another div
-    pub id: ID,
+    pub id: I,
     comm: Comm,
     pub entry: OccupiedEntry<'a, Id, Div>,
 }
 
-impl<'a, ID> Deref for Response<'a, ID> {
+impl<'a, I: AsDivId> Deref for Response<'a, I> {
     type Target = DivStyle;
 
     fn deref(&self) -> &Self::Target {
@@ -414,24 +416,25 @@ impl<'a, ID> Deref for Response<'a, ID> {
     }
 }
 
-impl<'a> Response<'a, ContainerId> {
+impl<'a, I: AsDivId> Response<'a, I> {
     /// Warning: This is not well tested yet.
-    pub fn add_child(&mut self, id: UnboundId) {
+    pub fn add_child(&mut self, id: UnboundDivId) {
+        assert!(self.id.div_id().can_be_parent);
         let div = self.entry.get_mut();
         match &mut div.content {
             DivContent::Text(t) => unreachable!("The should never be a text in a parent div"),
-            DivContent::Children(children) => children.push(id._priv),
+            DivContent::Children(children) => children.push(id.div_id()._priv),
         }
     }
 }
 
-impl<'a, ID> DerefMut for Response<'a, ID> {
+impl<'a, I: AsDivId> DerefMut for Response<'a, I> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.entry.get_mut().style
     }
 }
 
-impl<'a, ID> Response<'a, ID> {
+impl<'a, I: AsDivId> Response<'a, I> {
     pub fn mouse_in_rect(&self) -> bool {
         self.comm.mouse_in_rect
     }
@@ -442,9 +445,9 @@ impl<'a, ID> Response<'a, ID> {
     }
 }
 
-pub struct TextMarker;
-impl<'a> Response<'a, TextMarker> {
+impl<'a, I: AsDivId> Response<'a, I> {
     pub fn text(&mut self) -> &mut Text {
+        assert!(!self.id.div_id().can_be_parent);
         match &mut self.entry.get_mut().content {
             DivContent::Text(text_e) => &mut text_e.text,
             DivContent::Children(_) => unreachable!("This should always be text on a text div"),
@@ -681,7 +684,7 @@ impl<'a> Layouter<'a> {
             else {
                 continue;
             };
-            let div = self.divs.get(&id._priv).expect("Div was inserted");
+            let div = self.divs.get(&id._div_id._priv).expect("Div was inserted");
             self.get_and_set_size(div, dvec2(*width as f64, font_size.0 as f64));
         }
 
@@ -838,7 +841,7 @@ impl<'a> Layouter<'a> {
                         let Span::FixedSizeDiv { id, .. } = span else {
                             continue;
                         };
-                        let div = sel.divs.get(&id._priv).unwrap();
+                        let div = sel.divs.get(&id._div_id._priv).unwrap();
                         let div_pos_relative_in_text =
                             t.c_text_layout.get().result.space_sections[i].as_dvec2();
                         div.c_pos.set(absolute_text_pos + div_pos_relative_in_text);
@@ -1302,42 +1305,28 @@ pub struct Text {
     pub offset_y: Len,
 }
 
-#[derive(Debug)]
-pub enum Span {
-    Text(TextSection),
-    FixedSizeDiv {
-        id: UnboundId,
-        width: f32,
-        font_size: FontSize,
-    },
-}
-
-impl Span {
-    pub fn text_mut(&mut self) -> &mut TextSection {
-        match self {
-            Span::Text(t) => t,
-            Span::FixedSizeDiv { .. } => panic!("cannot get text if it is a fixed size div!"),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct TextSection {
-    pub color: Color,
-    pub string: Cow<'static, str>,
-    pub size: FontSize,
-}
-
 impl Text {
-    pub fn new(string: impl Into<Cow<'static, str>>) -> Self {
+    pub fn new(
+        string: impl Into<Cow<'static, str>>,
+        size: u32,
+        color: Color,
+        font: Ptr<Font>,
+    ) -> Self {
         Self {
             spans: smallvec![Span::Text(TextSection {
-                color: Color::BLACK,
+                color: color,
                 string: string.into(),
-                size: FontSize(24)
+                size: FontSize(size)
             })],
+            font: Some(font),
             ..Default::default()
         }
+    }
+
+    pub fn px_offset(mut self, px_x: f64, px_y: f64) -> Self {
+        self.offset_x = Len::px(px_x);
+        self.offset_y = Len::px(px_y);
+        self
     }
 
     pub fn font(mut self, font: Ptr<Font>) -> Self {
@@ -1393,6 +1382,32 @@ impl Default for Text {
             offset_y: Len::ZERO,
         }
     }
+}
+
+#[derive(Debug)]
+pub enum Span {
+    Text(TextSection),
+    FixedSizeDiv {
+        id: UnboundDivId,
+        width: f32,
+        font_size: FontSize,
+    },
+}
+
+impl Span {
+    pub fn text_mut(&mut self) -> &mut TextSection {
+        match self {
+            Span::Text(t) => t,
+            Span::FixedSizeDiv { .. } => panic!("cannot get text if it is a fixed size div!"),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct TextSection {
+    pub color: Color,
+    pub string: Cow<'static, str>,
+    pub size: FontSize,
 }
 
 pub struct CachedTextLayout {

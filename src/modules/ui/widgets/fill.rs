@@ -1,5 +1,5 @@
 use crate::modules::ui::{
-    board::{Board, ContainerId, Id},
+    board::{Board, DivId, Id},
     Len,
 };
 
@@ -24,12 +24,7 @@ pub struct VFill {
 impl Widget for HFill {
     type Response<'a> = ();
 
-    fn add_to_board(
-        self,
-        board: &mut Board,
-        id: Id,
-        parent: Option<ContainerId>,
-    ) -> Self::Response<'_> {
+    fn add_to_board(self, board: &mut Board, id: Id, parent: Option<DivId>) -> Self::Response<'_> {
         board.add_div(id, parent).width(self.width);
     }
 }
@@ -37,12 +32,7 @@ impl Widget for HFill {
 impl Widget for VFill {
     type Response<'a> = ();
 
-    fn add_to_board(
-        self,
-        board: &mut Board,
-        id: Id,
-        parent: Option<ContainerId>,
-    ) -> Self::Response<'_> {
+    fn add_to_board(self, board: &mut Board, id: Id, parent: Option<DivId>) -> Self::Response<'_> {
         board.add_div(id, parent).height(self.height);
     }
 }

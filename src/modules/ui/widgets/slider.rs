@@ -1,15 +1,13 @@
+use super::Widget;
 use crate::{
     elements::Color,
     modules::ui::{
-        board::{
-            Align, Axis, Board, BorderRadius, ContainerId, HotActive, Id, Len, MainAlign, Text,
-        },
+        board::{Align, Axis, Board, BorderRadius, DivId, HotActive, Id, Len, MainAlign, Text},
         widgets::next_hot_active,
-        FontSize,
+        FontSize, Span, TextSection,
     },
 };
-
-use super::Widget;
+use smallvec::smallvec;
 
 /// This is a very rudimentary slider for float values. Nothing fancy. Mainly to show how things can be done in Immediate Mode UI.
 /// No Customization options here. Just copy it and make your own adjustments.
@@ -28,12 +26,7 @@ impl<'v> Slider<'v> {
 impl<'v> Widget for Slider<'v> {
     type Response<'a> = ();
 
-    fn add_to_board(
-        self,
-        board: &mut Board,
-        id: Id,
-        parent: Option<ContainerId>,
-    ) -> Self::Response<'_> {
+    fn add_to_board(self, board: &mut Board, id: Id, parent: Option<DivId>) -> Self::Response<'_> {
         const SLIDER_CONTAINER_WIDTH: f64 = 120.0;
         const SLIDER_WIDTH: f64 = 100.0;
         const KNOB_WIDTH: f64 = 16.0;
@@ -109,8 +102,19 @@ impl<'v> Widget for Slider<'v> {
         knob.offset_x = Len::px(fraction * PX_TOTAL_RANGE);
         board.set_hot_active(knob_id, knob_next_hot_active);
 
-        let mut text_div =
-            board.add_text_div(Text::new(format!("{:.2}", self.value)), id + 4, parent);
+        let mut text_div = board.add_text_div(
+            Text {
+                spans: smallvec![Span::Text(TextSection {
+                    color: Color::BLACK,
+                    string: format!("{:.2}", self.value).into(),
+                    size: FontSize(24)
+                })],
+                font: None,
+                ..Default::default()
+            },
+            id + 4,
+            parent,
+        );
         text_div.width(Len::PARENT);
         text_div.main_align = MainAlign::Center;
     }

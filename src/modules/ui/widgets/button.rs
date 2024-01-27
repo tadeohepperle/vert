@@ -6,7 +6,7 @@ use crate::{
     elements::Color,
     modules::ui::{
         board::{
-            Align, Board, BorderRadius, ContainerId,
+            Align, Board, BorderRadius, DivId,
             HotActive::{self, *},
             Id, Len, MainAlign, Span, Text,
         },
@@ -48,12 +48,7 @@ pub struct ButtonResponse {
 impl Widget for Button {
     type Response<'a> = ButtonResponse;
 
-    fn add_to_board(
-        self,
-        board: &mut Board,
-        id: Id,
-        parent: Option<ContainerId>,
-    ) -> ButtonResponse {
+    fn add_to_board(self, board: &mut Board, id: Id, parent: Option<DivId>) -> ButtonResponse {
         let hot_active = board.hot_active(id);
         let left_button = board.input().mouse_buttons.left();
         let mut btn = board.add_text_div(

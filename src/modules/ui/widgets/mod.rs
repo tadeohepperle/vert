@@ -1,7 +1,7 @@
 use crate::{modules::input::PressState, Ptr};
 
 use super::{
-    board::{Board, ContainerId, HotActive, Id, Response, TextMarker},
+    board::{Board, DivId, HotActive, Id, Response},
     Len, Span, Text, TextSection,
 };
 
@@ -22,12 +22,7 @@ pub trait Widget {
     type Response<'a>;
 
     /// this is an immediate mode API, so this function just adds some divs containing other divs or text to the Board.
-    fn add_to_board(
-        self,
-        board: &mut Board,
-        id: Id,
-        parent: Option<ContainerId>,
-    ) -> Self::Response<'_>;
+    fn add_to_board(self, board: &mut Board, id: Id, parent: Option<DivId>) -> Self::Response<'_>;
 }
 
 /// Shout out to Casey Muratori, our lord and savior. (See this Video as well for an exmplanation: https://www.youtube.com/watch?v=geZwWo-qNR4)
@@ -72,14 +67,9 @@ pub fn next_hot_active(
 }
 
 impl Widget for (TextSection, Ptr<Font>) {
-    type Response<'a> = Response<'a, TextMarker>;
+    type Response<'a> = Response<'a, DivId>;
 
-    fn add_to_board(
-        self,
-        board: &mut Board,
-        id: Id,
-        parent: Option<ContainerId>,
-    ) -> Self::Response<'_> {
+    fn add_to_board(self, board: &mut Board, id: Id, parent: Option<DivId>) -> Self::Response<'_> {
         board.add_text_div(
             Text {
                 spans: smallvec![Span::Text(self.0)],
