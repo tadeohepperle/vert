@@ -50,7 +50,7 @@ pub struct UnboundDivId {
     _div_id: DivId,
 }
 
-trait AsDivId {
+pub trait AsDivId {
     fn div_id(&self) -> DivId;
 }
 
@@ -226,6 +226,24 @@ impl Board {
         widget.add_to_board(self, id.into(), parent)
     }
 
+    pub fn bind_div(&mut self, unbound: UnboundDivId, parent: DivId) {
+        let id = unbound._div_id._priv;
+
+        assert!(parent.can_be_parent);
+
+        let parent = self.divs.get_mut(&parent._priv).unwrap();
+        match &mut parent.content {
+            DivContent::Text(_) => todo!(),
+            DivContent::Children(children) => children.push(id),
+        }
+        // set the z-index to be at least on top of parent.
+        self.divs
+            .get_mut(&id)
+            .unwrap()
+            .z_index
+            .set(self.divs_added_this_frame as i32);
+    }
+
     pub fn add_div(&mut self, id: impl Into<Id>, parent: Option<DivId>) -> Response<'_, DivId> {
         let id: Id = id.into();
         let parent = match parent {
@@ -289,16 +307,15 @@ impl Board {
         text: Option<Text>,
         parent: DivParent,
     ) -> (Comm, OccupiedEntry<'a, Id, Div>) {
-        //Node: opt!() currently we need to do two hash table resolves, which (might be??) the bulk of the work? Not sure, probably totally Fine.
-        self.divs_added_this_frame += 1;
         // go into the parent and register the child:
-
         match parent {
             DivParent::Unbound => {}
             DivParent::TopLevel => {
+                self.divs_added_this_frame += 1;
                 self.top_level_children.push(id);
             }
             DivParent::Parent(parent) => {
+                self.divs_added_this_frame += 1;
                 let parent = self.divs.get_mut(&parent).expect("Invalid Parent...");
                 match &mut parent.content {
                     DivContent::Text { .. } => {
@@ -317,7 +334,7 @@ impl Board {
             Entry::Occupied(mut e) => {
                 let div = e.get_mut();
                 if div.last_frame == self.last_frame {
-                    panic!("Div with id {id:?} inserted twice in one frame!");
+                    panic!("Div with id {id:?} inserted twice in one frame! {div:?}");
                 }
                 div.last_frame = self.last_frame;
 
@@ -679,13 +696,14 @@ impl<'a> Layouter<'a> {
             let Span::FixedSizeDiv {
                 id,
                 width,
+                height,
                 font_size,
             } = span
             else {
                 continue;
             };
             let div = self.divs.get(&id._div_id._priv).expect("Div was inserted");
-            self.get_and_set_size(div, dvec2(*width as f64, font_size.0 as f64));
+            self.get_and_set_size(div, dvec2(*width as f64, *height as f64));
         }
 
         let i_max_size = max_size.as_ivec2();
@@ -708,7 +726,7 @@ impl<'a> Layouter<'a> {
             // because it then returns a way bigger size than the text actually takes and the text is then drawn in the top right corner.
             horizontal_align: HorizontalAlign::Left,
             vertical_align: VerticalAlign::Top,
-            line_height: 1.0,
+            line_height: text_entry.text.line_height,
             wrap_style: fontdue::layout::WrapStyle::Word,
             wrap_hard_breaks: true, // todo!() needle expose these functions
         };
@@ -718,9 +736,11 @@ impl<'a> Layouter<'a> {
             Span::FixedSizeDiv {
                 id,
                 width,
+                height,
                 font_size,
             } => TextLayoutItem::Space {
                 width: *width,
+                height: *height,
                 fontsize: *font_size,
             },
         });
@@ -844,7 +864,10 @@ impl<'a> Layouter<'a> {
                         let div = sel.divs.get(&id._div_id._priv).unwrap();
                         let div_pos_relative_in_text =
                             t.c_text_layout.get().result.space_sections[i].as_dvec2();
-                        div.c_pos.set(absolute_text_pos + div_pos_relative_in_text);
+                        let div_offset =
+                            offset_dvec2(div.style.offset_x, div.style.offset_y, div_size);
+                        div.c_pos
+                            .set(absolute_text_pos + div_pos_relative_in_text + div_offset);
                         sel.set_child_positions(div);
                         i += 1;
                     }
@@ -1303,6 +1326,8 @@ pub struct Text {
     // on the other hand it is very useful to adjust the font baseline in a quick and dirty way.
     pub offset_x: Len,
     pub offset_y: Len,
+    // factor, default is 1.0
+    pub line_height: f32,
 }
 
 impl Text {
@@ -1329,6 +1354,11 @@ impl Text {
         self
     }
 
+    pub fn line_height(mut self, line_height: f32) -> Self {
+        self.line_height = line_height;
+        self
+    }
+
     pub fn font(mut self, font: Ptr<Font>) -> Self {
         self.font = Some(font);
         self
@@ -1350,14 +1380,16 @@ impl Text {
                     Span::FixedSizeDiv {
                         id,
                         width,
+                        height,
                         font_size,
                     },
                     Span::FixedSizeDiv {
                         id: id2,
                         width: width2,
+                        height: height2,
                         font_size: font_size2,
                     },
-                ) => id == id && width == width && font_size == font_size,
+                ) => id == id2 && width == width2 && height == height2 && font_size == font_size2,
                 _ => false,
             };
             if !same {
@@ -1380,6 +1412,7 @@ impl Default for Text {
             font: None,
             offset_x: Len::ZERO,
             offset_y: Len::ZERO,
+            line_height: 1.0,
         }
     }
 }
@@ -1390,6 +1423,7 @@ pub enum Span {
     FixedSizeDiv {
         id: UnboundDivId,
         width: f32,
+        height: f32,
         font_size: FontSize,
     },
 }

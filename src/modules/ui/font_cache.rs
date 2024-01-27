@@ -170,21 +170,25 @@ impl FontCache {
                         },
                     };
                 }
-                TextLayoutItem::Space { width, fontsize } => {
+                TextLayoutItem::Space {
+                    width,
+                    height,
+                    fontsize,
+                } => {
                     // warning: this is hacky as fuck, the only reason we do this is to support holes in the text.
-                    let default_char = font.metrics('O', fontsize.0 as f32);
+                    let default_char = font.metrics('l', fontsize.0 as f32);
 
                     let number_of_default_characters =
-                        (width / default_char.advance_width).ceil() as usize;
-                    let string =
-                        &"OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO"[..number_of_default_characters];
+                        (width / default_char.advance_width).round() as usize;
+                    let string = &"lllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll"
+                        [..number_of_default_characters];
                     text_style = TextStyle {
                         text: &string,
                         px: fontsize.0 as f32,
                         font_index: 0,
                         user_data: UserData::Space {
                             i,
-                            minus_y: -(fontsize.0 as f32) + default_char.bounds.height,
+                            minus_y: (fontsize.0 as f32) - height, //  +
                         },
                     };
                     i += 1;
@@ -250,7 +254,11 @@ impl FontCache {
 pub enum TextLayoutItem<'a> {
     Text(&'a TextSection),
     // whole point of this is that we want to embed non-text divs, e.g. small images into the flow of the text.
-    Space { width: f32, fontsize: FontSize },
+    Space {
+        width: f32,
+        height: f32,
+        fontsize: FontSize,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

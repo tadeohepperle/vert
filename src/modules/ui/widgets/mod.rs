@@ -76,6 +76,7 @@ impl Widget for (TextSection, Ptr<Font>) {
                 font: Some(self.1),
                 offset_x: Len::ZERO,
                 offset_y: Len::ZERO,
+                line_height: 1.0,
             },
             id,
             parent,

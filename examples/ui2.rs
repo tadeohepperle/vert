@@ -123,6 +123,7 @@ impl MyApp {
                     Span::FixedSizeDiv {
                         id: little_box,
                         width: 90.0,
+                        height: 40.0,
                         font_size: FontSize(40)
                     },
                     Span::Text(TextSection {
@@ -134,6 +135,7 @@ impl MyApp {
                 font: Some(self.font.ptr()),
                 offset_x: Len::ZERO,
                 offset_y: Len::ZERO,
+                line_height: 1.0,
             },
             219912,
             parent,
