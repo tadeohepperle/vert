@@ -1,4 +1,4 @@
-mod batching;
+pub mod batching;
 
 mod board;
 pub use board::{

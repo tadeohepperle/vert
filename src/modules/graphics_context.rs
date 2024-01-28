@@ -22,6 +22,7 @@ pub struct GraphicsContext {
 pub struct GraphicsContextConfig {
     pub features: wgpu::Features,
     pub present_mode: wgpu::PresentMode,
+    pub max_push_constant_size: u32,
 }
 
 impl Default for GraphicsContextConfig {
@@ -32,6 +33,7 @@ impl Default for GraphicsContextConfig {
                 | wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
                 | wgpu::Features::TEXTURE_BINDING_ARRAY,
             present_mode: wgpu::PresentMode::AutoNoVsync,
+            max_push_constant_size: 64,
         }
     }
 }
@@ -113,7 +115,7 @@ pub async fn initialize_graphics_context(
                 label: None,
                 features: config.features,
                 limits: wgpu::Limits {
-                    max_push_constant_size: 16,
+                    max_push_constant_size: config.max_push_constant_size,
                     ..Default::default()
                 },
             },

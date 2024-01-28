@@ -1,4 +1,4 @@
-use std::ops::Add;
+use std::ops::{Add, Div, Mul};
 
 use super::lerp::Lerp;
 use glam::{dvec2, vec2, DVec2, Vec2};
@@ -75,6 +75,30 @@ impl Add<Vec2> for Aabb {
     }
 }
 
+impl Mul<f32> for Aabb {
+    type Output = Aabb;
+
+    fn mul(mut self, rhs: f32) -> Self::Output {
+        self.min_x *= rhs;
+        self.min_y *= rhs;
+        self.max_x *= rhs;
+        self.max_y *= rhs;
+        self
+    }
+}
+
+impl Div<f32> for Aabb {
+    type Output = Aabb;
+
+    fn div(mut self, rhs: f32) -> Self::Output {
+        self.min_x /= rhs;
+        self.min_y /= rhs;
+        self.max_x /= rhs;
+        self.max_y /= rhs;
+        self
+    }
+}
+
 impl Aabb {
     pub const fn new(min_x: f32, min_y: f32, max_x: f32, max_y: f32) -> Self {
         Self {
@@ -83,6 +107,21 @@ impl Aabb {
             max_x,
             max_y,
         }
+    }
+
+    /// scales the Aabb around its center.
+    ///
+    /// Scaling with a factor of 2 results in an Aabb twice as large.
+    ///
+    /// Scaling with a factor of 0.5 creates a smaller Aabb, useful for zooming in at icon uv coords.
+    pub fn scale(mut self, factor: f32) -> Self {
+        let center_x = (self.max_x + self.min_x) * 0.5;
+        let center_y = (self.max_y + self.min_y) * 0.5;
+        self.min_x = center_x + (self.min_x - center_x) * factor;
+        self.max_x = center_x + (self.max_x - center_x) * factor;
+        self.min_y = center_y + (self.min_y - center_y) * factor;
+        self.max_y = center_y + (self.max_y - center_y) * factor;
+        self
     }
 
     pub fn contains(&self, pos: Vec2) -> bool {
@@ -116,5 +155,15 @@ impl From<Aabb> for Rect {
             width: val.max_x - val.min_x,
             height: val.max_y - val.min_y,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Aabb;
+    #[test]
+    fn scale_aabb() {
+        let aabb = Aabb::UNIT.scale(0.5);
+        dbg!(aabb);
     }
 }

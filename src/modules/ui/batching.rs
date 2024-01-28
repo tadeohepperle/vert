@@ -175,7 +175,7 @@ impl<'a> SortPrimitive<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BatchRegion {
     Rect(Range<usize>),
     TexturedRect(Range<usize>, Ptr<BindableTexture>),
@@ -193,7 +193,7 @@ impl BatchRegion {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BatchingResult {
     pub rects: Vec<RectRaw>,
     pub textured_rects: Vec<RectRawTextured>,

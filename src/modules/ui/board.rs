@@ -236,12 +236,12 @@ impl Board {
             DivContent::Text(_) => todo!(),
             DivContent::Children(children) => children.push(id),
         }
-        // set the z-index to be at least on top of parent.
-        self.divs
-            .get_mut(&id)
-            .unwrap()
-            .z_index
-            .set(self.divs_added_this_frame as i32);
+        // // set the z-index to be at least on top of parent.
+        // self.divs
+        //     .get_mut(&id)
+        //     .unwrap()
+        //     .z_index
+        //     .set(self.divs_added_this_frame as i32);
     }
 
     pub fn add_div(&mut self, id: impl Into<Id>, parent: Option<DivId>) -> Response<'_, DivId> {
@@ -409,6 +409,36 @@ impl Board {
         // Perform Layout (set sizes and positions for all divs in the tree)
         let mut layouter = Layouter::new(&self.divs, fonts);
         layouter.perform_layout(&self.top_level_children, self.top_level_size);
+    }
+
+    /// Warning: this performs an entire layout run down from this child!
+    #[allow(non_snake_case)]
+    pub fn HACKY_query_size(&self, fonts: &mut FontCache, id: DivId, max_size: DVec2) -> DVec2 {
+        let mut layouter = Layouter::new(&self.divs, fonts);
+        let div = layouter.divs.get(&id._priv).unwrap();
+        let size = layouter.get_and_set_size(div, max_size);
+        size
+    }
+
+    /// Warning: this is usually not intended to be used for most UIs
+    #[allow(non_snake_case)]
+    pub fn HACKY_div_mut(&mut self, id: DivId) -> &mut Div {
+        self.divs.get_mut(&id._priv).unwrap()
+    }
+
+    /// Warning: this is usually not intended to be used for most UIs
+    #[allow(non_snake_case)]
+    pub fn HACKY_swap_last_two_children_of_div<'a>(&'a mut self, id: DivId) {
+        assert!(id.can_be_parent);
+        let div = self.divs.get_mut(&id._priv).unwrap();
+        match &mut div.content {
+            DivContent::Text(_) => unreachable!("Should not be text div"),
+            DivContent::Children(ch) => {
+                let ch_len = ch.len();
+                assert!(ch_len >= 2);
+                ch.swap(ch_len - 1, ch_len - 2);
+            }
+        }
     }
 }
 
@@ -969,17 +999,17 @@ impl<'a> Layouter<'a> {
 
 #[derive(Debug)]
 pub struct Div {
-    pub(super) content: DivContent,
-    pub(crate) style: DivStyle,
+    pub content: DivContent,
+    pub style: DivStyle,
     // last_frame is reset every frame.
     last_frame: u64,
     // calculated as parent.z_index + 1, important for sorting in batching.
-    pub(crate) z_index: Cell<i32>,
+    pub z_index: Cell<i32>,
     // computed sizes and position
-    pub(crate) c_size: Cell<DVec2>,
-    pub(crate) c_content_size: Cell<DVec2>,
-    pub(crate) c_pos: Cell<DVec2>,
-    pub(crate) c_padding: Cell<ComputedPadding>,
+    pub c_size: Cell<DVec2>,
+    pub c_content_size: Cell<DVec2>,
+    pub c_pos: Cell<DVec2>,
+    pub c_padding: Cell<ComputedPadding>,
 }
 
 impl Div {
@@ -1264,6 +1294,13 @@ pub struct DivTexture {
     pub uv: Aabb,
 }
 
+impl DivTexture {
+    pub fn scale(mut self, factor: f32) -> Self {
+        self.uv = self.uv.scale(factor);
+        self
+    }
+}
+
 /// todo! make BorderRadius have not only f32 pixels but also PercentOfParent(f32).
 #[repr(C)]
 #[derive(Debug, Clone, bytemuck::Pod, bytemuck::Zeroable, Copy, Default)]
@@ -1295,13 +1332,13 @@ impl BorderRadius {
 }
 
 #[derive(Debug)]
-pub(super) enum DivContent {
+pub enum DivContent {
     Text(TextEntry),
     Children(Vec<Id>),
 }
 
 #[derive(Debug)]
-pub(super) struct TextEntry {
+pub struct TextEntry {
     pub text: Text,
     pub c_pos: Cell<DVec2>,
     pub c_text_layout: ChillCell<CachedTextLayout>,
